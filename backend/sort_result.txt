@@ -1,0 +1,29 @@
+﻿
+=== Orden final de productos ===
+Stock | Desc%  | Nombre
+------+--------+-----------------------------------------
+  100 |    21% | Kingston Pendrive USB 3.2 64GB
+   50 |    20% | Redragon K552 Teclado Mec├ínico RGB
+   40 |    18% | Philips Licuadora 700W Jarra Vidrio
+   35 |    18% | JBL Charge 5 Parlante Bluetooth
+   15 |    16% | Monitor LG 24" Full HD IPS
+   20 |    16% | Sony WH-1000XM5 Auriculares Bluetooth
+    8 |    15% | Lenovo IdeaPad 3 15" Intel i5
+    8 |    15% | LG Lavarropas Inverter 9Kg
+   15 |    15% | Samsung 55" QLED 4K Smart TV
+    6 |    15% | Samsung Heladera No Frost 400L
+   25 |    14% | Oster Cafetera Express 19 Bar
+   22 |    14% | LG 43" Full HD Smart TV
+    7 |    13% | Silla Gamer DXRacer Formula OH/FH08
+    5 |    13% | Sony PlayStation 5 Slim Digital
+   14 |    13% | ASUS VivoBook 14 Intel i3
+   20 |    12% | Whirlpool Microondas 25L Digital
+   10 |    11% | Nintendo Switch OLED 64GB
+   12 |    10% | iPhone 15 128GB
+   30 |     9% | Samsung Galaxy A55 5G 256GB
+   18 |     0% | TCL 50" 4K UHD Android TV
+   25 |     0% | Motorola Edge 50 Neo 256GB
+   10 |     0% | HP Pavilion 15 AMD Ryzen 5
+   12 |     0% | Samsung Soundbar HW-B450 2.1
+   18 |     0% | Rowenta Plancha Vapor 2400W
+   28 |     0% | Logitech MX Master 3S Mouse Inal├ímbrico

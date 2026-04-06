@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-brand: 37 99 235;
+    --color-brand-light: 219 234 254;
+    /* Fondo Apple-style — gris levemente cálido */
+    --bg-page: #F5F5F7;
+    --header-h: 64px;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    /* Fondo gris Apple, sin azul en grises */
+    background-color: var(--bg-page);
+    @apply font-sans text-slate-900 antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+
+  /* Scrollbar delgada y discreta */
+  ::-webkit-scrollbar        { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { @apply bg-slate-200 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-slate-300; }
+
+  ::selection { @apply bg-brand-100 text-brand-900; }
+}
+
+@layer components {
+  .container-main {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .section-divider { @apply border-t border-slate-100; }
+
+  .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; }
+
+  .badge-pending    { @apply bg-amber-50  text-amber-700  ring-1 ring-amber-200;  }
+  .badge-paid       { @apply bg-blue-50   text-blue-700   ring-1 ring-blue-200;   }
+  .badge-processing { @apply bg-violet-50 text-violet-700 ring-1 ring-violet-200; }
+  .badge-shipped    { @apply bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200; }
+  .badge-delivered  { @apply bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200; }
+  .badge-cancelled  { @apply bg-red-50    text-red-600    ring-1 ring-red-200;    }
+
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-1;
+  }
+
+  /* ─── Product card — base Apple style ─── */
+  .product-card {
+    @apply relative flex flex-col bg-white rounded-3xl overflow-hidden
+           transition-all duration-300 ease-out cursor-pointer;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.06);
+    will-change: transform, box-shadow;
+  }
+  .product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.10), 0 2px 8px rgb(0 0 0 / 0.06);
+  }
+
+  /* ─── Sidebar de filtros — sticky con scroll propio ─── */
+  .filters-sidebar {
+    position: sticky;
+    top: var(--header-h);
+    height: calc(100vh - var(--header-h));
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #e2e8f0 transparent;
+  }
+}
+
+@layer utilities {
+  .text-gradient-brand {
+    @apply bg-gradient-to-r from-brand-600 to-brand-800 bg-clip-text text-transparent;
+  }
+
+  /* Animación de entrada en cascada para las cards */
+  .card-enter {
+    animation: cardEnter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes cardEnter {
+    from { opacity: 0; transform: translateY(18px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+  }
+
+  /* Fade suave genérico */
+  .fade-up {
+    animation: fadeUp 0.35s ease-out both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0);   }
+  }
+}

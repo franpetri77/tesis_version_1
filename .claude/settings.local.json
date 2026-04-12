@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /c/Users/popet/OneDrive/Desktop/nuevotesis/frontend/src/app/\\\\\\(public\\\\\\)/catalogo)",
+      "Bash(mkdir -p /c/Users/popet/OneDrive/Desktop/nuevotesis/frontend/src/app/\\\\\\(public\\\\\\)/producto/\\\\[slug\\\\])",
+      "Bash(mkdir -p /c/Users/popet/OneDrive/Desktop/nuevotesis/frontend/src/app/\\\\\\(auth\\\\\\)/login)",
+      "Bash(mkdir -p /c/Users/popet/OneDrive/Desktop/nuevotesis/frontend/src/app/\\\\\\(auth\\\\\\)/registro)",
+      "Bash(mkdir -p /c/Users/popet/OneDrive/Desktop/nuevotesis/frontend/src/app/\\\\\\(shop\\\\\\)/carrito)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(npx tsx:*)",
+      "Bash(curl -s http://localhost:4000/health)",
+      "Bash(curl -s \"http://localhost:4000/catalog/categories\")",
+      "Bash(curl -s \"http://localhost:4000/catalog/products/featured?limit=3\")",
+      "Bash(kill %1)",
+      "Bash(ls /c/Users/popet/OneDrive/Desktop/nuevotesis/frontend/next.config*)",
+      "Bash(npx tsc:*)",
+      "Bash(curl -s http://localhost:4000/reports/metrics)",
+      "Bash(curl -s http://localhost:4000/reports/top-products)",
+      "Bash(curl -s http://localhost:4000/reports/worst-products)",
+      "Bash(curl -s http://localhost:4000/reports/orders)",
+      "Bash(curl -s http://localhost:4000/reports/users)",
+      "Bash(curl -s \"http://localhost:4000/reports/sales?from=2024-01-01&to=2026-12-31\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s \"http://localhost:4000/reports/worst-products?limit=3\")",
+      "Bash(sed -n '45,65p' /c/Users/popet/OneDrive/Desktop/nuevotesis/frontend/src/app/\\\\\\(admin\\\\\\)/admin/pedidos/page.tsx)",
+      "Bash(sed -n '48,65p' /c/Users/popet/OneDrive/Desktop/nuevotesis/frontend/src/components/catalog/CatalogFilters.tsx)",
+      "Bash(node:*)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill:*)",
+      "Bash(cmd:*)"
+    ]
+  }
+}

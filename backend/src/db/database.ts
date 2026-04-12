@@ -9,7 +9,9 @@ import path from "path";
 import { initSchema } from "./schema";
 
 // Ruta absoluta al archivo de base de datos (en la raíz del backend)
-const DB_PATH = path.resolve(process.cwd(), "tele_import.db");
+const DB_PATH = process.env.DB_PATH
+	? path.resolve(process.env.DB_PATH)
+	: path.resolve(process.cwd(), "tele_import.db");
 
 // Crear instancia singleton
 const db = new Database(DB_PATH);

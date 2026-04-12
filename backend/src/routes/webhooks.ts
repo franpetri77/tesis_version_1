@@ -60,7 +60,7 @@ webhooksRouter.post("/mercadopago", async (req: Request, res) => {
     // Actualizar el pedido en Directus
     await updateOrderStatus(orderId, orderStatus, {
       mp_payment_id: String(paymentId),
-      mp_status: paymentStatus,
+      mp_status: paymentStatus ?? null,
     });
 
     console.log(

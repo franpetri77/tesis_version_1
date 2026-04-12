@@ -28,7 +28,9 @@
       "Bash(node:*)",
       "Bash(netstat -ano)",
       "Bash(taskkill:*)",
-      "Bash(cmd:*)"
+      "Bash(cmd:*)",
+      "Bash(git fetch:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }

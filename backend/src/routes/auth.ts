@@ -16,6 +16,8 @@
 import { Router, Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { randomUUID } from "crypto";
+import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 
 export const authRouter = Router();
@@ -26,7 +28,7 @@ const JWT_EXPIRES_IN = "7d"; // Token válido por 7 días
 // -----------------------------------------------
 // Tipos internos
 // -----------------------------------------------
-interface DbUser {
+interface DbUser extends RowDataPacket {
   id: string;
   email: string;
   password: string;
@@ -35,9 +37,10 @@ interface DbUser {
   phone: string | null;
   role: string;
   created_at: string;
+  updated_at: string;
 }
 
-interface DbOrder {
+interface DbOrder extends RowDataPacket {
   id: string;
   order_number: string;
   user_id: string;
@@ -53,7 +56,7 @@ interface DbOrder {
   updated_at: string;
 }
 
-interface DbAddress {
+interface DbAddress extends RowDataPacket {
   id: string;
   user_id: string;
   street: string;
@@ -65,6 +68,7 @@ interface DbAddress {
   postal_code: string;
   country: string;
   is_default: number;
+  created_at: string;
 }
 
 // -----------------------------------------------
@@ -91,7 +95,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 // POST /auth/login
 // Body: { email, password }
 // -----------------------------------------------
-authRouter.post("/login", (req, res) => {
+authRouter.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -99,29 +103,36 @@ authRouter.post("/login", (req, res) => {
     return;
   }
 
-  const user = db
-    .prepare("SELECT * FROM users WHERE email = ?")
-    .get(email.toLowerCase().trim()) as DbUser | undefined;
+  try {
+    const [rows] = await db.query<DbUser[]>(
+      "SELECT * FROM users WHERE email = ?",
+      [email.toLowerCase().trim()]
+    );
+    const user = rows[0];
 
-  if (!user || !bcrypt.compareSync(password, user.password)) {
-    res.status(401).json({ error: "Credenciales incorrectas" });
-    return;
+    if (!user || !bcrypt.compareSync(password, user.password)) {
+      res.status(401).json({ error: "Credenciales incorrectas" });
+      return;
+    }
+
+    const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN,
+    });
+
+    // Devolver datos del usuario sin la contraseña
+    const { password: _pw, ...userWithoutPassword } = user;
+    res.json({ data: { user: userWithoutPassword, access_token: token } });
+  } catch (error) {
+    console.error("[Auth] Error en login:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
-
-  const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
-  });
-
-  // Devolver datos del usuario sin la contraseña
-  const { password: _pw, ...userWithoutPassword } = user;
-  res.json({ data: { user: userWithoutPassword, access_token: token } });
 });
 
 // -----------------------------------------------
 // POST /auth/register
 // Body: { email, password, first_name, last_name, phone? }
 // -----------------------------------------------
-authRouter.post("/register", (req, res) => {
+authRouter.post("/register", async (req, res) => {
   const { email, password, first_name, last_name, phone } = req.body;
 
   if (!email || !password || !first_name || !last_name) {
@@ -134,63 +145,77 @@ authRouter.post("/register", (req, res) => {
     return;
   }
 
-  // Verificar si el email ya existe
-  const existing = db
-    .prepare("SELECT id FROM users WHERE email = ?")
-    .get(email.toLowerCase().trim());
+  try {
+    // Verificar si el email ya existe
+    const [existing] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM users WHERE email = ?",
+      [email.toLowerCase().trim()]
+    );
 
-  if (existing) {
-    res.status(409).json({ error: "Ya existe una cuenta con ese email" });
-    return;
+    if (existing.length > 0) {
+      res.status(409).json({ error: "Ya existe una cuenta con ese email" });
+      return;
+    }
+
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    // Generar UUID en la app para evitar dependencia del DEFAULT de la DB
+    const newUserId = randomUUID();
+
+    await db.query(
+      `INSERT INTO users (id, email, password, first_name, last_name, phone, role)
+       VALUES (?, ?, ?, ?, ?, ?, 'customer')`,
+      [newUserId, email.toLowerCase().trim(), hashedPassword, first_name, last_name, phone ?? null]
+    );
+
+    // Recuperar el usuario creado usando el UUID conocido
+    const [newRows] = await db.query<DbUser[]>(
+      "SELECT id, email, first_name, last_name, phone, role, created_at FROM users WHERE id = ?",
+      [newUserId]
+    );
+    const newUser = newRows[0];
+
+    const token = jwt.sign({ userId: newUser.id, role: "customer" }, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN,
+    });
+
+    res.status(201).json({ data: { user: newUser, access_token: token } });
+  } catch (error) {
+    console.error("[Auth] Error en register:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
-
-  const hashedPassword = bcrypt.hashSync(password, 10);
-
-  const info = db
-    .prepare(
-      `INSERT INTO users (email, password, first_name, last_name, phone, role)
-       VALUES (?, ?, ?, ?, ?, 'customer')`
-    )
-    .run(email.toLowerCase().trim(), hashedPassword, first_name, last_name, phone ?? null);
-
-  // Obtener el usuario recién creado
-  const newUser = db
-    .prepare("SELECT id, email, first_name, last_name, phone, role, created_at FROM users WHERE rowid = ?")
-    .get(info.lastInsertRowid) as Omit<DbUser, "password">;
-
-  const token = jwt.sign({ userId: newUser.id, role: "customer" }, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
-  });
-
-  res.status(201).json({ data: { user: newUser, access_token: token } });
 });
 
 // -----------------------------------------------
 // GET /auth/me
 // Header: Authorization: Bearer <token>
 // -----------------------------------------------
-authRouter.get("/me", requireAuth, (req, res) => {
+authRouter.get("/me", requireAuth, async (req, res) => {
   const { userId } = (req as Request & { user: { userId: string } }).user;
 
-  const user = db
-    .prepare(
-      "SELECT id, email, first_name, last_name, phone, role, created_at, updated_at FROM users WHERE id = ?"
-    )
-    .get(userId);
+  try {
+    const [rows] = await db.query<DbUser[]>(
+      "SELECT id, email, first_name, last_name, phone, role, created_at, updated_at FROM users WHERE id = ?",
+      [userId]
+    );
+    const user = rows[0];
 
-  if (!user) {
-    res.status(404).json({ error: "Usuario no encontrado" });
-    return;
+    if (!user) {
+      res.status(404).json({ error: "Usuario no encontrado" });
+      return;
+    }
+
+    res.json({ data: user });
+  } catch (error) {
+    console.error("[Auth] Error en /me:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
-
-  res.json({ data: user });
 });
 
 // -----------------------------------------------
 // PATCH /auth/me - actualizar nombre, apellido y teléfono
 // Body: { first_name, last_name, phone? }
 // -----------------------------------------------
-authRouter.patch("/me", requireAuth, (req, res) => {
+authRouter.patch("/me", requireAuth, async (req, res) => {
   const { userId } = (req as Request & { user: { userId: string } }).user;
   const { first_name, last_name, phone } = req.body as {
     first_name?: string;
@@ -203,64 +228,79 @@ authRouter.patch("/me", requireAuth, (req, res) => {
     return;
   }
 
-  db.prepare(
-    `UPDATE users SET first_name = ?, last_name = ?, phone = ?, updated_at = datetime('now') WHERE id = ?`
-  ).run(first_name.trim(), last_name.trim(), phone?.trim() ?? null, userId);
+  try {
+    // NOW() reemplaza datetime('now') de SQLite
+    await db.query(
+      `UPDATE users SET first_name = ?, last_name = ?, phone = ?, updated_at = NOW() WHERE id = ?`,
+      [first_name.trim(), last_name.trim(), phone?.trim() ?? null, userId]
+    );
 
-  const user = db
-    .prepare(
-      "SELECT id, email, first_name, last_name, phone, role, created_at, updated_at FROM users WHERE id = ?"
-    )
-    .get(userId);
+    const [rows] = await db.query<DbUser[]>(
+      "SELECT id, email, first_name, last_name, phone, role, created_at, updated_at FROM users WHERE id = ?",
+      [userId]
+    );
 
-  res.json({ data: user });
+    res.json({ data: rows[0] });
+  } catch (error) {
+    console.error("[Auth] Error en PATCH /me:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
 });
 
 // -----------------------------------------------
 // GET /auth/orders - pedidos del usuario autenticado
 // -----------------------------------------------
-authRouter.get("/orders", requireAuth, (req, res) => {
+authRouter.get("/orders", requireAuth, async (req, res) => {
   const { userId } = (req as Request & { user: { userId: string } }).user;
 
-  const orders = db
-    .prepare(`SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC`)
-    .all(userId) as DbOrder[];
+  try {
+    const [orders] = await db.query<DbOrder[]>(
+      "SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC",
+      [userId]
+    );
 
-  // Para cada pedido se obtienen los ítems con nombre del producto
-  const ordersWithItems = orders.map((order) => {
-    const items = db
-      .prepare(
-        `SELECT oi.*, p.name AS product_name, p.slug AS product_slug
-         FROM order_items oi
-         JOIN products p ON p.id = oi.product_id
-         WHERE oi.order_id = ?`
-      )
-      .all(order.id);
-    return { ...order, items };
-  });
+    // Para cada pedido se obtienen los ítems con nombre del producto
+    const ordersWithItems = await Promise.all(
+      orders.map(async (order) => {
+        const [items] = await db.query<RowDataPacket[]>(
+          `SELECT oi.*, p.name AS product_name, p.slug AS product_slug
+           FROM order_items oi
+           JOIN products p ON p.id = oi.product_id
+           WHERE oi.order_id = ?`,
+          [order.id]
+        );
+        return { ...order, items };
+      })
+    );
 
-  res.json({ data: ordersWithItems });
+    res.json({ data: ordersWithItems });
+  } catch (error) {
+    console.error("[Auth] Error en GET /orders:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
 });
 
 // -----------------------------------------------
 // GET /auth/orders/:id - detalle completo de un pedido
 // -----------------------------------------------
-authRouter.get("/orders/:id", requireAuth, (req, res) => {
+authRouter.get("/orders/:id", requireAuth, async (req, res) => {
   const { userId } = (req as Request & { user: { userId: string } }).user;
   const { id } = req.params;
 
-  const order = db
-    .prepare(`SELECT * FROM orders WHERE id = ? AND user_id = ?`)
-    .get(id, userId) as DbOrder | undefined;
+  try {
+    const [orderRows] = await db.query<DbOrder[]>(
+      "SELECT * FROM orders WHERE id = ? AND user_id = ?",
+      [id, userId]
+    );
+    const order = orderRows[0];
 
-  if (!order) {
-    res.status(404).json({ error: "Pedido no encontrado" });
-    return;
-  }
+    if (!order) {
+      res.status(404).json({ error: "Pedido no encontrado" });
+      return;
+    }
 
-  // Ítems enriquecidos con imagen y datos del producto
-  const items = db
-    .prepare(
+    // Ítems enriquecidos con imagen y datos del producto
+    const [items] = await db.query<RowDataPacket[]>(
       `SELECT oi.*,
               p.name  AS product_name,
               p.slug  AS product_slug,
@@ -269,33 +309,41 @@ authRouter.get("/orders/:id", requireAuth, (req, res) => {
                WHERE product_id = p.id ORDER BY sort_order LIMIT 1) AS product_image
        FROM order_items oi
        JOIN products p ON p.id = oi.product_id
-       WHERE oi.order_id = ?`
-    )
-    .all(id);
+       WHERE oi.order_id = ?`,
+      [id]
+    );
 
-  res.json({ data: { ...order, items } });
+    res.json({ data: { ...order, items } });
+  } catch (error) {
+    console.error("[Auth] Error en GET /orders/:id:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
 });
 
 // -----------------------------------------------
 // GET /auth/addresses - listar direcciones del usuario
 // -----------------------------------------------
-authRouter.get("/addresses", requireAuth, (req, res) => {
+authRouter.get("/addresses", requireAuth, async (req, res) => {
   const { userId } = (req as Request & { user: { userId: string } }).user;
 
-  const addresses = db
-    .prepare(
-      `SELECT * FROM addresses WHERE user_id = ? ORDER BY is_default DESC, rowid ASC`
-    )
-    .all(userId);
-
-  res.json({ data: addresses });
+  try {
+    // Nota: MySQL no tiene rowid; se ordena por is_default DESC y created_at como proxy de orden de inserción
+    const [addresses] = await db.query<DbAddress[]>(
+      "SELECT * FROM addresses WHERE user_id = ? ORDER BY is_default DESC, created_at ASC",
+      [userId]
+    );
+    res.json({ data: addresses });
+  } catch (error) {
+    console.error("[Auth] Error en GET /addresses:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
 });
 
 // -----------------------------------------------
 // POST /auth/addresses - crear nueva dirección
 // Body: { street, number, floor?, apartment?, city, province, postal_code, country?, is_default? }
 // -----------------------------------------------
-authRouter.post("/addresses", requireAuth, (req, res) => {
+authRouter.post("/addresses", requireAuth, async (req, res) => {
   const { userId } = (req as Request & { user: { userId: string } }).user;
   const { street, number, floor, apartment, city, province, postal_code, country, is_default } =
     req.body as Partial<DbAddress>;
@@ -307,37 +355,48 @@ authRouter.post("/addresses", requireAuth, (req, res) => {
     return;
   }
 
-  // Si se marca como predeterminada, quitar el flag de las demás
-  if (is_default) {
-    db.prepare(`UPDATE addresses SET is_default = 0 WHERE user_id = ?`).run(userId);
-  }
+  try {
+    // Si se marca como predeterminada, quitar el flag de las demás
+    if (is_default) {
+      await db.query("UPDATE addresses SET is_default = 0 WHERE user_id = ?", [userId]);
+    }
 
-  const info = db
-    .prepare(
-      `INSERT INTO addresses (user_id, street, number, floor, apartment, city, province, postal_code, country, is_default)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      userId,
-      street.trim(),
-      number.trim(),
-      floor?.trim() ?? null,
-      apartment?.trim() ?? null,
-      city.trim(),
-      province.trim(),
-      postal_code.trim(),
-      country?.trim() ?? "Argentina",
-      is_default ? 1 : 0
+    const newAddressId = randomUUID();
+
+    await db.query(
+      `INSERT INTO addresses (id, user_id, street, number, floor, apartment, city, province, postal_code, country, is_default)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        newAddressId,
+        userId,
+        (street as string).trim(),
+        (number as string).trim(),
+        typeof floor === "string" ? floor.trim() : null,
+        typeof apartment === "string" ? apartment.trim() : null,
+        (city as string).trim(),
+        (province as string).trim(),
+        (postal_code as string).trim(),
+        typeof country === "string" ? country.trim() : "Argentina",
+        is_default ? 1 : 0,
+      ]
     );
 
-  const address = db.prepare(`SELECT * FROM addresses WHERE rowid = ?`).get(info.lastInsertRowid);
-  res.status(201).json({ data: address });
+    // Recuperar la dirección creada usando el UUID conocido
+    const [rows] = await db.query<DbAddress[]>(
+      "SELECT * FROM addresses WHERE id = ?",
+      [newAddressId]
+    );
+    res.status(201).json({ data: rows[0] });
+  } catch (error) {
+    console.error("[Auth] Error en POST /addresses:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
 });
 
 // -----------------------------------------------
 // PUT /auth/addresses/:id - actualizar una dirección existente
 // -----------------------------------------------
-authRouter.put("/addresses/:id", requireAuth, (req, res) => {
+authRouter.put("/addresses/:id", requireAuth, async (req, res) => {
   const { userId } = (req as Request & { user: { userId: string } }).user;
   const { id } = req.params;
   const { street, number, floor, apartment, city, province, postal_code, country, is_default } =
@@ -350,86 +409,107 @@ authRouter.put("/addresses/:id", requireAuth, (req, res) => {
     return;
   }
 
-  const existing = db
-    .prepare(`SELECT id FROM addresses WHERE id = ? AND user_id = ?`)
-    .get(id, userId);
+  try {
+    const [existing] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM addresses WHERE id = ? AND user_id = ?",
+      [id, userId]
+    );
 
-  if (!existing) {
-    res.status(404).json({ error: "Dirección no encontrada" });
-    return;
+    if (existing.length === 0) {
+      res.status(404).json({ error: "Dirección no encontrada" });
+      return;
+    }
+
+    if (is_default) {
+      await db.query("UPDATE addresses SET is_default = 0 WHERE user_id = ?", [userId]);
+    }
+
+    await db.query(
+      `UPDATE addresses
+       SET street = ?, number = ?, floor = ?, apartment = ?, city = ?, province = ?, postal_code = ?, country = ?, is_default = ?
+       WHERE id = ? AND user_id = ?`,
+      [
+        (street as string).trim(),
+        (number as string).trim(),
+        typeof floor === "string" ? floor.trim() : null,
+        typeof apartment === "string" ? apartment.trim() : null,
+        (city as string).trim(),
+        (province as string).trim(),
+        (postal_code as string).trim(),
+        typeof country === "string" ? country.trim() : "Argentina",
+        is_default ? 1 : 0,
+        id,
+        userId,
+      ]
+    );
+
+    const [rows] = await db.query<DbAddress[]>(
+      "SELECT * FROM addresses WHERE id = ?",
+      [id]
+    );
+    res.json({ data: rows[0] });
+  } catch (error) {
+    console.error("[Auth] Error en PUT /addresses/:id:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
-
-  if (is_default) {
-    db.prepare(`UPDATE addresses SET is_default = 0 WHERE user_id = ?`).run(userId);
-  }
-
-  db.prepare(
-    `UPDATE addresses
-     SET street = ?, number = ?, floor = ?, apartment = ?, city = ?, province = ?, postal_code = ?, country = ?, is_default = ?
-     WHERE id = ? AND user_id = ?`
-  ).run(
-    street.trim(),
-    number.trim(),
-    floor?.trim() ?? null,
-    apartment?.trim() ?? null,
-    city.trim(),
-    province.trim(),
-    postal_code.trim(),
-    country?.trim() ?? "Argentina",
-    is_default ? 1 : 0,
-    id,
-    userId
-  );
-
-  const address = db.prepare(`SELECT * FROM addresses WHERE id = ?`).get(id);
-  res.json({ data: address });
 });
 
 // -----------------------------------------------
 // DELETE /auth/addresses/:id - eliminar una dirección
 // -----------------------------------------------
-authRouter.delete("/addresses/:id", requireAuth, (req, res) => {
+authRouter.delete("/addresses/:id", requireAuth, async (req, res) => {
   const { userId } = (req as Request & { user: { userId: string } }).user;
   const { id } = req.params;
 
-  const existing = db
-    .prepare(`SELECT id FROM addresses WHERE id = ? AND user_id = ?`)
-    .get(id, userId);
+  try {
+    const [existing] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM addresses WHERE id = ? AND user_id = ?",
+      [id, userId]
+    );
 
-  if (!existing) {
-    res.status(404).json({ error: "Dirección no encontrada" });
-    return;
+    if (existing.length === 0) {
+      res.status(404).json({ error: "Dirección no encontrada" });
+      return;
+    }
+
+    await db.query("DELETE FROM addresses WHERE id = ? AND user_id = ?", [id, userId]);
+    res.json({ data: { deleted: true } });
+  } catch (error) {
+    console.error("[Auth] Error en DELETE /addresses/:id:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
-
-  db.prepare(`DELETE FROM addresses WHERE id = ? AND user_id = ?`).run(id, userId);
-  res.json({ data: { deleted: true } });
 });
 
 // -----------------------------------------------
 // PATCH /auth/addresses/:id/default - marcar como predeterminada
 // -----------------------------------------------
-authRouter.patch("/addresses/:id/default", requireAuth, (req, res) => {
+authRouter.patch("/addresses/:id/default", requireAuth, async (req, res) => {
   const { userId } = (req as Request & { user: { userId: string } }).user;
   const { id } = req.params;
 
-  const existing = db
-    .prepare(`SELECT id FROM addresses WHERE id = ? AND user_id = ?`)
-    .get(id, userId);
+  try {
+    const [existing] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM addresses WHERE id = ? AND user_id = ?",
+      [id, userId]
+    );
 
-  if (!existing) {
-    res.status(404).json({ error: "Dirección no encontrada" });
-    return;
+    if (existing.length === 0) {
+      res.status(404).json({ error: "Dirección no encontrada" });
+      return;
+    }
+
+    // Quitar flag de todas y poner en la seleccionada
+    await db.query("UPDATE addresses SET is_default = 0 WHERE user_id = ?", [userId]);
+    await db.query("UPDATE addresses SET is_default = 1 WHERE id = ?", [id]);
+
+    const [addresses] = await db.query<DbAddress[]>(
+      "SELECT * FROM addresses WHERE user_id = ? ORDER BY is_default DESC, created_at ASC",
+      [userId]
+    );
+
+    res.json({ data: addresses });
+  } catch (error) {
+    console.error("[Auth] Error en PATCH /addresses/:id/default:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
-
-  // Quitar flag de todas y poner en la seleccionada
-  db.prepare(`UPDATE addresses SET is_default = 0 WHERE user_id = ?`).run(userId);
-  db.prepare(`UPDATE addresses SET is_default = 1 WHERE id = ?`).run(id);
-
-  const addresses = db
-    .prepare(
-      `SELECT * FROM addresses WHERE user_id = ? ORDER BY is_default DESC, rowid ASC`
-    )
-    .all(userId);
-
-  res.json({ data: addresses });
 });

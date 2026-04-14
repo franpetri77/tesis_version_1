@@ -1,12 +1,15 @@
 // =============================================
 // RUTA: WEBHOOKS DE MERCADO PAGO
 // Recibe las notificaciones de pago de MP y actualiza
-// el estado del pedido en Directus.
+// el estado del pedido directamente en MySQL.
 // =============================================
 
 import { Router, type Request } from "express";
 import { MercadoPagoConfig, Payment } from "mercadopago";
+import { randomUUID } from "crypto";
 import crypto from "crypto";
+import type { RowDataPacket } from "mysql2";
+import db from "../db/database";
 
 export const webhooksRouter = Router();
 
@@ -17,7 +20,7 @@ const mpClient = new MercadoPagoConfig({
 /**
  * POST /webhooks/mercadopago
  * Endpoint que Mercado Pago llama cuando cambia el estado de un pago.
- * Verifica la firma de la notificación y actualiza el pedido en Directus.
+ * Verifica la firma de la notificación y actualiza el pedido en MySQL.
  */
 webhooksRouter.post("/mercadopago", async (req: Request, res) => {
   try {
@@ -57,10 +60,12 @@ webhooksRouter.post("/mercadopago", async (req: Request, res) => {
     // Mapear el estado de MP al estado interno del pedido
     const orderStatus = mapMpStatusToOrderStatus(paymentStatus ?? "");
 
-    // Actualizar el pedido en Directus
-    await updateOrderStatus(orderId, orderStatus, {
+    // Actualizar el pedido directamente en MySQL
+    await updateOrderInDb(orderId, orderStatus, {
       mp_payment_id: String(paymentId),
       mp_status: paymentStatus ?? null,
+      amount: paymentData.transaction_amount ?? 0,
+      raw_response: paymentData,
     });
 
     console.log(
@@ -107,11 +112,11 @@ function verifyWebhookSignature(
  */
 function mapMpStatusToOrderStatus(mpStatus: string): string {
   const map: Record<string, string> = {
-    approved: "paid",
-    rejected: "cancelled",
-    cancelled: "cancelled",
-    refunded: "refunded",
-    pending: "pending",
+    approved:   "paid",
+    rejected:   "cancelled",
+    cancelled:  "cancelled",
+    refunded:   "refunded",
+    pending:    "pending",
     in_process: "pending",
     authorized: "pending",
   };
@@ -119,37 +124,58 @@ function mapMpStatusToOrderStatus(mpStatus: string): string {
 }
 
 /**
- * Actualiza el estado del pedido en Directus via REST API.
+ * Actualiza el estado del pedido y registra el pago en MySQL.
+ * Reemplaza la integración con Directus que estaba en la versión anterior.
  */
-async function updateOrderStatus(
+async function updateOrderInDb(
   orderId: string,
   status: string,
-  paymentData: { mp_payment_id: string; mp_status: string | null }
+  paymentData: {
+    mp_payment_id: string;
+    mp_status: string | null;
+    amount: number;
+    raw_response: unknown;
+  }
 ): Promise<void> {
-  const directusUrl = process.env.DIRECTUS_URL ?? "http://localhost:8055";
-  const token = process.env.DIRECTUS_SERVICE_TOKEN ?? "";
+  const conn = await db.getConnection();
+  await conn.beginTransaction();
+  try {
+    // Actualizar estado del pedido
+    await conn.query(
+      "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?",
+      [status, orderId]
+    );
 
-  // Actualizar estado del pedido
-  await fetch(`${directusUrl}/items/orders/${orderId}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ status }),
-  });
+    // Obtener el total del pedido para registrar en payments
+    const [orderRows] = await conn.query<RowDataPacket[]>(
+      "SELECT total FROM orders WHERE id = ?",
+      [orderId]
+    );
 
-  // Actualizar registro de pago
-  await fetch(`${directusUrl}/items/payments`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      order_id: orderId,
-      mp_payment_id: paymentData.mp_payment_id,
-      status: paymentData.mp_status === "approved" ? "approved" : "rejected",
-    }),
-  });
+    if (orderRows.length > 0) {
+      const paymentId = randomUUID();
+      const mpPaymentStatus = paymentData.mp_status === "approved" ? "approved" : "pending";
+
+      await conn.query(
+        `INSERT INTO payments
+           (id, order_id, mp_payment_id, status, amount, currency, raw_response)
+         VALUES (?, ?, ?, ?, ?, 'ARS', ?)`,
+        [
+          paymentId,
+          orderId,
+          paymentData.mp_payment_id,
+          mpPaymentStatus,
+          paymentData.amount || (orderRows[0] as { total: number }).total,
+          JSON.stringify(paymentData.raw_response),
+        ]
+      );
+    }
+
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
 }

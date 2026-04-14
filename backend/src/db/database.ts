@@ -1,26 +1,29 @@
 // =============================================
-// CONEXIÓN A LA BASE DE DATOS SQLITE
-// Módulo singleton que expone una única instancia
-// de la base de datos para todo el backend.
+// CONEXIÓN A LA BASE DE DATOS MYSQL
+// Pool de conexiones singleton para todo el backend.
+// Configurado completamente mediante variables de entorno.
 // =============================================
 
-import Database from "better-sqlite3";
-import path from "path";
-import { initSchema } from "./schema";
+import mysql from "mysql2/promise";
 
-// Ruta absoluta al archivo de base de datos (en la raíz del backend)
-const DB_PATH = process.env.DB_PATH
-	? path.resolve(process.env.DB_PATH)
-	: path.resolve(process.cwd(), "tele_import.db");
+// Pool de conexiones reutilizadas (más eficiente que abrir/cerrar conexiones individuales)
+const pool = mysql.createPool({
+  host:     process.env.DB_HOST     ?? "localhost",
+  port:     parseInt(process.env.DB_PORT ?? "3306"),
+  user:     process.env.DB_USER     ?? "root",
+  password: process.env.DB_PASSWORD ?? "",
+  database: process.env.DB_NAME     ?? "tele_import",
+  // Devolver fechas como strings para mantener compatibilidad con código existente
+  dateStrings: true,
+  // Límite de conexiones simultáneas en el pool
+  connectionLimit: 10,
+  waitForConnections: true,
+  queueLimit: 0,
+  // Codificación para soportar caracteres en español, tildes y emojis
+  charset: "utf8mb4",
+  // Mantener conexiones vivas para evitar desconexiones silenciosas
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 0,
+});
 
-// Crear instancia singleton
-const db = new Database(DB_PATH);
-
-// Configuraciones de rendimiento recomendadas para SQLite
-db.pragma("journal_mode = WAL");   // Write-Ahead Logging mejora concurrencia
-db.pragma("foreign_keys = ON");    // Activar integridad referencial
-
-// Inicializar el esquema si las tablas no existen
-initSchema(db);
-
-export default db;
+export default pool;

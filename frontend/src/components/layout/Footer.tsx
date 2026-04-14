@@ -40,18 +40,23 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/catalogo?categoria=componentes" className="hover:text-white transition-colors">
-                  Componentes
+                <Link href="/catalogo?categoria=televisores" className="hover:text-white transition-colors">
+                  Televisores
                 </Link>
               </li>
               <li>
-                <Link href="/catalogo?categoria=perifericos" className="hover:text-white transition-colors">
-                  Periféricos
+                <Link href="/catalogo?categoria=smartphones" className="hover:text-white transition-colors">
+                  Smartphones
                 </Link>
               </li>
               <li>
-                <Link href="/catalogo?categoria=redes" className="hover:text-white transition-colors">
-                  Redes
+                <Link href="/catalogo?categoria=gaming" className="hover:text-white transition-colors">
+                  Gaming
+                </Link>
+              </li>
+              <li>
+                <Link href="/catalogo?categoria=laptops-pcs" className="hover:text-white transition-colors">
+                  Laptops y PCs
                 </Link>
               </li>
             </ul>

@@ -12,6 +12,7 @@ import { getPublicProducts, getCategories } from "@/lib/api/catalog";
 import { ProductCard } from "@/components/catalog/ProductCard";
 import { CatalogFilters } from "@/components/catalog/CatalogFilters";
 import { ActiveFilterChips } from "@/components/catalog/ActiveFilterChips";
+import { PromoBanner } from "@/components/catalog/PromoBanner";
 import type { CatalogFilters as Filters } from "@/types";
 
 export const metadata: Metadata = {
@@ -103,7 +104,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const paginationRange = totalPages > 1 ? getPaginationRange(currentPage, totalPages) : [];
 
   return (
-    <div className="container-main py-7 fade-up">
+    <div className="container-catalog py-7 fade-up">
 
       {/* ── ENCABEZADO ──────────────────────────────────── */}
       <div className="mb-7">
@@ -162,11 +163,14 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
         </div>
       </div>
 
+      {/* ── MINI BANNER PROMOCIONAL ────────────────────── */}
+      <PromoBanner />
+
       {/* ── LAYOUT: SIDEBAR + GRID ─────────────────────── */}
-      <div className="flex gap-6 items-start">
+      <div className="flex gap-6 xl:gap-7 2xl:gap-8 items-start">
 
         {/* SIDEBAR DESKTOP */}
-        <aside className="hidden md:block w-[220px] lg:w-[240px] flex-shrink-0">
+        <aside className="hidden md:block w-[220px] lg:w-[240px] xl:w-[260px] 2xl:w-[280px] flex-shrink-0">
           <div className="filters-sidebar pr-1">
             <CatalogFilters
               categories={categories}
@@ -229,7 +233,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
           ) : (
             <>
               {/* ── GRID DE PRODUCTOS ── */}
-              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 lg:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5 lg:gap-4 xl:gap-5">
                 {products.map((product, i) => (
                   <div
                     key={product.id}

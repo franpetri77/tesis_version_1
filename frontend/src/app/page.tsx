@@ -11,7 +11,6 @@ import { ArrowRight, Truck, Store, CreditCard, ShieldCheck } from "lucide-react"
 import { getFeaturedProducts } from "@/lib/api/catalog";
 import { ProductCard } from "@/components/catalog/ProductCard";
 import { HeroCarousel } from "@/components/home/HeroCarousel";
-import { UserWelcomeBar } from "@/components/home/UserWelcomeBar";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 
@@ -24,80 +23,82 @@ export const metadata: Metadata = {
 export const revalidate = 300;
 
 // -----------------------------------------------
-// Secciones principales de la tienda (estilo departamentos)
+// Secciones por departamento — slugs alineados con la tabla `categories` de la DB.
+// Slugs válidos: televisores | smartphones | laptops-pcs | audio-video |
+//                gaming | linea-blanca | pequenos-electro | accesorios
 // -----------------------------------------------
 const SHOP_SECTIONS = [
   {
+    label: "Televisores",
+    desc: "Smart TV, 4K, OLED y QLED",
+    href: "/catalogo?categoria=televisores",
+    icon: "📺",
+    from: "from-blue-700",
+    to: "to-blue-900",
+    ring: "ring-blue-500/20",
+  },
+  {
+    label: "Smartphones",
+    desc: "Celulares de todas las marcas",
+    href: "/catalogo?categoria=smartphones",
+    icon: "📱",
+    from: "from-violet-700",
+    to: "to-violet-900",
+    ring: "ring-violet-500/20",
+  },
+  {
+    label: "Laptops y PCs",
+    desc: "Computadoras portátiles y de escritorio",
+    href: "/catalogo?categoria=laptops-pcs",
+    icon: "💻",
+    from: "from-slate-600",
+    to: "to-slate-800",
+    ring: "ring-slate-500/20",
+  },
+  {
+    label: "Audio y Video",
+    desc: "Auriculares, parlantes y soundbars",
+    href: "/catalogo?categoria=audio-video",
+    icon: "🎧",
+    from: "from-purple-700",
+    to: "to-purple-900",
+    ring: "ring-purple-500/20",
+  },
+  {
     label: "Gaming",
-    desc: "Componentes, periféricos y accesorios gamer",
-    href: "/catalogo?categoria=componentes",
+    desc: "Consolas, videojuegos y accesorios gamer",
+    href: "/catalogo?categoria=gaming",
     icon: "🎮",
     from: "from-red-700",
     to: "to-red-900",
     ring: "ring-red-500/20",
   },
   {
-    label: "Electrónica",
-    desc: "Procesadores, memorias y almacenamiento",
-    href: "/catalogo?categoria=procesadores",
-    icon: "⚡",
-    from: "from-blue-700",
-    to: "to-blue-900",
-    ring: "ring-blue-500/20",
-  },
-  {
-    label: "Audio",
-    desc: "Auriculares, parlantes y micrófonos",
-    href: "/catalogo?categoria=audio",
-    icon: "🎧",
-    from: "from-violet-700",
-    to: "to-violet-900",
-    ring: "ring-violet-500/20",
-  },
-  {
-    label: "Monitores",
-    desc: "Pantallas Full HD, 4K y gaming",
-    href: "/catalogo?categoria=monitores",
-    icon: "🖥️",
-    from: "from-emerald-700",
-    to: "to-emerald-900",
-    ring: "ring-emerald-500/20",
-  },
-  {
-    label: "Networking",
-    desc: "Routers, switches y conectividad",
-    href: "/catalogo?categoria=redes",
-    icon: "📡",
+    label: "Línea Blanca",
+    desc: "Heladeras, lavarropas y cocinas",
+    href: "/catalogo?categoria=linea-blanca",
+    icon: "🏠",
     from: "from-cyan-700",
     to: "to-cyan-900",
     ring: "ring-cyan-500/20",
   },
   {
-    label: "Periféricos",
-    desc: "Teclados, mouses y webcams",
-    href: "/catalogo?categoria=perifericos",
-    icon: "🖱️",
-    from: "from-orange-600",
-    to: "to-orange-800",
-    ring: "ring-orange-500/20",
-  },
-  {
-    label: "Cables",
-    desc: "HDMI, USB, fibra óptica y más",
-    href: "/catalogo?categoria=cables",
-    icon: "🔌",
-    from: "from-slate-600",
-    to: "to-slate-800",
-    ring: "ring-slate-500/20",
-  },
-  {
-    label: "Almacenamiento",
-    desc: "SSD, HDD y memorias USB",
-    href: "/catalogo?categoria=almacenamiento",
-    icon: "💾",
+    label: "Pequeños Electro",
+    desc: "Licuadoras, cafeteras y planchas",
+    href: "/catalogo?categoria=pequenos-electro",
+    icon: "☕",
     from: "from-amber-600",
     to: "to-amber-800",
     ring: "ring-amber-500/20",
+  },
+  {
+    label: "Accesorios",
+    desc: "Mouse, teclados, monitores y más",
+    href: "/catalogo?categoria=accesorios",
+    icon: "🖱️",
+    from: "from-emerald-700",
+    to: "to-emerald-900",
+    ring: "ring-emerald-500/20",
   },
 ];
 
@@ -111,9 +112,6 @@ export default async function HomePage() {
 
       {/* ---- HERO CAROUSEL ---- */}
       <HeroCarousel />
-
-      {/* ---- BIENVENIDA PERSONALIZADA ---- */}
-      <UserWelcomeBar />
 
       {/* ---- BENEFICIOS ---- */}
       <section className="bg-white border-b border-slate-100">

@@ -2,85 +2,71 @@
 
 // =============================================
 // COMPONENTE: HERO CAROUSEL
-// Carrusel de banners promocionales estilo Venex.
+// Banners con imágenes reales, overlay oscuro para legibilidad,
+// texto a la izquierda estilo e-commerce profesional.
 // Auto-avance cada 5s. Navegación con flechas y dots.
 // =============================================
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
 
+// Las imágenes viven en /public/img/ y se sirven como assets estáticos
 interface Slide {
-  id: number;
-  tag: string;
-  title: string;
-  subtitle: string;
-  cta: string;
-  href: string;
-  bg: string;
-  accentColor: string;
+  id:        number;
+  image:     string;
+  imagePos:  string;           // object-position CSS (e.g. "50% 40%")
+  overlay:   string;           // clases del degradado de superposición
+  tag:       string;
   pillClass: string;
-  highlightClass: string;
-  icon: string;
+  title:     string;
+  subtitle:  string;
+  cta:       string;
+  href:      string;
 }
 
 const slides: Slide[] = [
   {
-    id: 1,
-    tag: "Setup Gamer",
-    title: "PC Gaming & Componentes",
-    subtitle: "Procesadores, placas de video y memorias de las mejores marcas. Armá tu setup ideal.",
-    cta: "Ver componentes",
-    href: "/catalogo?categoria=componentes",
-    bg: "bg-gradient-to-br from-slate-950 via-slate-900 to-red-950",
-    accentColor: "text-red-400",
-    pillClass: "bg-red-500/20 border border-red-500/30 text-red-300",
-    highlightClass: "text-red-400",
-    icon: "🎮",
+    id:       1,
+    image:    "/img/banner.jpg",
+    imagePos: "50% 50%",
+    overlay:  "bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-transparent",
+    tag:       "Bienvenido a Tele Import",
+    pillClass: "bg-brand-500/25 border border-brand-400/40 text-brand-200",
+    title:     "Tecnología para tu hogar y oficina",
+    subtitle:  "TV, laptops, smartphones y más. Envío a todo el país con garantía oficial.",
+    cta:       "Ver catálogo",
+    href:      "/catalogo",
   },
   {
-    id: 2,
-    tag: "Top ventas",
-    title: "Periféricos y Monitores",
-    subtitle: "Teclados mecánicos, mouses gaming, auriculares y pantallas 4K en stock permanente.",
-    cta: "Ver periféricos",
-    href: "/catalogo?categoria=perifericos",
-    bg: "bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900",
-    accentColor: "text-blue-400",
-    pillClass: "bg-blue-500/20 border border-blue-500/30 text-blue-300",
-    highlightClass: "text-blue-400",
-    icon: "🖥️",
+    id:       2,
+    image:    "/img/banner-smartphones.jpg",
+    imagePos: "50% 50%",
+    overlay:  "bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-transparent",
+    tag:       "Top ventas",
+    pillClass: "bg-blue-500/25 border border-blue-400/40 text-blue-200",
+    title:     "Smartphones y Celulares",
+    subtitle:  "Samsung, Motorola, Apple y más. Las últimas novedades con envío a todo el país.",
+    cta:       "Ver smartphones",
+    href:      "/catalogo?categoria=smartphones",
   },
   {
-    id: 3,
-    tag: "Envío a todo el país",
-    title: "Conectividad y Redes",
-    subtitle: "Routers, switches, cables y accesorios para tu hogar o empresa. Stock inmediato.",
-    cta: "Ver networking",
-    href: "/catalogo?categoria=redes",
-    bg: "bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950",
-    accentColor: "text-indigo-300",
-    pillClass: "bg-indigo-500/20 border border-indigo-500/30 text-indigo-300",
-    highlightClass: "text-indigo-300",
-    icon: "📡",
-  },
-  {
-    id: 4,
-    tag: "Destacados",
-    title: "Productos Seleccionados",
-    subtitle: "Nuestra selección curada del mejor stock disponible con los mejores precios del mercado.",
-    cta: "Ver destacados",
-    href: "/catalogo?destacados=true",
-    bg: "bg-gradient-to-br from-slate-900 via-brand-950 to-slate-950",
-    accentColor: "text-brand-300",
-    pillClass: "bg-brand-500/20 border border-brand-500/30 text-brand-300",
-    highlightClass: "text-brand-300",
-    icon: "⭐",
+    id:       3,
+    image:    "/img/banner-destacados.jpg",
+    imagePos: "50% 50%",
+    overlay:  "bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-transparent",
+    tag:       "Destacados",
+    pillClass: "bg-amber-500/25 border border-amber-400/40 text-amber-200",
+    title:     "Productos Seleccionados",
+    subtitle:  "Nuestra selección curada del mejor stock disponible con los mejores precios.",
+    cta:       "Ver destacados",
+    href:      "/catalogo?destacados=true",
   },
 ];
 
 export function HeroCarousel() {
-  const [current, setCurrent] = useState(0);
+  const [current,        setCurrent]        = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   const goTo = useCallback((index: number) => {
@@ -90,13 +76,8 @@ export function HeroCarousel() {
     setTimeout(() => setIsTransitioning(false), 400);
   }, [isTransitioning]);
 
-  const prev = useCallback(() => {
-    goTo((current - 1 + slides.length) % slides.length);
-  }, [current, goTo]);
-
-  const next = useCallback(() => {
-    goTo((current + 1) % slides.length);
-  }, [current, goTo]);
+  const prev = useCallback(() => goTo((current - 1 + slides.length) % slides.length), [current, goTo]);
+  const next = useCallback(() => goTo((current + 1) % slides.length),                 [current, goTo]);
 
   // Auto-avance
   useEffect(() => {
@@ -104,93 +85,113 @@ export function HeroCarousel() {
     return () => clearTimeout(timer);
   }, [current, next]);
 
-  const slide = slides[current];
-
   return (
     <section className="relative overflow-hidden select-none">
-      {/* Slides */}
-      <div className="relative h-[380px] md:h-[480px] lg:h-[520px]">
+
+      {/* ── Slides ── */}
+      <div className="relative h-[360px] sm:h-[440px] md:h-[500px] lg:h-[560px]">
         {slides.map((s, i) => (
           <div
             key={s.id}
-            className={`
-              absolute inset-0 ${s.bg}
-              transition-opacity duration-500 ease-in-out
-              ${i === current ? "opacity-100 z-10" : "opacity-0 z-0"}
-            `}
+            className={`absolute inset-0 transition-opacity duration-500 ease-in-out
+              ${i === current ? "opacity-100 z-10" : "opacity-0 z-0"}`}
           >
-            {/* Patrón de puntos */}
-            <div className="absolute inset-0 bg-dot-pattern opacity-30" />
-            {/* Destellos decorativos */}
-            <div className="absolute -top-32 -right-32 w-[500px] h-[500px] rounded-full bg-white/5 blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-white/5 blur-3xl pointer-events-none" />
+            {/* Imagen de fondo */}
+            <Image
+              src={s.image}
+              alt={s.title}
+              fill
+              className="object-cover"
+              style={{ objectPosition: s.imagePos }}
+              priority={i === 0}
+              sizes="100vw"
+              quality={90}
+            />
+
+            {/* Overlay: degradado izquierda → derecha para legibilidad del texto */}
+            <div className={`absolute inset-0 ${s.overlay}`} />
+
+            {/* Tratamiento de laterales: blur + viñeta progresiva para que el recorte se vea intencional */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute inset-y-0 left-0 w-14 sm:w-20 md:w-28 lg:w-32 bg-gradient-to-r from-slate-950/65 via-slate-950/20 to-transparent backdrop-blur-md" />
+              <div className="absolute inset-y-0 right-0 w-14 sm:w-20 md:w-28 lg:w-32 bg-gradient-to-l from-slate-950/65 via-slate-950/20 to-transparent backdrop-blur-md" />
+            </div>
+
+            {/* Capa extra: oscurece la franja inferior (dots/barra de progreso) */}
+            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/70 to-transparent" />
 
             {/* Contenido */}
             <div className="relative z-10 container-main h-full flex items-center">
-              <div className="max-w-2xl">
+              <div className="max-w-md sm:max-w-lg">
+                {/* Placa glass para separar texto de fondo y evitar solapamientos visuales */}
+                <div className="inline-block rounded-2xl border border-white/10 bg-slate-950/25 backdrop-blur-md shadow-card-xl px-5 py-6 sm:px-7 sm:py-7 md:px-8 md:py-8">
+
                 {/* Pill tag */}
-                <div className={`inline-flex items-center gap-2 ${s.pillClass} text-xs font-semibold px-3 py-1.5 rounded-full mb-5`}>
+                <div className={`inline-flex items-center gap-2 ${s.pillClass}
+                                 text-[11px] font-semibold px-3 py-1.5 rounded-full mb-4 backdrop-blur-sm shadow-card`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
                   {s.tag}
                 </div>
 
                 {/* Título */}
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight tracking-tight mb-4">
+                <h1 className="text-3xl sm:text-4xl md:text-[2.75rem] font-bold text-white
+                               leading-tight tracking-tight mb-3 drop-shadow-xl">
                   {s.title}
                 </h1>
 
                 {/* Subtítulo */}
-                <p className={`text-base md:text-lg leading-relaxed mb-7 max-w-xl ${s.accentColor === "text-red-400" ? "text-slate-300" : "text-slate-300"}`}>
+                <p className="text-sm sm:text-base text-slate-200 leading-relaxed mb-6
+                              max-w-sm drop-shadow">
                   {s.subtitle}
                 </p>
 
                 {/* CTA */}
                 <Link
                   href={s.href}
-                  className="inline-flex items-center gap-2 bg-white text-slate-900 font-bold px-6 py-3 rounded-xl hover:bg-slate-100 transition-colors shadow-lg text-sm"
+                  className="inline-flex items-center gap-2 bg-white/95 text-slate-900
+                             font-bold px-5 py-2.5 rounded-xl
+                             hover:bg-white transition-colors shadow-card-hover text-sm
+                             ring-1 ring-white/20"
                 >
                   {s.cta}
                   <ArrowRight className="w-4 h-4" />
                 </Link>
-              </div>
-
-              {/* Ícono decorativo — desktop */}
-              <div className="hidden md:flex absolute right-12 lg:right-24 top-1/2 -translate-y-1/2 text-[120px] lg:text-[160px] leading-none opacity-20 select-none">
-                {s.icon}
+                </div>
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Flecha izquierda */}
+      {/* ── Flecha izquierda ── */}
       <button
         onClick={prev}
         aria-label="Anterior"
         className="absolute left-3 md:left-5 top-1/2 -translate-y-1/2 z-20
-                   w-9 h-9 md:w-11 md:h-11 rounded-full
-                   bg-white/10 hover:bg-white/20 border border-white/20
+                   w-9 h-9 md:w-10 md:h-10 rounded-full
+                   bg-black/30 hover:bg-black/50 border border-white/20
                    backdrop-blur-sm flex items-center justify-center
-                   text-white transition-all hover:scale-105"
+                   text-white transition-all hover:scale-105 shadow-card"
       >
-        <ChevronLeft className="w-5 h-5" />
+        <ChevronLeft className="w-4 h-4" />
       </button>
 
-      {/* Flecha derecha */}
+      {/* ── Flecha derecha ── */}
       <button
         onClick={next}
         aria-label="Siguiente"
         className="absolute right-3 md:right-5 top-1/2 -translate-y-1/2 z-20
-                   w-9 h-9 md:w-11 md:h-11 rounded-full
-                   bg-white/10 hover:bg-white/20 border border-white/20
+                   w-9 h-9 md:w-10 md:h-10 rounded-full
+                   bg-black/30 hover:bg-black/50 border border-white/20
                    backdrop-blur-sm flex items-center justify-center
-                   text-white transition-all hover:scale-105"
+                   text-white transition-all hover:scale-105 shadow-card"
       >
-        <ChevronRight className="w-5 h-5" />
+        <ChevronRight className="w-4 h-4" />
       </button>
 
-      {/* Dots de navegación */}
-      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+      {/* ── Dots de navegación ── */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+        <div className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/35 backdrop-blur-sm px-3 py-2 shadow-card">
         {slides.map((_, i) => (
           <button
             key={i}
@@ -203,14 +204,12 @@ export function HeroCarousel() {
             }`}
           />
         ))}
+        </div>
       </div>
 
-      {/* Barra de progreso */}
+      {/* ── Barra de progreso ── */}
       <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/10 z-20">
-        <div
-          key={current}
-          className="h-full bg-white/60 animate-shrink"
-        />
+        <div key={current} className="h-full bg-white/50 animate-shrink" />
       </div>
     </section>
   );

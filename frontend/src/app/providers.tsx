@@ -9,6 +9,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useState } from "react";
+import { AuthModals } from "@/components/auth/AuthModals";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   // Crear el QueryClient por componente para evitar compartir estado entre requests en SSR
@@ -27,6 +28,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       {children}
+      {/* Modales de autenticación — siempre montados, controlados por modalStore */}
+      <AuthModals />
       {/* Solo visible en desarrollo */}
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>

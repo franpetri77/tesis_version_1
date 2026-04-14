@@ -1,247 +1,347 @@
 // =============================================
-// ESQUEMA DE LA BASE DE DATOS
-// Crea todas las tablas si no existen.
-// Se ejecuta al iniciar el servidor.
+// ESQUEMA DE LA BASE DE DATOS - MYSQL
+// Crea todas las tablas e índices si no existen.
+// Se ejecuta al iniciar el servidor antes de aceptar requests.
+//
+// Diferencias clave respecto a SQLite:
+//   - IDs como VARCHAR(50): soporta tanto los IDs cortos del seed
+//     ("cat-tv") como UUIDs generados en la app (crypto.randomUUID)
+//   - TINYINT(1) reemplaza INTEGER para booleanos
+//   - DECIMAL(15,2) reemplaza REAL para precios (evita imprecisión flotante)
+//   - DATETIME con DEFAULT CURRENT_TIMESTAMP reemplaza TEXT con datetime('now')
+//   - ENUM reemplaza CHECK constraints para columnas de valores acotados
+//   - Claves foráneas declaradas explícitamente con CONSTRAINT ... FOREIGN KEY
 // =============================================
 
-import type { Database } from "better-sqlite3";
+import type { Pool } from "mysql2/promise";
 
-export function initSchema(db: Database): void {
-  db.exec(`
-    -- -----------------------------------------------
-    -- TABLA: users (clientes y administradores)
-    -- -----------------------------------------------
-    CREATE TABLE IF NOT EXISTS users (
-      id          TEXT    PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      email       TEXT    NOT NULL UNIQUE,
-      password    TEXT    NOT NULL,
-      first_name  TEXT    NOT NULL,
-      last_name   TEXT    NOT NULL,
-      phone       TEXT,
-      role        TEXT    NOT NULL DEFAULT 'customer'
-                          CHECK(role IN ('admin', 'customer', 'readonly')),
-      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-      updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
-    );
+export async function initSchema(pool: Pool): Promise<void> {
+  const conn = await pool.getConnection();
+  try {
+    // Desactivar FK checks durante la creación para evitar problemas de orden
+    await conn.query("SET FOREIGN_KEY_CHECKS = 0");
 
-    -- -----------------------------------------------
-    -- TABLA: categories (árbol de categorías de productos)
-    -- -----------------------------------------------
-    CREATE TABLE IF NOT EXISTS categories (
-      id          TEXT    PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      name        TEXT    NOT NULL,
-      slug        TEXT    NOT NULL UNIQUE,
-      description TEXT,
-      image_url   TEXT,
-      parent_id   TEXT    REFERENCES categories(id),
-      sort_order  INTEGER NOT NULL DEFAULT 0,
-      is_active   INTEGER NOT NULL DEFAULT 1
-    );
+    // -----------------------------------------------
+    // TABLA: users (clientes y administradores)
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id          VARCHAR(50)   NOT NULL,
+        email       VARCHAR(255)  NOT NULL,
+        password    VARCHAR(255)  NOT NULL,
+        first_name  VARCHAR(100)  NOT NULL,
+        last_name   VARCHAR(100)  NOT NULL,
+        phone       VARCHAR(50)   NULL,
+        role        ENUM('admin','customer','readonly') NOT NULL DEFAULT 'customer',
+        created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_users_email (email)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-    -- -----------------------------------------------
-    -- TABLA: products (catálogo de productos)
-    -- -----------------------------------------------
-    CREATE TABLE IF NOT EXISTS products (
-      id                TEXT    PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      name              TEXT    NOT NULL,
-      slug              TEXT    NOT NULL UNIQUE,
-      description       TEXT,
-      short_description TEXT,
-      sku               TEXT    NOT NULL UNIQUE,
-      price             REAL    NOT NULL,
-      compare_price     REAL,
-      category_id       TEXT    NOT NULL REFERENCES categories(id),
-      stock_quantity    INTEGER NOT NULL DEFAULT 0,
-      is_active         INTEGER NOT NULL DEFAULT 1,
-      is_featured       INTEGER NOT NULL DEFAULT 0,
-      brand             TEXT,
-      model             TEXT,
-      weight            REAL,
-      metadata          TEXT,   -- JSON serializado
-      created_at        TEXT    NOT NULL DEFAULT (datetime('now')),
-      updated_at        TEXT    NOT NULL DEFAULT (datetime('now'))
-    );
+    // -----------------------------------------------
+    // TABLA: categories (árbol de categorías de productos)
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id          VARCHAR(50)   NOT NULL,
+        name        VARCHAR(255)  NOT NULL,
+        slug        VARCHAR(255)  NOT NULL,
+        description TEXT          NULL,
+        image_url   TEXT          NULL,
+        parent_id   VARCHAR(50)   NULL,
+        sort_order  INT           NOT NULL DEFAULT 0,
+        is_active   TINYINT(1)    NOT NULL DEFAULT 1,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_categories_slug (slug),
+        CONSTRAINT fk_categories_parent
+          FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-    -- -----------------------------------------------
-    -- TABLA: product_images (imágenes de cada producto)
-    -- -----------------------------------------------
-    CREATE TABLE IF NOT EXISTS product_images (
-      id          TEXT    PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      product_id  TEXT    NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      image_url   TEXT    NOT NULL,
-      alt_text    TEXT,
-      sort_order  INTEGER NOT NULL DEFAULT 0
-    );
+    // -----------------------------------------------
+    // TABLA: products (catálogo de productos)
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS products (
+        id                VARCHAR(50)    NOT NULL,
+        name              VARCHAR(255)   NOT NULL,
+        slug              VARCHAR(255)   NOT NULL,
+        description       TEXT           NULL,
+        short_description TEXT           NULL,
+        sku               VARCHAR(100)   NOT NULL,
+        price             DECIMAL(15,2)  NOT NULL,
+        compare_price     DECIMAL(15,2)  NULL,
+        category_id       VARCHAR(50)    NOT NULL,
+        stock_quantity    INT            NOT NULL DEFAULT 0,
+        is_active         TINYINT(1)     NOT NULL DEFAULT 1,
+        is_featured       TINYINT(1)     NOT NULL DEFAULT 0,
+        brand             VARCHAR(100)   NULL,
+        model             VARCHAR(100)   NULL,
+        weight            DOUBLE         NULL,
+        metadata          TEXT           NULL,
+        created_at        DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at        DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_products_slug (slug),
+        UNIQUE KEY uq_products_sku (sku),
+        KEY idx_products_category (category_id),
+        KEY idx_products_featured (is_featured),
+        CONSTRAINT fk_products_category
+          FOREIGN KEY (category_id) REFERENCES categories(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-    -- -----------------------------------------------
-    -- TABLA: product_tags (etiquetas para búsqueda y filtros)
-    -- -----------------------------------------------
-    CREATE TABLE IF NOT EXISTS product_tags (
-      id         TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      name       TEXT NOT NULL,
-      slug       TEXT NOT NULL UNIQUE
-    );
+    // -----------------------------------------------
+    // TABLA: product_images (imágenes de cada producto)
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS product_images (
+        id          VARCHAR(50)   NOT NULL,
+        product_id  VARCHAR(50)   NOT NULL,
+        image_url   TEXT          NOT NULL,
+        alt_text    VARCHAR(255)  NULL,
+        sort_order  INT           NOT NULL DEFAULT 0,
+        PRIMARY KEY (id),
+        CONSTRAINT fk_product_images_product
+          FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-    CREATE TABLE IF NOT EXISTS product_tag_map (
-      product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      tag_id     TEXT NOT NULL REFERENCES product_tags(id) ON DELETE CASCADE,
-      PRIMARY KEY (product_id, tag_id)
-    );
+    // -----------------------------------------------
+    // TABLA: product_tags (etiquetas para búsqueda y filtros)
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS product_tags (
+        id    VARCHAR(50)   NOT NULL,
+        name  VARCHAR(100)  NOT NULL,
+        slug  VARCHAR(100)  NOT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_product_tags_slug (slug)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-    -- -----------------------------------------------
-    -- TABLA: addresses (domicilios de entrega)
-    -- -----------------------------------------------
-    CREATE TABLE IF NOT EXISTS addresses (
-      id          TEXT    PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      street      TEXT    NOT NULL,
-      number      TEXT    NOT NULL,
-      floor       TEXT,
-      apartment   TEXT,
-      city        TEXT    NOT NULL,
-      province    TEXT    NOT NULL,
-      postal_code TEXT    NOT NULL,
-      country     TEXT    NOT NULL DEFAULT 'Argentina',
-      is_default  INTEGER NOT NULL DEFAULT 0
-    );
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS product_tag_map (
+        product_id  VARCHAR(50)  NOT NULL,
+        tag_id      VARCHAR(50)  NOT NULL,
+        PRIMARY KEY (product_id, tag_id),
+        CONSTRAINT fk_ptm_product
+          FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+        CONSTRAINT fk_ptm_tag
+          FOREIGN KEY (tag_id) REFERENCES product_tags(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-    -- -----------------------------------------------
-    -- TABLA: orders (pedidos)
-    -- -----------------------------------------------
-    CREATE TABLE IF NOT EXISTS orders (
-      id               TEXT  PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      order_number     TEXT  NOT NULL UNIQUE,
-      user_id          TEXT  NOT NULL REFERENCES users(id),
-      status           TEXT  NOT NULL DEFAULT 'pending'
-                             CHECK(status IN ('pending','paid','processing','ready_to_ship','shipped','delivered','cancelled','refunded')),
-      subtotal         REAL  NOT NULL,
-      discount_amount  REAL  NOT NULL DEFAULT 0,
-      shipping_cost    REAL  NOT NULL DEFAULT 0,
-      total            REAL  NOT NULL,
-      delivery_method  TEXT  NOT NULL DEFAULT 'shipping'
-                             CHECK(delivery_method IN ('pickup','shipping')),
-      shipping_address TEXT,  -- JSON serializado de la dirección
-      notes            TEXT,
-      created_at       TEXT  NOT NULL DEFAULT (datetime('now')),
-      updated_at       TEXT  NOT NULL DEFAULT (datetime('now'))
-    );
+    // -----------------------------------------------
+    // TABLA: addresses (domicilios de entrega)
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS addresses (
+        id          VARCHAR(50)   NOT NULL,
+        user_id     VARCHAR(50)   NOT NULL,
+        street      VARCHAR(255)  NOT NULL,
+        number      VARCHAR(20)   NOT NULL,
+        floor       VARCHAR(20)   NULL,
+        apartment   VARCHAR(20)   NULL,
+        city        VARCHAR(100)  NOT NULL,
+        province    VARCHAR(100)  NOT NULL,
+        postal_code VARCHAR(20)   NOT NULL,
+        country     VARCHAR(100)  NOT NULL DEFAULT 'Argentina',
+        is_default  TINYINT(1)    NOT NULL DEFAULT 0,
+        -- created_at permite ordenar por orden de inserción (reemplaza el rowid de SQLite)
+        created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        CONSTRAINT fk_addresses_user
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-    -- -----------------------------------------------
-    -- TABLA: order_items (ítems de cada pedido)
-    -- -----------------------------------------------
-    CREATE TABLE IF NOT EXISTS order_items (
-      id          TEXT  PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      order_id    TEXT  NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id  TEXT  NOT NULL REFERENCES products(id),
-      quantity    INTEGER NOT NULL,
-      unit_price  REAL    NOT NULL,
-      total_price REAL    NOT NULL
-    );
+    // -----------------------------------------------
+    // TABLA: orders (pedidos)
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id               VARCHAR(50)    NOT NULL,
+        order_number     VARCHAR(50)    NOT NULL,
+        user_id          VARCHAR(50)    NOT NULL,
+        status           ENUM('pending','paid','processing','ready_to_ship','shipped','delivered','cancelled','refunded')
+                         NOT NULL DEFAULT 'pending',
+        subtotal         DECIMAL(15,2)  NOT NULL,
+        discount_amount  DECIMAL(15,2)  NOT NULL DEFAULT 0,
+        shipping_cost    DECIMAL(15,2)  NOT NULL DEFAULT 0,
+        total            DECIMAL(15,2)  NOT NULL,
+        delivery_method  ENUM('pickup','shipping') NOT NULL DEFAULT 'shipping',
+        shipping_address TEXT           NULL,
+        notes            TEXT           NULL,
+        created_at       DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at       DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_orders_number (order_number),
+        KEY idx_orders_user   (user_id),
+        KEY idx_orders_status (status),
+        CONSTRAINT fk_orders_user
+          FOREIGN KEY (user_id) REFERENCES users(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-    -- -----------------------------------------------
-    -- TABLA: payments (registros de pagos con MP)
-    -- -----------------------------------------------
-    CREATE TABLE IF NOT EXISTS payments (
-      id                TEXT  PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      order_id          TEXT  NOT NULL REFERENCES orders(id),
-      mp_payment_id     TEXT,
-      mp_preference_id  TEXT,
-      status            TEXT  NOT NULL DEFAULT 'pending'
-                              CHECK(status IN ('pending','approved','rejected','cancelled','refunded')),
-      amount            REAL  NOT NULL,
-      currency          TEXT  NOT NULL DEFAULT 'ARS',
-      payment_method    TEXT,
-      raw_response      TEXT,  -- JSON serializado de la respuesta de MP
-      created_at        TEXT  NOT NULL DEFAULT (datetime('now')),
-      updated_at        TEXT  NOT NULL DEFAULT (datetime('now'))
-    );
+    // -----------------------------------------------
+    // TABLA: order_items (ítems de cada pedido)
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS order_items (
+        id          VARCHAR(50)    NOT NULL,
+        order_id    VARCHAR(50)    NOT NULL,
+        product_id  VARCHAR(50)    NOT NULL,
+        quantity    INT            NOT NULL,
+        unit_price  DECIMAL(15,2)  NOT NULL,
+        total_price DECIMAL(15,2)  NOT NULL,
+        PRIMARY KEY (id),
+        CONSTRAINT fk_order_items_order
+          FOREIGN KEY (order_id)   REFERENCES orders(id)   ON DELETE CASCADE,
+        CONSTRAINT fk_order_items_product
+          FOREIGN KEY (product_id) REFERENCES products(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-    -- -----------------------------------------------
-    -- TABLA: promotions (cupones y descuentos)
-    -- -----------------------------------------------
-    CREATE TABLE IF NOT EXISTS promotions (
-      id                TEXT    PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      code              TEXT    NOT NULL UNIQUE,
-      name              TEXT    NOT NULL,
-      description       TEXT,
-      type              TEXT    NOT NULL CHECK(type IN ('percentage','fixed_amount','free_shipping')),
-      value             REAL    NOT NULL,
-      min_order_amount  REAL,
-      max_uses          INTEGER,
-      current_uses      INTEGER NOT NULL DEFAULT 0,
-      is_active         INTEGER NOT NULL DEFAULT 1,
-      valid_from        TEXT    NOT NULL,
-      valid_until       TEXT
-    );
+    // -----------------------------------------------
+    // TABLA: payments (registros de pagos con Mercado Pago)
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id                VARCHAR(50)    NOT NULL,
+        order_id          VARCHAR(50)    NOT NULL,
+        mp_payment_id     VARCHAR(100)   NULL,
+        mp_preference_id  VARCHAR(100)   NULL,
+        status            ENUM('pending','approved','rejected','cancelled','refunded')
+                          NOT NULL DEFAULT 'pending',
+        amount            DECIMAL(15,2)  NOT NULL,
+        currency          VARCHAR(10)    NOT NULL DEFAULT 'ARS',
+        payment_method    VARCHAR(100)   NULL,
+        raw_response      TEXT           NULL,
+        created_at        DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at        DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        CONSTRAINT fk_payments_order
+          FOREIGN KEY (order_id) REFERENCES orders(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-    -- -----------------------------------------------
-    -- TABLA: stock_movements (historial de movimientos de stock)
-    -- -----------------------------------------------
-    CREATE TABLE IF NOT EXISTS stock_movements (
-      id                TEXT    PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      product_id        TEXT    NOT NULL REFERENCES products(id),
-      type              TEXT    NOT NULL CHECK(type IN ('ingreso','egreso','ajuste','venta','devolucion')),
-      quantity          INTEGER NOT NULL,
-      previous_quantity INTEGER NOT NULL,
-      new_quantity      INTEGER NOT NULL,
-      reason            TEXT,
-      reference_id      TEXT,
-      user_id           TEXT    REFERENCES users(id),
-      created_at        TEXT    NOT NULL DEFAULT (datetime('now'))
-    );
+    // -----------------------------------------------
+    // TABLA: promotions (cupones y descuentos)
+    // Nota: valid_from/valid_until se guardan como VARCHAR('YYYY-MM-DD')
+    // para mantener compatibilidad con comparaciones de string del código existente.
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS promotions (
+        id                VARCHAR(50)    NOT NULL,
+        code              VARCHAR(50)    NOT NULL,
+        name              VARCHAR(255)   NOT NULL,
+        description       TEXT           NULL,
+        type              ENUM('percentage','fixed_amount','free_shipping') NOT NULL,
+        value             DECIMAL(15,2)  NOT NULL,
+        min_order_amount  DECIMAL(15,2)  NULL,
+        max_uses          INT            NULL,
+        current_uses      INT            NOT NULL DEFAULT 0,
+        is_active         TINYINT(1)     NOT NULL DEFAULT 1,
+        valid_from        VARCHAR(20)    NOT NULL,
+        valid_until       VARCHAR(20)    NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_promotions_code (code)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-    -- -----------------------------------------------
-    -- TABLA: audit_logs (auditoría de acciones)
-    -- -----------------------------------------------
-    CREATE TABLE IF NOT EXISTS audit_logs (
-      id             TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      action         TEXT NOT NULL,
-      entity_type    TEXT NOT NULL,
-      entity_id      TEXT NOT NULL,
-      user_id        TEXT REFERENCES users(id),
-      previous_value TEXT,  -- JSON
-      new_value      TEXT,  -- JSON
-      ip_address     TEXT,
-      created_at     TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+    // -----------------------------------------------
+    // TABLA: stock_movements (historial de movimientos de stock)
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS stock_movements (
+        id                VARCHAR(50)   NOT NULL,
+        product_id        VARCHAR(50)   NOT NULL,
+        type              ENUM('ingreso','egreso','ajuste','venta','devolucion') NOT NULL,
+        quantity          INT           NOT NULL,
+        previous_quantity INT           NOT NULL,
+        new_quantity      INT           NOT NULL,
+        reason            TEXT          NULL,
+        reference_id      VARCHAR(50)   NULL,
+        user_id           VARCHAR(50)   NULL,
+        created_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_stock_movements_product (product_id),
+        CONSTRAINT fk_stock_movements_product
+          FOREIGN KEY (product_id) REFERENCES products(id),
+        CONSTRAINT fk_stock_movements_user
+          FOREIGN KEY (user_id) REFERENCES users(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-    -- -----------------------------------------------
-    -- TABLA: notifications (notificaciones del sistema)
-    -- -----------------------------------------------
-    CREATE TABLE IF NOT EXISTS notifications (
-      id         TEXT    PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      user_id    TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      type       TEXT    NOT NULL CHECK(type IN ('order_new','order_status','stock_low','review_new')),
-      title      TEXT    NOT NULL,
-      message    TEXT    NOT NULL,
-      is_read    INTEGER NOT NULL DEFAULT 0,
-      link       TEXT,
-      created_at TEXT    NOT NULL DEFAULT (datetime('now'))
-    );
+    // -----------------------------------------------
+    // TABLA: audit_logs (auditoría de acciones del sistema)
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id             VARCHAR(50)   NOT NULL,
+        action         VARCHAR(100)  NOT NULL,
+        entity_type    VARCHAR(100)  NOT NULL,
+        entity_id      VARCHAR(50)   NOT NULL,
+        user_id        VARCHAR(50)   NULL,
+        previous_value TEXT          NULL,
+        new_value      TEXT          NULL,
+        ip_address     VARCHAR(45)   NULL,
+        created_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        CONSTRAINT fk_audit_logs_user
+          FOREIGN KEY (user_id) REFERENCES users(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-    -- -----------------------------------------------
-    -- TABLA: product_reviews (reseñas de productos)
-    -- -----------------------------------------------
-    CREATE TABLE IF NOT EXISTS product_reviews (
-      id          TEXT    PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      product_id  TEXT    NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      user_id     TEXT    NOT NULL REFERENCES users(id),
-      rating      INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
-      title       TEXT,
-      body        TEXT    NOT NULL,
-      is_approved INTEGER NOT NULL DEFAULT 0,
-      created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
-    );
+    // -----------------------------------------------
+    // TABLA: notifications (notificaciones del sistema)
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id         VARCHAR(50)   NOT NULL,
+        user_id    VARCHAR(50)   NOT NULL,
+        type       ENUM('order_new','order_status','stock_low','review_new') NOT NULL,
+        title      VARCHAR(255)  NOT NULL,
+        message    TEXT          NOT NULL,
+        is_read    TINYINT(1)    NOT NULL DEFAULT 0,
+        link       VARCHAR(500)  NULL,
+        created_at DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_notifications_user (user_id),
+        CONSTRAINT fk_notifications_user
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
 
-    -- -----------------------------------------------
-    -- ÍNDICES para mejorar rendimiento de consultas frecuentes
-    -- -----------------------------------------------
-    CREATE INDEX IF NOT EXISTS idx_products_category    ON products(category_id);
-    CREATE INDEX IF NOT EXISTS idx_products_slug        ON products(slug);
-    CREATE INDEX IF NOT EXISTS idx_products_featured    ON products(is_featured);
-    CREATE INDEX IF NOT EXISTS idx_orders_user          ON orders(user_id);
-    CREATE INDEX IF NOT EXISTS idx_orders_status        ON orders(status);
-    CREATE INDEX IF NOT EXISTS idx_stock_movements_prod ON stock_movements(product_id);
-    CREATE INDEX IF NOT EXISTS idx_notifications_user   ON notifications(user_id);
-  `);
+    // -----------------------------------------------
+    // TABLA: product_reviews (reseñas de productos)
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS product_reviews (
+        id          VARCHAR(50)   NOT NULL,
+        product_id  VARCHAR(50)   NOT NULL,
+        user_id     VARCHAR(50)   NOT NULL,
+        rating      TINYINT       NOT NULL CHECK (rating BETWEEN 1 AND 5),
+        title       VARCHAR(255)  NULL,
+        body        TEXT          NOT NULL,
+        is_approved TINYINT(1)    NOT NULL DEFAULT 0,
+        created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        CONSTRAINT fk_reviews_product
+          FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+        CONSTRAINT fk_reviews_user
+          FOREIGN KEY (user_id) REFERENCES users(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // Restaurar verificación de claves foráneas
+    await conn.query("SET FOREIGN_KEY_CHECKS = 1");
+
+    console.log("[DB] Esquema MySQL inicializado correctamente.");
+  } finally {
+    conn.release();
+  }
 }

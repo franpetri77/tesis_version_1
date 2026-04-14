@@ -1,40 +1,15 @@
 // =============================================
-// UTILIDAD: CLIENTE HTTP HACIA DIRECTUS
-// El backend Node.js se comunica con Directus via REST
-// usando el service token para operaciones administrativas.
+// UTILIDAD: OPERACIONES DE BASE DE DATOS
+// Anteriormente este módulo se comunicaba con Directus via REST API.
+// Migrado a MySQL: todas las operaciones ahora van directo al pool.
+//
+// Se mantiene la misma interfaz pública para no romper los módulos
+// que importan estas funciones (notifications.ts, etc.).
 // =============================================
 
-const DIRECTUS_URL = process.env.DIRECTUS_URL ?? "http://localhost:8055";
-const TOKEN = process.env.DIRECTUS_SERVICE_TOKEN ?? "";
-
-const baseHeaders = {
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${TOKEN}`,
-};
-
-/**
- * Wrapper genérico para llamadas a la API de Directus.
- * Lanza un error si la respuesta no es exitosa.
- */
-async function directusFetch<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const res = await fetch(`${DIRECTUS_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      ...baseHeaders,
-      ...(options.headers as Record<string, string>),
-    },
-  });
-
-  if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`Directus error ${res.status}: ${errorBody}`);
-  }
-
-  return res.json() as Promise<T>;
-}
+import { randomUUID } from "crypto";
+import type { RowDataPacket } from "mysql2";
+import pool from "../db/database";
 
 // -----------------------------------------------
 // OPERACIONES SOBRE PEDIDOS
@@ -47,10 +22,10 @@ export async function updateOrderStatus(
   orderId: string,
   status: string
 ): Promise<void> {
-  await directusFetch(`/items/orders/${orderId}`, {
-    method: "PATCH",
-    body: JSON.stringify({ status }),
-  });
+  await pool.query(
+    "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?",
+    [status, orderId]
+  );
 }
 
 /**
@@ -63,10 +38,13 @@ export async function getOrder(orderId: string): Promise<{
   total: number;
   user_id: string;
 }> {
-  const res = await directusFetch<{
-    data: { id: string; order_number: string; status: string; total: number; user_id: string };
-  }>(`/items/orders/${orderId}?fields=id,order_number,status,total,user_id`);
-  return res.data;
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT id, order_number, status, total, user_id FROM orders WHERE id = ?",
+    [orderId]
+  );
+  const row = rows[0];
+  if (!row) throw new Error(`Pedido no encontrado: ${orderId}`);
+  return row as { id: string; order_number: string; status: string; total: number; user_id: string };
 }
 
 // -----------------------------------------------
@@ -74,7 +52,7 @@ export async function getOrder(orderId: string): Promise<{
 // -----------------------------------------------
 
 /**
- * Registra o actualiza un pago en la base de datos.
+ * Registra un nuevo pago en la base de datos.
  */
 export async function upsertPayment(data: {
   order_id: string;
@@ -86,13 +64,23 @@ export async function upsertPayment(data: {
   payment_method?: string;
   raw_response?: Record<string, unknown>;
 }): Promise<void> {
-  await directusFetch("/items/payments", {
-    method: "POST",
-    body: JSON.stringify({
-      ...data,
-      currency: data.currency ?? "ARS",
-    }),
-  });
+  const paymentId = randomUUID();
+  await pool.query(
+    `INSERT INTO payments
+       (id, order_id, mp_payment_id, mp_preference_id, status, amount, currency, payment_method, raw_response)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      paymentId,
+      data.order_id,
+      data.mp_payment_id,
+      data.mp_preference_id ?? null,
+      data.status,
+      data.amount,
+      data.currency ?? "ARS",
+      data.payment_method ?? null,
+      data.raw_response ? JSON.stringify(data.raw_response) : null,
+    ]
+  );
 }
 
 // -----------------------------------------------
@@ -112,10 +100,22 @@ export async function logAuditEvent(data: {
   ip_address?: string;
 }): Promise<void> {
   try {
-    await directusFetch("/items/audit_logs", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
+    const auditId = randomUUID();
+    await pool.query(
+      `INSERT INTO audit_logs
+         (id, action, entity_type, entity_id, user_id, previous_value, new_value, ip_address)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        auditId,
+        data.action,
+        data.entity_type,
+        data.entity_id,
+        data.user_id ?? null,
+        data.previous_value !== undefined ? JSON.stringify(data.previous_value) : null,
+        data.new_value !== undefined ? JSON.stringify(data.new_value) : null,
+        data.ip_address ?? null,
+      ]
+    );
   } catch (err) {
     // No interrumpir el flujo si falla la auditoría
     console.error("[Audit] Error al registrar evento:", err);
@@ -136,8 +136,17 @@ export async function createNotification(data: {
   message: string;
   link?: string;
 }): Promise<void> {
-  await directusFetch("/items/notifications", {
-    method: "POST",
-    body: JSON.stringify({ ...data, is_read: false }),
-  });
+  const notificationId = randomUUID();
+  await pool.query(
+    `INSERT INTO notifications (id, user_id, type, title, message, is_read, link)
+     VALUES (?, ?, ?, ?, ?, 0, ?)`,
+    [
+      notificationId,
+      data.user_id,
+      data.type,
+      data.title,
+      data.message,
+      data.link ?? null,
+    ]
+  );
 }

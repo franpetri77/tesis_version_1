@@ -3,7 +3,7 @@
 // =============================================
 // PÁGINA: REGISTRO DE USUARIO
 // Formulario de creación de cuenta.
-// Crea el usuario en Directus y lo loguea automáticamente.
+// Tras registrarse, muestra modal de bienvenida.
 // =============================================
 
 import { useState } from "react";
@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff, AlertCircle, CheckCircle2, ArrowRight } from "lucide-react";
 import { register } from "@/lib/api/auth";
 import { useAuthStore } from "@/stores/authStore";
+import { useModalStore } from "@/stores/modalStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
@@ -41,15 +42,16 @@ function getPasswordStrength(password: string): { label: string; color: string; 
 }
 
 export default function RegisterPage() {
-  const router = useRouter();
-  const setUser = useAuthStore((state) => state.setUser);
+  const router    = useRouter();
+  const setUser   = useAuthStore((state) => state.setUser);
+  const openModal = useModalStore((s) => s.openModal);
 
-  const [form, setForm]             = useState<RegisterFormData>(emptyForm);
-  const [errors, setErrors]         = useState<Partial<RegisterFormData>>({});
+  const [form, setForm]               = useState<RegisterFormData>(emptyForm);
+  const [errors, setErrors]           = useState<Partial<RegisterFormData>>({});
   const [serverError, setServerError] = useState("");
-  const [isLoading, setIsLoading]   = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm]   = useState(false);
+  const [isLoading, setIsLoading]     = useState(false);
+  const [showPassword, setShowPassword]   = useState(false);
+  const [showConfirm, setShowConfirm]     = useState(false);
 
   const strength = getPasswordStrength(form.password);
 
@@ -86,7 +88,6 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
-      // Registrar y loguear automáticamente con el backend Express
       const { user: me, access_token } = await register({
         first_name: form.first_name.trim(),
         last_name:  form.last_name.trim(),
@@ -95,7 +96,12 @@ export default function RegisterPage() {
       });
       localStorage.setItem("tele_import_token", access_token);
       setUser(me);
+      // Redirigir al home y mostrar modal de registro exitoso
       router.push("/");
+      openModal("register-success", {
+        firstName: me.first_name,
+        email:     me.email,
+      });
     } catch (err: unknown) {
       const message =
         err instanceof Error && err.message.includes("email")

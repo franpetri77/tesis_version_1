@@ -1,6 +1,6 @@
 // =============================================
 // SERVIDOR BACKEND - TELE IMPORT S.A.
-// Gestiona la base de datos SQLite y expone la API REST:
+// Gestiona la base de datos MySQL y expone la API REST:
 // - Catálogo de productos y categorías
 // - Autenticación JWT
 // - Webhooks de Mercado Pago
@@ -10,6 +10,8 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import pool from "./db/database";
+import { initSchema } from "./db/schema";
 import { paymentsRouter } from "./routes/payments";
 import { webhooksRouter } from "./routes/webhooks";
 import { reportsRouter } from "./routes/reports";
@@ -68,16 +70,34 @@ app.use("/reports", reportsRouter);
 // Rutas de administración (requieren rol admin)
 app.use("/admin", adminRouter);
 
-// Healthcheck
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+// Healthcheck — verifica también la conexión a la base de datos
+app.get("/health", async (_req, res) => {
+  try {
+    await pool.query("SELECT 1");
+    res.json({ status: "ok", db: "mysql", timestamp: new Date().toISOString() });
+  } catch {
+    res.status(503).json({ status: "error", db: "mysql_unreachable" });
+  }
 });
 
 // -----------------------------------------------
 // Arranque del servidor
+// Inicializar el esquema MySQL antes de aceptar requests
+// (en SQLite esto era sincrónico; en MySQL debe ser async)
 // -----------------------------------------------
-app.listen(PORT, () => {
-  console.log(`[Backend] Servidor corriendo en http://localhost:${PORT}`);
-});
+async function main(): Promise<void> {
+  try {
+    await initSchema(pool);
+    app.listen(PORT, () => {
+      console.log(`[Backend] Servidor corriendo en http://localhost:${PORT}`);
+      console.log(`[Backend] Base de datos: MySQL (${process.env.DB_HOST ?? "localhost"}:${process.env.DB_PORT ?? "3306"}/${process.env.DB_NAME ?? "tele_import"})`);
+    });
+  } catch (err) {
+    console.error("[Backend] Error fatal al inicializar la base de datos:", err);
+    process.exit(1);
+  }
+}
+
+main();
 
 export default app;

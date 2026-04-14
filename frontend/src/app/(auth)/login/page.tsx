@@ -3,26 +3,29 @@
 // =============================================
 // PÁGINA: LOGIN
 // Formulario de inicio de sesión.
-// Llama a Directus SDK para autenticar al usuario.
+// Tras el login, abre el modal de bienvenida.
 // =============================================
 
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, AlertCircle, ArrowRight } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { login } from "@/lib/api/auth";
+import { useModalStore } from "@/stores/modalStore";
+import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signIn } = useAuth();
+  const openModal = useModalStore((s) => s.openModal);
+  const setUser = useAuthStore((s) => s.setUser);
 
-  const [email, setEmail]           = useState("");
-  const [password, setPassword]     = useState("");
+  const [email, setEmail]               = useState("");
+  const [password, setPassword]         = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError]           = useState("");
-  const [isLoading, setIsLoading]   = useState(false);
+  const [error, setError]               = useState("");
+  const [isLoading, setIsLoading]       = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,8 +33,15 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await signIn(email, password);
+      // Hacemos el login directamente para obtener el nombre antes de redirigir
+      const TOKEN_KEY = "tele_import_token";
+      const { user: me, access_token } = await login(email, password);
+      localStorage.setItem(TOKEN_KEY, access_token);
+      setUser(me);
+
+      // Redirigir y mostrar el modal de bienvenida
       router.push("/");
+      openModal("login-success", { firstName: me.first_name });
     } catch {
       setError("Email o contraseña incorrectos. Verificá tus datos.");
     } finally {

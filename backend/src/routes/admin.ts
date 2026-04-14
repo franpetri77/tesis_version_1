@@ -5,6 +5,8 @@
 // =============================================
 
 import { Router, Request, Response, NextFunction } from "express";
+import { randomUUID } from "crypto";
+import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
 
@@ -54,7 +56,7 @@ function slugify(text: string): string {
 // -----------------------------------------------
 // Tipos internos para las consultas
 // -----------------------------------------------
-interface DbProduct {
+interface DbProduct extends RowDataPacket {
   id: string;
   name: string;
   slug: string;
@@ -74,7 +76,7 @@ interface DbProduct {
   updated_at: string;
 }
 
-interface DbImage {
+interface DbImage extends RowDataPacket {
   id: string;
   product_id: string;
   image_url: string;
@@ -95,15 +97,13 @@ interface ImageInput {
 // GET /admin/users
 // Lista todos los usuarios sin contraseña
 // -----------------------------------------------
-adminRouter.get("/users", (req, res) => {
+adminRouter.get("/users", async (_req, res) => {
   try {
-    const users = db
-      .prepare(
-        `SELECT id, email, first_name, last_name, phone, role, created_at, updated_at
-         FROM users
-         ORDER BY created_at DESC`
-      )
-      .all();
+    const [users] = await db.query<RowDataPacket[]>(
+      `SELECT id, email, first_name, last_name, phone, role, created_at, updated_at
+       FROM users
+       ORDER BY created_at DESC`
+    );
 
     res.json({ data: users });
   } catch (error) {
@@ -117,7 +117,7 @@ adminRouter.get("/users", (req, res) => {
 // Actualiza el rol de un usuario
 // Body: { role: 'admin' | 'customer' | 'readonly' }
 // -----------------------------------------------
-adminRouter.put("/users/:id/role", (req, res) => {
+adminRouter.put("/users/:id/role", async (req, res) => {
   try {
     const { id } = req.params;
     const { role } = req.body as { role: string };
@@ -128,24 +128,27 @@ adminRouter.put("/users/:id/role", (req, res) => {
       return;
     }
 
-    const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(id);
-    if (!existing) {
+    const [existing] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM users WHERE id = ?",
+      [id]
+    );
+    if (existing.length === 0) {
       res.status(404).json({ error: "Usuario no encontrado" });
       return;
     }
 
-    db.prepare(
-      `UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?`
-    ).run(role, id);
+    // NOW() reemplaza datetime('now') de SQLite
+    await db.query(
+      "UPDATE users SET role = ?, updated_at = NOW() WHERE id = ?",
+      [role, id]
+    );
 
-    const updated = db
-      .prepare(
-        `SELECT id, email, first_name, last_name, phone, role, created_at, updated_at
-         FROM users WHERE id = ?`
-      )
-      .get(id);
+    const [updatedRows] = await db.query<RowDataPacket[]>(
+      "SELECT id, email, first_name, last_name, phone, role, created_at, updated_at FROM users WHERE id = ?",
+      [id]
+    );
 
-    res.json({ data: updated });
+    res.json({ data: updatedRows[0] });
   } catch (error) {
     console.error("[Admin] Error actualizando rol:", error);
     res.status(500).json({ error: "Error al actualizar el rol del usuario" });
@@ -156,7 +159,7 @@ adminRouter.put("/users/:id/role", (req, res) => {
 // DELETE /admin/users/:id
 // Elimina un usuario (no puede eliminarse a sí mismo)
 // -----------------------------------------------
-adminRouter.delete("/users/:id", (req, res) => {
+adminRouter.delete("/users/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const authReq = req as unknown as AuthRequest;
@@ -168,13 +171,16 @@ adminRouter.delete("/users/:id", (req, res) => {
       return;
     }
 
-    const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(id);
-    if (!existing) {
+    const [existing] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM users WHERE id = ?",
+      [id]
+    );
+    if (existing.length === 0) {
       res.status(404).json({ error: "Usuario no encontrado" });
       return;
     }
 
-    db.prepare("DELETE FROM users WHERE id = ?").run(id);
+    await db.query("DELETE FROM users WHERE id = ?", [id]);
     res.json({ success: true });
   } catch (error) {
     console.error("[Admin] Error eliminando usuario:", error);
@@ -190,30 +196,29 @@ adminRouter.delete("/users/:id", (req, res) => {
 // GET /admin/products/:id
 // Obtiene un producto por ID con sus imágenes
 // -----------------------------------------------
-adminRouter.get("/products/:id", (req, res) => {
+adminRouter.get("/products/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const product = db
-      .prepare(
-        `SELECT p.*, c.name AS category_name
-         FROM products p
-         LEFT JOIN categories c ON c.id = p.category_id
-         WHERE p.id = ?
-         LIMIT 1`
-      )
-      .get(id) as DbProduct | undefined;
+    const [productRows] = await db.query<DbProduct[]>(
+      `SELECT p.*, c.name AS category_name
+       FROM products p
+       LEFT JOIN categories c ON c.id = p.category_id
+       WHERE p.id = ?
+       LIMIT 1`,
+      [id]
+    );
+    const product = productRows[0];
 
     if (!product) {
       res.status(404).json({ error: "Producto no encontrado" });
       return;
     }
 
-    const images = db
-      .prepare(
-        `SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order ASC`
-      )
-      .all(id) as DbImage[];
+    const [images] = await db.query<DbImage[]>(
+      "SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order ASC",
+      [id]
+    );
 
     res.json({
       data: {
@@ -233,7 +238,7 @@ adminRouter.get("/products/:id", (req, res) => {
 // POST /admin/products
 // Crea un nuevo producto con sus imágenes
 // -----------------------------------------------
-adminRouter.post("/products", (req, res) => {
+adminRouter.post("/products", async (req, res) => {
   try {
     const {
       name,
@@ -277,85 +282,82 @@ adminRouter.post("/products", (req, res) => {
     const slug = slugInput?.trim() || slugify(name);
 
     // Verificar que SKU y slug sean únicos
-    const existingSku = db.prepare("SELECT id FROM products WHERE sku = ?").get(sku);
-    if (existingSku) {
+    const [dupSku] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM products WHERE sku = ?",
+      [sku]
+    );
+    if (dupSku.length > 0) {
       res.status(409).json({ error: "Ya existe un producto con ese SKU" });
       return;
     }
 
-    const existingSlug = db.prepare("SELECT id FROM products WHERE slug = ?").get(slug);
-    if (existingSlug) {
+    const [dupSlug] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM products WHERE slug = ?",
+      [slug]
+    );
+    if (dupSlug.length > 0) {
       res.status(409).json({ error: "Ya existe un producto con ese slug" });
       return;
     }
 
-    // Insertar producto e imágenes en una transacción
-    const insertProduct = db.transaction(() => {
-      const info = db
-        .prepare(
-          `INSERT INTO products
-             (name, slug, sku, price, compare_price, category_id, stock_quantity,
-              brand, model, description, short_description, is_featured, is_active)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        )
-        .run(
-          name,
-          slug,
-          sku,
-          price,
-          compare_price ?? null,
-          category_id,
-          stock_quantity,
-          brand ?? null,
-          model ?? null,
-          description ?? null,
-          short_description ?? null,
-          is_featured ? 1 : 0,
-          is_active ? 1 : 0
-        );
+    // Generar UUID antes del INSERT para usarlo también en las imágenes
+    const productId = randomUUID();
 
-      // Recuperar el ID generado por SQLite
-      const newProduct = db
-        .prepare("SELECT id FROM products WHERE rowid = ?")
-        .get(info.lastInsertRowid) as { id: string };
-
-      const productId = newProduct.id;
+    // Insertar producto e imágenes en una transacción MySQL
+    const conn = await db.getConnection();
+    await conn.beginTransaction();
+    try {
+      await conn.query(
+        `INSERT INTO products
+           (id, name, slug, sku, price, compare_price, category_id, stock_quantity,
+            brand, model, description, short_description, is_featured, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          productId, name, slug, sku, price,
+          compare_price ?? null, category_id, stock_quantity,
+          brand ?? null, model ?? null, description ?? null, short_description ?? null,
+          is_featured ? 1 : 0, is_active ? 1 : 0,
+        ]
+      );
 
       // Insertar imágenes
       if (images.length > 0) {
-        const insertImage = db.prepare(
-          `INSERT INTO product_images (product_id, image_url, alt_text, sort_order)
-           VALUES (?, ?, ?, ?)`
-        );
-        images.forEach((img, idx) => {
-          insertImage.run(productId, img.url, img.alt ?? null, idx);
-        });
+        for (let idx = 0; idx < images.length; idx++) {
+          const imgId = randomUUID();
+          await conn.query(
+            `INSERT INTO product_images (id, product_id, image_url, alt_text, sort_order)
+             VALUES (?, ?, ?, ?, ?)`,
+            [imgId, productId, images[idx].url, images[idx].alt ?? null, idx]
+          );
+        }
       }
 
-      return productId;
-    });
-
-    const productId = insertProduct() as string;
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
 
     // Devolver el producto completo con imágenes
-    const product = db
-      .prepare(
-        `SELECT p.*, c.name AS category_name
-         FROM products p
-         LEFT JOIN categories c ON c.id = p.category_id
-         WHERE p.id = ?`
-      )
-      .get(productId) as DbProduct;
-
-    const productImages = db
-      .prepare("SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order ASC")
-      .all(productId) as DbImage[];
+    const [productRows] = await db.query<DbProduct[]>(
+      `SELECT p.*, c.name AS category_name
+       FROM products p
+       LEFT JOIN categories c ON c.id = p.category_id
+       WHERE p.id = ?`,
+      [productId]
+    );
+    const [productImages] = await db.query<DbImage[]>(
+      "SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order ASC",
+      [productId]
+    );
 
     res.status(201).json({
       data: {
-        ...product,
-        is_active: Boolean(product.is_active),
-        is_featured: Boolean(product.is_featured),
+        ...productRows[0],
+        is_active: Boolean(productRows[0].is_active),
+        is_featured: Boolean(productRows[0].is_featured),
         images: productImages,
       },
     });
@@ -369,7 +371,7 @@ adminRouter.post("/products", (req, res) => {
 // PUT /admin/products/:id
 // Actualiza un producto existente
 // -----------------------------------------------
-adminRouter.put("/products/:id", (req, res) => {
+adminRouter.put("/products/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -404,7 +406,12 @@ adminRouter.put("/products/:id", (req, res) => {
       images?: ImageInput[];
     };
 
-    const existing = db.prepare("SELECT * FROM products WHERE id = ?").get(id) as DbProduct | undefined;
+    const [existingRows] = await db.query<DbProduct[]>(
+      "SELECT * FROM products WHERE id = ?",
+      [id]
+    );
+    const existing = existingRows[0];
+
     if (!existing) {
       res.status(404).json({ error: "Producto no encontrado" });
       return;
@@ -415,8 +422,11 @@ adminRouter.put("/products/:id", (req, res) => {
 
     // Verificar unicidad de SKU si cambió
     if (sku && sku !== existing.sku) {
-      const dupSku = db.prepare("SELECT id FROM products WHERE sku = ? AND id != ?").get(sku, id);
-      if (dupSku) {
+      const [dupSku] = await db.query<RowDataPacket[]>(
+        "SELECT id FROM products WHERE sku = ? AND id != ?",
+        [sku, id]
+      );
+      if (dupSku.length > 0) {
         res.status(409).json({ error: "Ya existe un producto con ese SKU" });
         return;
       }
@@ -424,16 +434,22 @@ adminRouter.put("/products/:id", (req, res) => {
 
     // Verificar unicidad de slug si cambió
     if (newSlug !== existing.slug) {
-      const dupSlug = db.prepare("SELECT id FROM products WHERE slug = ? AND id != ?").get(newSlug, id);
-      if (dupSlug) {
+      const [dupSlug] = await db.query<RowDataPacket[]>(
+        "SELECT id FROM products WHERE slug = ? AND id != ?",
+        [newSlug, id]
+      );
+      if (dupSlug.length > 0) {
         res.status(409).json({ error: "Ya existe un producto con ese slug" });
         return;
       }
     }
 
-    // Actualizar producto e imágenes en transacción
-    const updateProduct = db.transaction(() => {
-      db.prepare(
+    // Actualizar producto e imágenes en transacción MySQL
+    const conn = await db.getConnection();
+    await conn.beginTransaction();
+    try {
+      // COALESCE preserva el valor actual cuando no se envía el campo
+      await conn.query(
         `UPDATE products SET
            name              = COALESCE(?, name),
            slug              = ?,
@@ -448,61 +464,67 @@ adminRouter.put("/products/:id", (req, res) => {
            short_description = ?,
            is_featured       = COALESCE(?, is_featured),
            is_active         = COALESCE(?, is_active),
-           updated_at        = datetime('now')
-         WHERE id = ?`
-      ).run(
-        name ?? null,
-        newSlug,
-        sku ?? null,
-        price ?? null,
-        compare_price !== undefined ? compare_price : existing.compare_price,
-        category_id ?? null,
-        stock_quantity !== undefined ? stock_quantity : null,
-        brand !== undefined ? brand : existing.brand,
-        model !== undefined ? model : existing.model,
-        description !== undefined ? description : existing.description,
-        short_description !== undefined ? short_description : existing.short_description,
-        is_featured !== undefined ? (is_featured ? 1 : 0) : null,
-        is_active !== undefined ? (is_active ? 1 : 0) : null,
-        id
+           updated_at        = NOW()
+         WHERE id = ?`,
+        [
+          name ?? null,
+          newSlug,
+          sku ?? null,
+          price ?? null,
+          compare_price !== undefined ? compare_price : existing.compare_price,
+          category_id ?? null,
+          stock_quantity !== undefined ? stock_quantity : null,
+          brand !== undefined ? brand : existing.brand,
+          model !== undefined ? model : existing.model,
+          description !== undefined ? description : existing.description,
+          short_description !== undefined ? short_description : existing.short_description,
+          is_featured !== undefined ? (is_featured ? 1 : 0) : null,
+          is_active !== undefined ? (is_active ? 1 : 0) : null,
+          id,
+        ]
       );
 
       // Reemplazar imágenes si se enviaron
       if (images !== undefined) {
-        db.prepare("DELETE FROM product_images WHERE product_id = ?").run(id);
+        await conn.query("DELETE FROM product_images WHERE product_id = ?", [id]);
         if (images.length > 0) {
-          const insertImage = db.prepare(
-            `INSERT INTO product_images (product_id, image_url, alt_text, sort_order)
-             VALUES (?, ?, ?, ?)`
-          );
-          images.forEach((img, idx) => {
-            insertImage.run(id, img.url, img.alt ?? null, idx);
-          });
+          for (let idx = 0; idx < images.length; idx++) {
+            const imgId = randomUUID();
+            await conn.query(
+              `INSERT INTO product_images (id, product_id, image_url, alt_text, sort_order)
+               VALUES (?, ?, ?, ?, ?)`,
+              [imgId, id, images[idx].url, images[idx].alt ?? null, idx]
+            );
+          }
         }
       }
-    });
 
-    updateProduct();
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
 
     // Devolver el producto actualizado
-    const updated = db
-      .prepare(
-        `SELECT p.*, c.name AS category_name
-         FROM products p
-         LEFT JOIN categories c ON c.id = p.category_id
-         WHERE p.id = ?`
-      )
-      .get(id) as DbProduct;
-
-    const productImages = db
-      .prepare("SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order ASC")
-      .all(id) as DbImage[];
+    const [updatedRows] = await db.query<DbProduct[]>(
+      `SELECT p.*, c.name AS category_name
+       FROM products p
+       LEFT JOIN categories c ON c.id = p.category_id
+       WHERE p.id = ?`,
+      [id]
+    );
+    const [productImages] = await db.query<DbImage[]>(
+      "SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order ASC",
+      [id]
+    );
 
     res.json({
       data: {
-        ...updated,
-        is_active: Boolean(updated.is_active),
-        is_featured: Boolean(updated.is_featured),
+        ...updatedRows[0],
+        is_active: Boolean(updatedRows[0].is_active),
+        is_featured: Boolean(updatedRows[0].is_featured),
         images: productImages,
       },
     });
@@ -516,13 +538,15 @@ adminRouter.put("/products/:id", (req, res) => {
 // PATCH /admin/products/:id/toggle
 // Activa o desactiva un producto (toggle is_active)
 // -----------------------------------------------
-adminRouter.patch("/products/:id/toggle", (req, res) => {
+adminRouter.patch("/products/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const product = db
-      .prepare("SELECT id, is_active FROM products WHERE id = ?")
-      .get(id) as { id: string; is_active: number } | undefined;
+    const [rows] = await db.query<RowDataPacket[]>(
+      "SELECT id, is_active FROM products WHERE id = ?",
+      [id]
+    );
+    const product = rows[0] as { id: string; is_active: number } | undefined;
 
     if (!product) {
       res.status(404).json({ error: "Producto no encontrado" });
@@ -531,9 +555,10 @@ adminRouter.patch("/products/:id/toggle", (req, res) => {
 
     // Invertir el estado actual
     const newState = product.is_active ? 0 : 1;
-    db.prepare(
-      `UPDATE products SET is_active = ?, updated_at = datetime('now') WHERE id = ?`
-    ).run(newState, id);
+    await db.query(
+      "UPDATE products SET is_active = ?, updated_at = NOW() WHERE id = ?",
+      [newState, id]
+    );
 
     res.json({ data: { id, is_active: Boolean(newState) } });
   } catch (error) {
@@ -546,17 +571,20 @@ adminRouter.patch("/products/:id/toggle", (req, res) => {
 // DELETE /admin/products/:id
 // Elimina un producto (CASCADE elimina imágenes)
 // -----------------------------------------------
-adminRouter.delete("/products/:id", (req, res) => {
+adminRouter.delete("/products/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const existing = db.prepare("SELECT id FROM products WHERE id = ?").get(id);
-    if (!existing) {
+    const [existing] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM products WHERE id = ?",
+      [id]
+    );
+    if (existing.length === 0) {
       res.status(404).json({ error: "Producto no encontrado" });
       return;
     }
 
-    db.prepare("DELETE FROM products WHERE id = ?").run(id);
+    await db.query("DELETE FROM products WHERE id = ?", [id]);
     res.json({ success: true });
   } catch (error) {
     console.error("[Admin] Error eliminando producto:", error);

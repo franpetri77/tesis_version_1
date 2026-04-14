@@ -5,76 +5,59 @@
 //   - Categoría del producto actual
 //   - Productos trending (más vendidos recientemente)
 //
-// Este servicio es llamado desde el router /reports
-// o puede exponerse como endpoint propio.
+// Migrado de Directus REST API a consultas directas en MySQL.
 // =============================================
 
-const DIRECTUS_URL = process.env.DIRECTUS_URL ?? "http://localhost:8055";
-const TOKEN = process.env.DIRECTUS_SERVICE_TOKEN ?? "";
-
-const headers = {
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${TOKEN}`,
-};
+import type { RowDataPacket } from "mysql2";
+import pool from "../db/database";
 
 /**
  * Obtiene los IDs de categorías que el usuario ha comprado.
  * Base para calcular recomendaciones personalizadas.
  */
 export async function getUserPreferredCategories(userId: string): Promise<string[]> {
-  const res = await fetch(
-    `${DIRECTUS_URL}/items/order_items?` +
-      `fields=product_id.category_id` +
-      `&filter[order_id][user_id][_eq]=${userId}` +
-      `&filter[order_id][status][_in]=paid,delivered` +
-      `&limit=30`,
-    { headers }
-  );
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT DISTINCT p.category_id
+       FROM order_items oi
+       JOIN orders o ON o.id = oi.order_id
+       JOIN products p ON p.id = oi.product_id
+       WHERE o.user_id = ?
+         AND o.status IN ('paid', 'delivered')
+       LIMIT 30`,
+      [userId]
+    );
 
-  if (!res.ok) return [];
-
-  const data = (await res.json()) as {
-    data: Array<{ product_id: { category_id: string } | null }>;
-  };
-
-  const categories = data.data
-    .map((item) => item.product_id?.category_id)
-    .filter(Boolean) as string[];
-
-  // Devolver categorías únicas
-  return [...new Set(categories)];
+    return rows.map((r) => (r as { category_id: string }).category_id);
+  } catch {
+    return [];
+  }
 }
 
 /**
  * Obtiene productos trending basados en cantidad vendida en los últimos 30 días.
  */
 export async function getTrendingProductIds(limit = 10): Promise<string[]> {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .replace("T", " ")
+      .split(".")[0];
 
-  const res = await fetch(
-    `${DIRECTUS_URL}/items/order_items?` +
-      `fields=product_id` +
-      `&filter[order_id][date_created][_gte]=${thirtyDaysAgo}` +
-      `&filter[order_id][status][_in]=paid,delivered` +
-      `&limit=200`,
-    { headers }
-  );
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT oi.product_id, SUM(oi.quantity) AS total_sold
+       FROM order_items oi
+       JOIN orders o ON o.id = oi.order_id
+       WHERE o.created_at >= ?
+         AND o.status IN ('paid', 'delivered')
+       GROUP BY oi.product_id
+       ORDER BY total_sold DESC
+       LIMIT ?`,
+      [thirtyDaysAgo, limit]
+    );
 
-  if (!res.ok) return [];
-
-  const data = (await res.json()) as {
-    data: Array<{ product_id: string }>;
-  };
-
-  // Contar frecuencia de cada producto
-  const countMap = new Map<string, number>();
-  for (const item of data.data) {
-    countMap.set(item.product_id, (countMap.get(item.product_id) ?? 0) + 1);
+    return rows.map((r) => (r as { product_id: string }).product_id);
+  } catch {
+    return [];
   }
-
-  // Ordenar por frecuencia y tomar los top N
-  return Array.from(countMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([id]) => id);
 }

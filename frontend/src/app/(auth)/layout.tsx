@@ -5,7 +5,7 @@
 // =============================================
 
 import Link from "next/link";
-import { Zap, ShieldCheck, Truck, Tag } from "lucide-react";
+import { Zap, ShieldCheck, Truck, Tag, Star } from "lucide-react";
 
 const benefits = [
   { icon: ShieldCheck, text: "Pago 100% seguro con Mercado Pago" },
@@ -83,8 +83,39 @@ export default function AuthLayout({
           </Link>
         </nav>
 
+        {/* ── Banner de marca — solo mobile/tablet (el panel lateral lo cubre en desktop) ── */}
+        <div className="lg:hidden mx-5 mt-6 bg-slate-900 rounded-2xl px-5 py-5 relative overflow-hidden">
+          {/* Destellos decorativos */}
+          <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-brand-600/20 blur-3xl pointer-events-none" />
+          <div className="absolute -left-6 bottom-0 w-28 h-28 rounded-full bg-brand-700/10 blur-2xl pointer-events-none" />
+
+          <div className="relative">
+            <p className="text-white font-bold text-[15px] leading-snug mb-1">
+              Insumos electrónicos<br />
+              <span className="text-brand-400">al mejor precio</span>
+            </p>
+            <p className="text-slate-400 text-xs leading-relaxed mb-3 max-w-xs">
+              TV, smartphones, laptops y más. Garantía oficial y envío a todo el país.
+            </p>
+
+            {/* Beneficios compactos */}
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+              {benefits.map(({ icon: Icon, text }) => (
+                <span key={text} className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                  <Icon className="w-3 h-3 text-brand-500 flex-shrink-0" />
+                  {text}
+                </span>
+              ))}
+              <span className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                <Star className="w-3 h-3 text-brand-500 flex-shrink-0" />
+                Distribuidor oficial
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Contenido del formulario */}
-        <div className="flex-1 flex items-center justify-center px-6 py-10">
+        <div className="flex-1 flex items-center justify-center px-6 py-8">
           {children}
         </div>
       </div>

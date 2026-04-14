@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   CheckCircle2, LogOut, PartyPopper,
-  ShieldAlert, ArrowRight, Home,
+  ShieldAlert, ArrowRight, Home, HandMetal,
 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { useModalStore } from "@/stores/modalStore";
@@ -29,13 +29,14 @@ export function AuthModals() {
   const { activeModal, payload, closeModal } = useModalStore();
 
   const router  = useRouter();
-  const { clearUser } = useAuthStore();
+  const { user, clearUser } = useAuthStore();
 
   function confirmLogout() {
+    const name = user?.first_name ?? "";
     localStorage.removeItem("tele_import_token");
     clearUser();
-    closeModal();
-    router.push("/");
+    // Muestra el modal de despedida antes de redirigir
+    openModal("logout-success", { firstName: name });
   }
 
   return (
@@ -66,6 +67,13 @@ export function AuthModals() {
       <SessionExpiredModal
         isOpen={activeModal === "session-expired"}
         onClose={closeModal}
+      />
+
+      {/* ─── 5. Logout exitoso ─── */}
+      <LogoutSuccessModal
+        isOpen={activeModal === "logout-success"}
+        firstName={payload.firstName ?? ""}
+        onClose={() => { closeModal(); router.push("/"); }}
       />
     </>
   );
@@ -282,6 +290,48 @@ function SessionExpiredModal({ isOpen, onClose }: SessionExpiredModalProps) {
             Volver al inicio
           </Link>
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Modal 5: LOGOUT EXITOSO ─────────────────────────────────────────────────
+
+interface LogoutSuccessModalProps {
+  isOpen: boolean;
+  firstName: string;
+  onClose: () => void;
+}
+
+function LogoutSuccessModal({ isOpen, firstName, onClose }: LogoutSuccessModalProps) {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-xs" disableBackdropClose>
+      <div className="px-7 py-8 text-center">
+        {/* Ícono */}
+        <div className="relative mb-5 flex items-center justify-center">
+          <div className="absolute w-20 h-20 rounded-full bg-slate-100 animate-pulse opacity-60" />
+          <div className="relative w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center shadow-md">
+            <HandMetal className="w-7 h-7 text-white" strokeWidth={1.75} />
+          </div>
+        </div>
+
+        <h2 className="text-xl font-bold text-slate-900 mb-1.5 tracking-tight">
+          {firstName ? `¡Hasta pronto, ${firstName}!` : "¡Hasta pronto!"}
+        </h2>
+        <p className="text-sm text-slate-500 leading-relaxed">
+          Cerraste sesión correctamente. Tus datos están guardados y seguros.
+        </p>
+
+        <button
+          onClick={onClose}
+          className="mt-6 w-full py-2.5 px-5 rounded-xl bg-slate-900 hover:bg-slate-800
+                     text-white text-sm font-semibold transition-all shadow-sm
+                     hover:shadow-md hover:-translate-y-0.5 active:translate-y-0
+                     flex items-center justify-center gap-2"
+        >
+          <Home className="w-4 h-4" />
+          Volver al inicio
+        </button>
       </div>
     </Modal>
   );

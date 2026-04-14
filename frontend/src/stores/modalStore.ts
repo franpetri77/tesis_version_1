@@ -9,6 +9,7 @@ import { create } from "zustand";
 export type ModalType =
   | "login-success"
   | "logout-confirm"
+  | "logout-success"
   | "register-success"
   | "session-expired"
   | null;

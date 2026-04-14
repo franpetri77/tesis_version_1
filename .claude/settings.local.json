@@ -30,7 +30,10 @@
       "Bash(taskkill:*)",
       "Bash(cmd:*)",
       "Bash(git fetch:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(ls /c/Users/popet/OneDrive/Desktop/nuevotesis/backend/.env*)",
+      "Bash(python3 -c ':*)",
+      "Bash(identify banner.jpg banner-smartphones.jpg banner-destacados.jpg)"
     ]
   }
 }

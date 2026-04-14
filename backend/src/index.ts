@@ -25,17 +25,27 @@ const PORT = process.env.PORT ?? 4000;
 // -----------------------------------------------
 // Middleware global
 // -----------------------------------------------
+// CORS_ORIGINS acepta una lista separada por comas para soportar múltiples dominios.
+// Ejemplo en Render: CORS_ORIGINS=https://sctechnology.vercel.app,https://otro-dominio.com
+const ALLOWED_ORIGINS: string[] = (
+  process.env.CORS_ORIGINS ?? process.env.FRONTEND_URL ?? "http://localhost:3000"
+)
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    // Acepta cualquier puerto de localhost en desarrollo,
-    // o el FRONTEND_URL configurado en producción
     origin: (origin, callback) => {
-      const configured = process.env.FRONTEND_URL ?? "http://localhost:3000";
-      if (!origin || origin === configured || /^http:\/\/localhost:\d+$/.test(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS: origen no permitido — ${origin}`));
+      // Permitir requests sin origen (Postman, curl, server-to-server)
+      // y cualquier localhost en desarrollo
+      if (!origin || /^http:\/\/localhost:\d+$/.test(origin)) {
+        return callback(null, true);
       }
+      if (ALLOWED_ORIGINS.includes(origin)) {
+        return callback(null, true);
+      }
+      callback(new Error(`CORS: origen no permitido — ${origin}`));
     },
     credentials: true,
   })

@@ -8,7 +8,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Truck, Store, CreditCard, ShieldCheck } from "lucide-react";
-import { getFeaturedProducts } from "@/lib/api/catalog";
+import { getFeaturedProducts, getPublicProducts } from "@/lib/api/catalog";
 import { ProductCard } from "@/components/catalog/ProductCard";
 import { HeroCarousel } from "@/components/home/HeroCarousel";
 import { Header } from "@/components/layout/Header";
@@ -103,7 +103,12 @@ const SHOP_SECTIONS = [
 ];
 
 export default async function HomePage() {
+  // Intenta productos destacados; si no hay, muestra los más recientes del catálogo
   const featuredProducts = await getFeaturedProducts(8);
+  const isFeatured = featuredProducts.length > 0;
+  const displayProducts = isFeatured
+    ? featuredProducts
+    : (await getPublicProducts({ limit: 8, sort: "newest" })).products;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -192,31 +197,53 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ---- PRODUCTOS DESTACADOS ---- */}
-      {featuredProducts.length > 0 && (
+      {/* ---- PRODUCTOS ---- */}
+      {displayProducts.length > 0 && (
         <section className="py-14 bg-slate-50">
           <div className="container-main">
             <div className="flex items-center justify-between mb-7">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                  Productos destacados
+                  {isFeatured ? "Productos destacados" : "Productos disponibles"}
                 </h2>
                 <p className="text-sm text-slate-500 mt-0.5">
-                  Selección curada del mejor stock disponible
+                  {isFeatured
+                    ? "Selección curada del mejor stock disponible"
+                    : "Los últimos productos en stock — actualizados permanentemente"}
                 </p>
               </div>
               <Link
-                href="/catalogo?destacados=true"
-                className="text-sm text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1 transition-colors"
+                href={isFeatured ? "/catalogo?destacados=true" : "/catalogo"}
+                className="hidden sm:flex text-sm text-brand-600 hover:text-brand-700 font-medium items-center gap-1 transition-colors"
               >
                 Ver todos
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-5">
-              {featuredProducts.map((product) => (
+              {displayProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
+            </div>
+
+            {/* CTA hacia el catálogo completo */}
+            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link
+                href="/catalogo"
+                className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700
+                           text-white font-semibold px-7 py-3 rounded-xl
+                           transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
+              >
+                Ver catálogo completo
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link
+                href="/catalogo"
+                className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
+              >
+                {displayProducts.length}+ productos disponibles
+              </Link>
             </div>
           </div>
         </section>

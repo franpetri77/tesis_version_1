@@ -83,33 +83,46 @@ export default function AuthLayout({
           </Link>
         </nav>
 
-        {/* ── Banner de marca — solo mobile/tablet (el panel lateral lo cubre en desktop) ── */}
-        <div className="lg:hidden mx-5 mt-6 bg-slate-900 rounded-2xl px-5 py-5 relative overflow-hidden">
-          {/* Destellos decorativos */}
-          <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-brand-600/20 blur-3xl pointer-events-none" />
-          <div className="absolute -left-6 bottom-0 w-28 h-28 rounded-full bg-brand-700/10 blur-2xl pointer-events-none" />
+        {/* ── Banner de marca — visible en mobile y tablet (el panel lateral lo reemplaza en desktop lg+) ── */}
+        <div className="lg:hidden mx-5 mt-6 bg-slate-900 rounded-2xl overflow-hidden relative">
+          {/* Franja de acento superior */}
+          <div className="h-1 w-full bg-gradient-to-r from-brand-700 via-brand-500 to-brand-400" />
 
-          <div className="relative">
-            <p className="text-white font-bold text-[15px] leading-snug mb-1">
-              Insumos electrónicos<br />
-              <span className="text-brand-400">al mejor precio</span>
-            </p>
-            <p className="text-slate-400 text-xs leading-relaxed mb-3 max-w-xs">
-              TV, smartphones, laptops y más. Garantía oficial y envío a todo el país.
-            </p>
+          <div className="px-5 py-5 relative">
+            {/* Destellos decorativos */}
+            <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-brand-600/15 blur-3xl pointer-events-none" />
+            <div className="absolute -left-4 bottom-0 w-24 h-24 rounded-full bg-brand-700/10 blur-2xl pointer-events-none" />
 
-            {/* Beneficios compactos */}
-            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-              {benefits.map(({ icon: Icon, text }) => (
-                <span key={text} className="flex items-center gap-1.5 text-slate-400 text-[11px]">
-                  <Icon className="w-3 h-3 text-brand-500 flex-shrink-0" />
-                  {text}
+            <div className="relative">
+              {/* Logo inline */}
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-6 h-6 rounded-md bg-brand-600 flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+                </div>
+                <span className="text-white font-bold text-sm tracking-tight">Tele Import S.A.</span>
+              </div>
+
+              <p className="text-white font-bold text-[15px] leading-snug mb-1">
+                Insumos electrónicos<br />
+                <span className="text-brand-400">al mejor precio</span>
+              </p>
+              <p className="text-slate-400 text-xs leading-relaxed mb-3.5 max-w-xs">
+                TV, smartphones, laptops y más. Garantía oficial y envío a todo el país.
+              </p>
+
+              {/* Beneficios compactos */}
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                {benefits.map(({ icon: Icon, text }) => (
+                  <span key={text} className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                    <Icon className="w-3 h-3 text-brand-500 flex-shrink-0" />
+                    {text}
+                  </span>
+                ))}
+                <span className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                  <Star className="w-3 h-3 text-brand-500 flex-shrink-0" />
+                  Distribuidor oficial
                 </span>
-              ))}
-              <span className="flex items-center gap-1.5 text-slate-400 text-[11px]">
-                <Star className="w-3 h-3 text-brand-500 flex-shrink-0" />
-                Distribuidor oficial
-              </span>
+              </div>
             </div>
           </div>
         </div>

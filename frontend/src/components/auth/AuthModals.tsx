@@ -26,7 +26,7 @@ import { useAuthStore } from "@/stores/authStore";
  * Incluir una sola vez en el layout raíz de la app.
  */
 export function AuthModals() {
-  const { activeModal, payload, closeModal } = useModalStore();
+  const { activeModal, payload, closeModal, openModal } = useModalStore();
 
   const router  = useRouter();
   const { user, clearUser } = useAuthStore();

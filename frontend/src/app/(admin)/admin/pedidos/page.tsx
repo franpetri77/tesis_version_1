@@ -8,7 +8,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge, ORDER_STATUS_VARIANT, ORDER_STATUS_LABEL } from "@/components/ui/Badge";
 import { formatPrice, formatDateTime } from "@/lib/utils/format";
-import type { Order } from "@/types";
+import type { OrderStatus } from "@/types";
+
+// Tipo que refleja el shape real devuelto por GET /reports/orders
+interface PedidoRow {
+  id: string;
+  order_number: string;
+  status: string;
+  total: number;
+  delivery_method: string;
+  created_at: string;
+  user_email: string;
+  user_first_name: string;
+  user_last_name: string;
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -23,11 +36,11 @@ export default async function AdminOrdersPage({ searchParams }: AdminOrdersPageP
   const statusFilter = searchParams.estado;
 
   const qs = statusFilter ? `?status=${statusFilter}` : "";
-  let orders: Order[] = [];
+  let orders: PedidoRow[] = [];
   try {
     const res = await fetch(`${API_URL}/reports/orders${qs}`, { cache: "no-store" });
     if (res.ok) {
-      const data = await res.json() as { data: Order[] };
+      const data = (await res.json()) as { data: PedidoRow[] };
       orders = data.data;
     }
   } catch {
@@ -101,34 +114,25 @@ export default async function AdminOrdersPage({ searchParams }: AdminOrdersPageP
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {orders.map((order) => {
-                const user = typeof order.user_id === "object" ? order.user_id : null;
-                return (
+              {orders.map((order) => (
                   <tr key={order.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-900">
                       {order.order_number}
                     </td>
                     <td className="px-4 py-3">
-                      {user ? (
-                        <div>
-                          <p className="font-medium text-slate-800 text-xs">
-                            {(user as unknown as { first_name: string; last_name: string }).first_name}{" "}
-                            {(user as unknown as { first_name: string; last_name: string }).last_name}
-                          </p>
-                          <p className="text-[11px] text-slate-400">
-                            {(user as unknown as { email: string }).email}
-                          </p>
-                        </div>
-                      ) : (
-                        <span className="text-slate-400 text-xs">—</span>
-                      )}
+                      <div>
+                        <p className="font-medium text-slate-800 text-xs">
+                          {order.user_first_name} {order.user_last_name}
+                        </p>
+                        <p className="text-[11px] text-slate-400">{order.user_email}</p>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-slate-400 text-xs">
                       {order.created_at ? formatDateTime(order.created_at) : "—"}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <Badge variant={ORDER_STATUS_VARIANT[order.status]}>
-                        {ORDER_STATUS_LABEL[order.status]}
+                      <Badge variant={ORDER_STATUS_VARIANT[order.status as OrderStatus]}>
+                        {ORDER_STATUS_LABEL[order.status as OrderStatus]}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-slate-500 text-xs">
@@ -146,8 +150,8 @@ export default async function AdminOrdersPage({ searchParams }: AdminOrdersPageP
                       </Link>
                     </td>
                   </tr>
-                );
-              })}
+                )
+              )}
               {orders.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-14 text-center text-slate-400 text-sm">

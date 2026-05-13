@@ -233,7 +233,7 @@ export function CatalogFilters({
             return (
               <button
                 key={value}
-                onClick={() => navigate({ orden: value })}
+                onClick={() => navigate({ orden: value, pagina: undefined })}
                 className={cn(
                   "w-full text-left text-[12px] flex items-center justify-between",
                   "py-2 px-2.5 rounded-lg transition-all",

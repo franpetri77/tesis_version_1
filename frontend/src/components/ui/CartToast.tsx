@@ -4,8 +4,12 @@
 // COMPONENTE: CART TOAST
 // Notificación flotante que aparece al agregar un producto al carrito.
 // Se auto-oculta luego de 3 segundos.
+// Usa createPortal para renderizar fuera del árbol de Next.js App Router
+// y evitar el warning de auto-scroll con position: fixed.
 // =============================================
 
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import Image from "next/image";
 import { ShoppingCart, X, CheckCircle2 } from "lucide-react";
@@ -15,8 +19,15 @@ import { cn } from "@/lib/utils/cn";
 
 export function CartToast() {
   const { toast, total_items, dismissToast } = useCartStore();
+  const [mounted, setMounted] = useState(false);
 
-  return (
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       className={cn(
         "fixed bottom-6 right-6 z-50 w-80 bg-white rounded-2xl shadow-dropdown border border-slate-200 overflow-hidden",
@@ -84,6 +95,7 @@ export function CartToast() {
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

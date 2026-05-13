@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   ArrowUp,
   ArrowDown,
+  Eye,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils/format";
 import {
@@ -25,9 +26,11 @@ import {
   getSalesReport,
   getTopProducts,
   getWorstProducts,
+  getMostVisitedProducts,
   type AdminMetrics,
   type SalesMetrics,
   type TopProduct,
+  type MostVisitedProduct,
 } from "@/lib/api/admin";
 import type { Product } from "@/types";
 
@@ -61,6 +64,8 @@ function SkeletonCard() {
 export default function AdminReportsPage() {
   const [dateFrom, setDateFrom] = useState(firstDayOfMonth());
   const [dateTo, setDateTo] = useState(today());
+  const [visitFrom, setVisitFrom] = useState(firstDayOfMonth());
+  const [visitTo, setVisitTo] = useState(today());
 
   // -----------------------------------------------
   // Query: métricas globales
@@ -113,6 +118,21 @@ export default function AdminReportsPage() {
     queryKey: ["report-worst-products"],
     queryFn: () => getWorstProducts(10),
     retry: false,
+  });
+
+  // -----------------------------------------------
+  // Query: productos más visitados
+  // -----------------------------------------------
+  const {
+    data: mostVisited,
+    isLoading: loadingVisits,
+    isError: errorVisits,
+    refetch: refetchVisits,
+  } = useQuery<MostVisitedProduct[]>({
+    queryKey: ["report-most-visited", visitFrom, visitTo],
+    queryFn: () => getMostVisitedProducts(10, visitFrom, visitTo),
+    retry: false,
+    staleTime: 60_000,
   });
 
   // -----------------------------------------------
@@ -511,6 +531,98 @@ export default function AdminReportsPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+      </section>
+
+      {/* ============================================
+          SECCIÓN 6: PRODUCTOS MÁS VISITADOS
+          ============================================ */}
+      <section className="bg-white rounded-xl border border-slate-200 shadow-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-2 flex-1">
+            <Eye className="w-4 h-4 text-violet-500" />
+            <h2 className="font-semibold text-slate-900 text-sm">Más visitados (top 10)</h2>
+          </div>
+          {/* Filtro de fechas para visitas */}
+          <div className="flex flex-wrap items-end gap-2">
+            <input
+              type="date"
+              value={visitFrom}
+              onChange={(e) => setVisitFrom(e.target.value)}
+              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900
+                         focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            />
+            <span className="text-xs text-slate-400">–</span>
+            <input
+              type="date"
+              value={visitTo}
+              onChange={(e) => setVisitTo(e.target.value)}
+              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900
+                         focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            />
+            <button
+              onClick={() => refetchVisits()}
+              className="flex items-center gap-1 bg-brand-600 text-white px-3 py-1.5 rounded-lg
+                         text-xs font-semibold hover:bg-brand-700 transition-colors"
+            >
+              <RefreshCcw className="w-3 h-3" />
+              Ver
+            </button>
+          </div>
+        </div>
+
+        {errorVisits ? (
+          <p className="px-5 py-8 text-center text-slate-400 text-sm">Backend no disponible.</p>
+        ) : loadingVisits ? (
+          <div className="divide-y divide-slate-100">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="px-5 py-3 animate-pulse flex items-center gap-3">
+                <div className="h-3 bg-slate-100 rounded w-6" />
+                <div className="h-3 bg-slate-100 rounded flex-1" />
+                <div className="h-3 bg-slate-100 rounded w-12" />
+              </div>
+            ))}
+          </div>
+        ) : (mostVisited ?? []).length === 0 ? (
+          <div className="px-5 py-10 text-center text-slate-400 text-sm">
+            <Eye className="w-6 h-6 text-slate-300 mx-auto mb-2" strokeWidth={1.5} />
+            Sin visitas registradas en el período
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {(mostVisited ?? []).map((product, index) => {
+              const maxViews = mostVisited?.[0]?.view_count ?? 1;
+              const pct = maxViews > 0 ? Math.round((product.view_count / maxViews) * 100) : 0;
+              return (
+                <div key={product.id} className="px-5 py-3 hover:bg-slate-50/60 transition-colors">
+                  <div className="flex items-center gap-3 mb-1.5">
+                    <span className="text-xs font-bold text-slate-400 font-mono w-6 text-center flex-shrink-0">
+                      {index + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 truncate">{product.name}</p>
+                      <p className="text-xs text-slate-400">
+                        {product.sku}{product.brand ? ` · ${product.brand}` : ""}
+                        {product.category_name ? ` · ${product.category_name}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Eye className="w-3.5 h-3.5 text-violet-400" />
+                      <span className="text-sm font-bold text-violet-700">{product.view_count}</span>
+                    </div>
+                  </div>
+                  <div className="ml-9">
+                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-violet-400 rounded-full transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>

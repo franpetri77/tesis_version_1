@@ -11,6 +11,9 @@
 // PUT    /auth/addresses/:id           - actualizar una dirección
 // DELETE /auth/addresses/:id           - eliminar una dirección
 // PATCH  /auth/addresses/:id/default   - marcar como dirección predeterminada
+// GET    /auth/notifications           - listar notificaciones del usuario
+// PATCH  /auth/notifications/read-all  - marcar todas como leídas
+// PATCH  /auth/notifications/:id/read  - marcar una notificación como leída
 // =============================================
 
 import { Router, Request, Response, NextFunction } from "express";
@@ -511,5 +514,92 @@ authRouter.patch("/addresses/:id/default", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("[Auth] Error en PATCH /addresses/:id/default:", error);
     res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// ===============================================
+// NOTIFICACIONES INTERNAS
+// ===============================================
+
+interface DbNotification extends RowDataPacket {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  is_read: number;
+  link: string | null;
+  created_at: string;
+}
+
+// -----------------------------------------------
+// GET /auth/notifications
+// Devuelve las últimas 50 notificaciones del usuario
+// con el conteo de no leídas en meta.
+// -----------------------------------------------
+authRouter.get("/notifications", requireAuth, async (req, res) => {
+  const { userId } = (req as Request & { user: { userId: string } }).user;
+  try {
+    const [rows] = await db.query<DbNotification[]>(
+      `SELECT id, type, title, message, is_read, link, created_at
+       FROM notifications
+       WHERE user_id = ?
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [userId]
+    );
+
+    const unread_count = rows.filter((n) => n.is_read === 0).length;
+    res.json({ data: rows, meta: { unread_count } });
+  } catch (error) {
+    console.error("[Auth] Error en GET /notifications:", error);
+    res.status(500).json({ error: "Error al obtener las notificaciones" });
+  }
+});
+
+// -----------------------------------------------
+// PATCH /auth/notifications/read-all
+// Marca todas las notificaciones del usuario como leídas.
+// DEBE estar ANTES de /:id/read para que Express no
+// interprete "read-all" como un :id.
+// -----------------------------------------------
+authRouter.patch("/notifications/read-all", requireAuth, async (req, res) => {
+  const { userId } = (req as Request & { user: { userId: string } }).user;
+  try {
+    await db.query(
+      "UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0",
+      [userId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[Auth] Error en PATCH /notifications/read-all:", error);
+    res.status(500).json({ error: "Error al actualizar las notificaciones" });
+  }
+});
+
+// -----------------------------------------------
+// PATCH /auth/notifications/:id/read
+// Marca una notificación específica como leída.
+// Valida que pertenezca al usuario autenticado.
+// -----------------------------------------------
+authRouter.patch("/notifications/:id/read", requireAuth, async (req, res) => {
+  const { userId } = (req as Request & { user: { userId: string } }).user;
+  const { id } = req.params;
+  try {
+    const [rows] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM notifications WHERE id = ? AND user_id = ? LIMIT 1",
+      [id, userId]
+    );
+    if (!rows[0]) {
+      res.status(404).json({ error: "Notificación no encontrada" });
+      return;
+    }
+    await db.query(
+      "UPDATE notifications SET is_read = 1 WHERE id = ?",
+      [id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[Auth] Error en PATCH /notifications/:id/read:", error);
+    res.status(500).json({ error: "Error al marcar la notificación" });
   }
 });

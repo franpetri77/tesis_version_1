@@ -33,7 +33,25 @@
       "Bash(git checkout:*)",
       "Bash(ls /c/Users/popet/OneDrive/Desktop/nuevotesis/backend/.env*)",
       "Bash(python3 -c ':*)",
-      "Bash(identify banner.jpg banner-smartphones.jpg banner-destacados.jpg)"
+      "Bash(identify banner.jpg banner-smartphones.jpg banner-destacados.jpg)",
+      "Bash(DB_HOST=monorail.proxy.rlwy.net DB_PORT=11885 DB_USER=root DB_PASSWORD=dBjOtATTuHfXOdwBVFGamYmxZufYRMLo DB_NAME=railway tsx src/db/seed.ts)",
+      "Bash(sc query *)",
+      "Bash(Get-ChildItem *)",
+      "Bash(pandoc \"C:/Users/popet/OneDrive/Desktop/nuevotesis/tesis recortada.docx\" -o /tmp/tesis_output.md)",
+      "Read(//tmp/**)",
+      "Bash(python *)",
+      "Bash(py --version)",
+      "Bash(where python*)",
+      "PowerShell(Copy-Item *)",
+      "Bash(Get-Content \"C:\\\\Users\\\\popet\\\\OneDrive\\\\Desktop\\\\nuevotesis\\\\backend\\\\src\\\\routes\\\\catalog.ts\")",
+      "Bash(Measure-Object -Line)",
+      "Bash(curl -s http://localhost:3001/health)",
+      "Bash(curl -s \"http://localhost:3001/catalog/products?limit=5\")",
+      "Bash(curl -s \"http://localhost:3001/catalog/products?limit=3\")",
+      "Bash(grep -r \"product-views\\\\|productViews\\\\|product_views\" backend/src/routes/ --include=\"*.ts\" -l)",
+      "Bash(grep -r \"recommendations\\\\|recomend\" backend/src/routes/ --include=\"*.ts\" -l)",
+      "Bash(ls frontend/src/app/\\\\\\(public\\\\\\)/)",
+      "Bash(grep -v \"node_modules\\\\|//.*notif\")"
     ]
   }
 }

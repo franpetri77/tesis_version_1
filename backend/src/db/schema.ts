@@ -337,6 +337,26 @@ export async function initSchema(pool: Pool): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
+    // -----------------------------------------------
+    // TABLA: product_views (visitas a fichas de producto)
+    // Registrada desde el cliente al renderizar la página
+    // de detalle; user_id nullable para visitantes anónimos.
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS product_views (
+        id          VARCHAR(50)  NOT NULL,
+        product_id  VARCHAR(50)  NOT NULL,
+        user_id     VARCHAR(50)  NULL,
+        ip_address  VARCHAR(45)  NULL,
+        created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_product_views_product (product_id),
+        KEY idx_product_views_created (created_at),
+        CONSTRAINT fk_product_views_product
+          FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
     // Restaurar verificación de claves foráneas
     await conn.query("SET FOREIGN_KEY_CHECKS = 1");
 

@@ -49,6 +49,15 @@ export interface TopProduct {
   total_revenue: number;
 }
 
+export interface MostVisitedProduct {
+  id: string;
+  name: string;
+  sku: string;
+  brand: string | null;
+  category_name: string | null;
+  view_count: number;
+}
+
 export interface OrderReport {
   id: string;
   order_number: string;
@@ -229,6 +238,27 @@ export async function getMetrics(): Promise<AdminMetrics> {
   );
   if (!res.ok) throw new Error("Error al obtener métricas");
   const data = await res.json() as { data: AdminMetrics };
+  return data.data;
+}
+
+/**
+ * Productos más visitados (por visitas al detalle de producto)
+ */
+export async function getMostVisitedProducts(
+  limit = 10,
+  from?: string,
+  to?: string
+): Promise<MostVisitedProduct[]> {
+  const token = getAdminToken();
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (from) params.set("from", from);
+  if (to)   params.set("to", to);
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/reports/most-visited-products?${params}`,
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+  );
+  if (!res.ok) throw new Error("Error al obtener productos más visitados");
+  const data = await res.json() as { data: MostVisitedProduct[] };
   return data.data;
 }
 

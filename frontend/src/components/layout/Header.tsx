@@ -12,10 +12,12 @@
 // =============================================
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   ShoppingCart, User, Search, Menu, X, Zap,
-  LogOut, ShoppingBag, ChevronDown,
+  LogOut, ShoppingBag, ChevronDown, ShieldCheck,
 } from "lucide-react";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 import { useState, useRef, useEffect } from "react";
 import { useCartStore } from "@/stores/cartStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -36,6 +38,7 @@ const NAV_LINKS = [
 ];
 
 export function Header() {
+  const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen,   setIsUserMenuOpen]   = useState(false);
   const [searchQuery,      setSearchQuery]      = useState("");
@@ -44,6 +47,8 @@ export function Header() {
   const totalItems  = useCartStore((s) => s.total_items);
   const { user, isAuthenticated } = useAuthStore();
   const openModal = useModalStore((s) => s.openModal);
+  const isAdmin = isAuthenticated && user?.role === "admin";
+  const showCategoryNav = pathname !== "/catalogo";
 
   // Cerrar dropdown al hacer click fuera
   useEffect(() => {
@@ -107,6 +112,16 @@ export function Header() {
 
           {/* Acciones — desktop */}
           <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold
+                           bg-slate-900 text-white hover:bg-brand-700 transition-colors shadow-sm"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Admin</span>
+              </Link>
+            )}
 
             {/* Cuenta */}
             {isAuthenticated && user ? (
@@ -174,6 +189,9 @@ export function Header() {
               </Link>
             )}
 
+            {/* Notificaciones — solo usuarios autenticados */}
+            {isAuthenticated && <NotificationBell />}
+
             {/* Divisor */}
             <div className="w-px h-5 bg-slate-200 mx-0.5" />
 
@@ -234,6 +252,7 @@ export function Header() {
       </div>
 
       {/* ── Nav strip — categorías (solo desktop) ── */}
+      {showCategoryNav && (
       <div className="hidden md:block border-t border-slate-100">
         <div className="container-main">
           <nav className="flex items-center gap-0.5 h-9 overflow-x-auto scrollbar-none">
@@ -251,6 +270,7 @@ export function Header() {
           </nav>
         </div>
       </div>
+      )}
 
       {/* ── Menú mobile desplegable ── */}
       <div className={cn(
@@ -327,6 +347,16 @@ export function Header() {
                 <ShoppingBag className="w-4 h-4 text-slate-400" />
                 Mis pedidos
               </Link>
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold bg-slate-900 text-white hover:bg-brand-700 transition-colors"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  Panel admin
+                </Link>
+              )}
               <button
                 onClick={handleSignOut}
                 className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors w-full text-left"

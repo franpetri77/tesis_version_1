@@ -591,3 +591,177 @@ adminRouter.delete("/products/:id", async (req, res) => {
     res.status(500).json({ error: "Error al eliminar el producto" });
   }
 });
+
+// ===============================================
+// GESTIÓN DE RESEÑAS
+// ===============================================
+
+interface AdminReviewRow extends RowDataPacket {
+  id: string;
+  product_id: string;
+  product_name: string;
+  user_id: string;
+  user_name: string;
+  rating: number;
+  title: string | null;
+  body: string;
+  is_approved: number;
+  created_at: string;
+}
+
+// -----------------------------------------------
+// GET /admin/reviews?approved=0|1
+// Lista reseñas con datos de producto y usuario
+// -----------------------------------------------
+adminRouter.get("/reviews", async (req, res) => {
+  const approved = req.query.approved;
+  const conditions: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (approved === "0" || approved === "1") {
+    conditions.push("r.is_approved = ?");
+    params.push(Number(approved));
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  try {
+    const [rows] = await db.query<AdminReviewRow[]>(
+      `SELECT r.id, r.product_id, p.name AS product_name,
+              r.user_id,
+              CONCAT(u.first_name, ' ', u.last_name) AS user_name,
+              r.rating, r.title, r.body, r.is_approved, r.created_at
+       FROM product_reviews r
+       JOIN products p ON p.id = r.product_id
+       JOIN users u ON u.id = r.user_id
+       ${where}
+       ORDER BY r.created_at DESC`,
+      params
+    );
+    res.json({ data: rows });
+  } catch (error) {
+    console.error("[Admin] Error listando reseñas:", error);
+    res.status(500).json({ error: "Error al obtener las reseñas" });
+  }
+});
+
+// -----------------------------------------------
+// PATCH /admin/reviews/:id/approve
+// Aprueba o rechaza una reseña (toggle)
+// -----------------------------------------------
+adminRouter.patch("/reviews/:id/approve", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await db.query<RowDataPacket[]>(
+      "SELECT id, is_approved FROM product_reviews WHERE id = ? LIMIT 1",
+      [id]
+    );
+    if (!rows[0]) {
+      res.status(404).json({ error: "Reseña no encontrada" });
+      return;
+    }
+    const newState = rows[0].is_approved === 1 ? 0 : 1;
+    await db.query("UPDATE product_reviews SET is_approved = ? WHERE id = ?", [newState, id]);
+    res.json({ data: { id, is_approved: Boolean(newState) } });
+  } catch (error) {
+    console.error("[Admin] Error aprobando reseña:", error);
+    res.status(500).json({ error: "Error al actualizar la reseña" });
+  }
+});
+
+// -----------------------------------------------
+// DELETE /admin/reviews/:id
+// Elimina una reseña permanentemente
+// -----------------------------------------------
+adminRouter.delete("/reviews/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM product_reviews WHERE id = ? LIMIT 1",
+      [id]
+    );
+    if (!rows[0]) {
+      res.status(404).json({ error: "Reseña no encontrada" });
+      return;
+    }
+    await db.query("DELETE FROM product_reviews WHERE id = ?", [id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[Admin] Error eliminando reseña:", error);
+    res.status(500).json({ error: "Error al eliminar la reseña" });
+  }
+});
+
+// ===============================================
+// AUDITORÍA
+// ===============================================
+
+interface AuditLogRow extends RowDataPacket {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  user_id: string | null;
+  user_name: string | null;
+  entity_name: string | null;
+  previous_value: string | null;
+  new_value: string | null;
+  ip_address: string | null;
+  created_at: string;
+}
+
+// -----------------------------------------------
+// GET /admin/audit-logs?action=&entity_type=&limit=50&offset=0
+// Lista registros de auditoría con JOIN a usuarios
+// y productos (cuando entity_type = 'product')
+// -----------------------------------------------
+adminRouter.get("/audit-logs", async (req, res) => {
+  const { action, entity_type } = req.query as Record<string, string | undefined>;
+  const limit  = Math.min(Number(req.query.limit)  || 50, 200);
+  const offset = Math.max(Number(req.query.offset) || 0,  0);
+
+  const conditions: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (action)      { conditions.push("al.action = ?");      params.push(action); }
+  if (entity_type) { conditions.push("al.entity_type = ?"); params.push(entity_type); }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  try {
+    const [[{ total }]] = await db.query<RowDataPacket[]>(
+      `SELECT COUNT(*) AS total FROM audit_logs al ${where}`,
+      params
+    );
+
+    const [rows] = await db.query<AuditLogRow[]>(
+      `SELECT
+         al.id,
+         al.action,
+         al.entity_type,
+         al.entity_id,
+         al.user_id,
+         CONCAT(u.first_name, ' ', u.last_name) AS user_name,
+         p.name AS entity_name,
+         al.previous_value,
+         al.new_value,
+         al.ip_address,
+         al.created_at
+       FROM audit_logs al
+       LEFT JOIN users    u ON u.id = al.user_id
+       LEFT JOIN products p ON p.id = al.entity_id AND al.entity_type = 'product'
+       ${where}
+       ORDER BY al.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    res.json({
+      data: rows,
+      meta: { total: Number(total), limit, offset },
+    });
+  } catch (error) {
+    console.error("[Admin] Error listando audit logs:", error);
+    res.status(500).json({ error: "Error al obtener los registros de auditoría" });
+  }
+});

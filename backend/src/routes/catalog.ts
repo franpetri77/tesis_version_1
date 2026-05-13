@@ -7,8 +7,32 @@
 // =============================================
 
 import { Router } from "express";
+import type { Request, Response, NextFunction } from "express";
+import { randomUUID } from "crypto";
+import jwt from "jsonwebtoken";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
+import { requireAuth } from "./auth";
+
+// Mismo secreto que en auth.ts; se extrae para el endpoint de visitas (token opcional)
+const JWT_SECRET = process.env.JWT_SECRET ?? "tele-import-dev-secret-2024";
+
+interface AuthRequest extends Request {
+  user: { userId: string; role: string };
+}
+const castAuth = requireAuth as unknown as (req: Request, res: Response, next: NextFunction) => void;
+
+interface ReviewRow extends RowDataPacket {
+  id: string;
+  product_id: string;
+  user_id: string;
+  user_first_name: string;
+  user_last_name: string;
+  rating: number;
+  title: string | null;
+  body: string;
+  created_at: string;
+}
 
 export const catalogRouter = Router();
 
@@ -232,5 +256,151 @@ catalogRouter.get("/products/:slug", async (req, res) => {
   } catch (error) {
     console.error("[Catalog] Error en GET /products/:slug:", error);
     res.status(500).json({ error: "Error al obtener el producto" });
+  }
+});
+
+// -----------------------------------------------
+// GET /catalog/products/:productId/reviews
+// Reseñas aprobadas de un producto con promedio
+// -----------------------------------------------
+catalogRouter.get("/products/:productId/reviews", async (req, res) => {
+  const { productId } = req.params;
+  try {
+    const [pRows] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM products WHERE id = ? AND is_active = 1 LIMIT 1",
+      [productId]
+    );
+    if (!pRows[0]) {
+      res.status(404).json({ error: "Producto no encontrado" });
+      return;
+    }
+
+    const [reviews] = await db.query<ReviewRow[]>(
+      `SELECT r.id, r.product_id, r.user_id,
+              u.first_name AS user_first_name,
+              u.last_name  AS user_last_name,
+              r.rating, r.title, r.body, r.created_at
+       FROM product_reviews r
+       JOIN users u ON u.id = r.user_id
+       WHERE r.product_id = ? AND r.is_approved = 1
+       ORDER BY r.created_at DESC`,
+      [productId]
+    );
+
+    const total = reviews.length;
+    const average_rating =
+      total > 0
+        ? Math.round((reviews.reduce((s, r) => s + r.rating, 0) / total) * 10) / 10
+        : 0;
+
+    res.json({ data: reviews, meta: { total, average_rating } });
+  } catch (error) {
+    console.error("[Catalog] Error obteniendo reseñas:", error);
+    res.status(500).json({ error: "Error al obtener las reseñas" });
+  }
+});
+
+// -----------------------------------------------
+// POST /catalog/products/:productId/reviews
+// Crea una reseña (requiere auth de cliente)
+// -----------------------------------------------
+catalogRouter.post("/products/:productId/reviews", castAuth, async (req, res) => {
+  const { productId } = req.params;
+  const authReq = req as AuthRequest;
+  const { rating, title, body } = req.body as {
+    rating?: unknown;
+    title?: string;
+    body?: string;
+  };
+
+  const ratingNum = Number(rating);
+  if (!Number.isInteger(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+    res.status(400).json({ error: "El rating debe ser un número entero entre 1 y 5" });
+    return;
+  }
+  if (!body?.trim()) {
+    res.status(400).json({ error: "El comentario no puede estar vacío" });
+    return;
+  }
+
+  try {
+    const [pRows] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM products WHERE id = ? AND is_active = 1 LIMIT 1",
+      [productId]
+    );
+    if (!pRows[0]) {
+      res.status(404).json({ error: "Producto no encontrado" });
+      return;
+    }
+
+    // Un usuario solo puede dejar una reseña por producto
+    const [existing] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM product_reviews WHERE product_id = ? AND user_id = ? LIMIT 1",
+      [productId, authReq.user.userId]
+    );
+    if (existing.length > 0) {
+      res.status(409).json({ error: "Ya dejaste una reseña para este producto" });
+      return;
+    }
+
+    const reviewId = randomUUID();
+    await db.query(
+      `INSERT INTO product_reviews
+         (id, product_id, user_id, rating, title, body, is_approved, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 0, NOW())`,
+      [reviewId, productId, authReq.user.userId, ratingNum, title?.trim() ?? null, body.trim()]
+    );
+
+    res.status(201).json({
+      message: "Reseña enviada. Será publicada luego de ser aprobada.",
+      review: { id: reviewId, rating: ratingNum, title: title?.trim() ?? null, body: body.trim() },
+    });
+  } catch (error) {
+    console.error("[Catalog] Error creando reseña:", error);
+    res.status(500).json({ error: "Error al guardar la reseña" });
+  }
+});
+
+// -----------------------------------------------
+// POST /catalog/products/:productId/view
+// Registra una visita al detalle de un producto.
+// Endpoint público: no requiere autenticación.
+// Si el request incluye un Bearer token válido,
+// se asocia la visita al usuario correspondiente.
+// -----------------------------------------------
+catalogRouter.post("/products/:productId/view", async (req, res) => {
+  const { productId } = req.params;
+
+  // Intentar extraer user_id del token si viene en el header (sin bloquear si no)
+  let userId: string | null = null;
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer ")) {
+    try {
+      const payload = jwt.verify(authHeader.slice(7), JWT_SECRET) as { userId: string };
+      userId = payload.userId;
+    } catch { /* token inválido o expirado — se registra como anónimo */ }
+  }
+
+  try {
+    // Solo registrar si el producto existe y está activo (evita ruido de slugs inválidos)
+    const [rows] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM products WHERE id = ? AND is_active = 1 LIMIT 1",
+      [productId]
+    );
+    if (!rows[0]) {
+      res.status(404).json({ error: "Producto no encontrado" });
+      return;
+    }
+
+    await db.query(
+      `INSERT INTO product_views (id, product_id, user_id, ip_address, created_at)
+       VALUES (?, ?, ?, ?, NOW())`,
+      [randomUUID(), productId, userId, req.ip ?? null]
+    );
+
+    res.status(201).json({ ok: true });
+  } catch (error) {
+    console.error("[Catalog] Error registrando visita:", error);
+    res.status(500).json({ error: "Error al registrar la visita" });
   }
 });

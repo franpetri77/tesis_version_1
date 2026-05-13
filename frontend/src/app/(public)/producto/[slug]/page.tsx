@@ -13,6 +13,8 @@ import { getProductBySlug, getAllProductSlugs, getProductImageUrl } from "@/lib/
 import { formatPrice, calculateDiscount } from "@/lib/utils/format";
 import { AddToCartButton } from "@/components/product/AddToCartButton";
 import { ProductImageGallery } from "@/components/product/ProductImageGallery";
+import { ProductReviews } from "@/components/product/ProductReviews";
+import { ProductViewTracker } from "@/components/product/ProductViewTracker";
 
 interface ProductPageProps {
   params: { slug: string };
@@ -64,6 +66,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   return (
     <div className="container-main py-8 animate-fade-in">
+      {/* Tracker de visitas — invisible, se ejecuta al montar en el browser */}
+      <ProductViewTracker productId={product.id} />
+
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-xs text-slate-400 mb-6">
         <Link href="/" className="hover:text-slate-600 transition-colors">Inicio</Link>
@@ -202,6 +207,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </div>
         </section>
       )}
+
+      {/* ---- RESEÑAS ---- */}
+      <ProductReviews productId={product.id} />
     </div>
   );
 }

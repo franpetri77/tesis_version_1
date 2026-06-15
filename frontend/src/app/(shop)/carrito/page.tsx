@@ -6,8 +6,10 @@
 // y navegar al checkout.
 // =============================================
 
+import { useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Trash2, ShoppingBag, ArrowRight, Package } from "lucide-react";
 import { useCartStore } from "@/stores/cartStore";
 import { Button } from "@/components/ui/Button";
@@ -15,27 +17,45 @@ import { formatPrice } from "@/lib/utils/format";
 import { getProductImageUrl } from "@/lib/api/catalog";
 
 export default function CartPage() {
+  const router = useRouter();
   const { items, subtotal, discount_amount, total, updateQuantity, removeItem } =
     useCartStore();
 
+  // Si el carrito queda vacío, mostramos un modal breve y redirigimos solos
+  // al catálogo (en vez de dejar una pantalla estática de "carrito vacío").
+  useEffect(() => {
+    if (items.length > 0) return;
+    const t = setTimeout(() => router.push("/catalogo"), 2200);
+    return () => clearTimeout(t);
+  }, [items.length, router]);
+
   if (items.length === 0) {
     return (
-      <div className="container-main py-20 flex flex-col items-center text-center animate-fade-in">
-        <div className="w-20 h-20 rounded-2xl bg-slate-100 flex items-center justify-center mb-5">
-          <ShoppingBag className="w-9 h-9 text-slate-400" strokeWidth={1.5} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm animate-fade-in px-4">
+        <style>{`@keyframes cartRedirectBar { from { width: 0% } to { width: 100% } }`}</style>
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full flex flex-col items-center text-center">
+          <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-5">
+            <ShoppingBag className="w-8 h-8 text-slate-400" strokeWidth={1.5} />
+          </div>
+          <h1 className="text-lg font-bold text-slate-900 mb-1.5">
+            Tu carrito está vacío
+          </h1>
+          <p className="text-slate-500 text-sm mb-5">
+            Te llevamos al catálogo para que sigas comprando…
+          </p>
+          <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden mb-6">
+            <div
+              className="h-full bg-brand-500 rounded-full"
+              style={{ animation: "cartRedirectBar 2.2s linear forwards" }}
+            />
+          </div>
+          <Link href="/catalogo" className="w-full">
+            <Button variant="primary" size="lg" fullWidth className="gap-2">
+              Ver catálogo ahora
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          </Link>
         </div>
-        <h1 className="text-xl font-bold text-slate-900 mb-2">
-          Tu carrito está vacío
-        </h1>
-        <p className="text-slate-500 text-sm mb-7 max-w-xs">
-          Explorá el catálogo y encontrá lo que necesitás.
-        </p>
-        <Link href="/catalogo">
-          <Button variant="primary" size="lg" className="gap-2">
-            Ver catálogo
-            <ArrowRight className="w-4 h-4" />
-          </Button>
-        </Link>
       </div>
     );
   }

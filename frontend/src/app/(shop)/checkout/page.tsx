@@ -63,9 +63,12 @@ export default function CheckoutPage() {
   const [checkoutError, setCheckoutError] = useState("");
 
   useEffect(() => {
+    // No redirigir mientras se está abriendo Mercado Pago (evita el rebote a
+    // /carrito durante el redirect).
+    if (isProcessing) return;
     if (cart.items.length === 0) { router.push("/carrito"); return; }
     if (!isAuthenticated)        { router.push("/login?redirect=/checkout"); }
-  }, [cart.items.length, isAuthenticated, router]);
+  }, [cart.items.length, isAuthenticated, isProcessing, router]);
 
   const shippingCost = form.delivery_method === "shipping" ? SHIPPING_COST : 0;
   const finalTotal   = cart.total + shippingCost;
@@ -162,7 +165,9 @@ export default function CheckoutPage() {
         return;
       }
 
-      cart.clearCart();
+      // No vaciamos el carrito acá a propósito: si el usuario cancela el pago en
+      // Mercado Pago, conserva su carrito. Se vacía recién en /checkout/exitoso,
+      // cuando el pago está confirmado. Mantenemos el modal hasta navegar.
       window.location.href = data.sandbox_init_point ?? data.init_point!;
     } catch {
       setCheckoutError("Error de conexión. Verificá tu internet e intentá de nuevo.");
@@ -189,7 +194,7 @@ export default function CheckoutPage() {
             <div className="text-center">
               <p className="font-bold text-slate-900 text-lg">Procesando pago</p>
               <p className="text-slate-500 text-sm mt-1">
-                Conectando con Mercado Pago...
+                Te estamos redirigiendo a Mercado Pago...
               </p>
             </div>
             <div className="flex gap-1.5">

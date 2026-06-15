@@ -6,14 +6,22 @@
 // Mercado Pago agrega ?payment_id=...&order=... a la URL.
 // =============================================
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle2, ArrowRight, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useCartStore } from "@/stores/cartStore";
 
 export default function CheckoutSuccessPage() {
   const searchParams = useSearchParams();
   const paymentId    = searchParams.get("payment_id");
+  const clearCart    = useCartStore((s) => s.clearCart);
+
+  // El pago está confirmado: recién acá vaciamos el carrito.
+  useEffect(() => {
+    clearCart();
+  }, [clearCart]);
 
   return (
     <div className="container-main py-16 flex flex-col items-center text-center max-w-md mx-auto animate-fade-in">

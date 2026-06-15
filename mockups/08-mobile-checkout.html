@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<title>Tele Import — Mobile — Checkout</title>
+<style>
+  :root{
+    --brand-50:#eff6ff;--brand-100:#dbeafe;--brand-200:#bfdbfe;--brand-300:#93c5fd;
+    --brand-400:#60a5fa;--brand-500:#3b82f6;--brand-600:#2563eb;--brand-700:#1d4ed8;
+    --brand-800:#1e40af;--brand-900:#1e3a8a;
+    --slate-50:#f8fafc;--slate-100:#f1f5f9;--slate-200:#e2e8f0;--slate-300:#cbd5e1;
+    --slate-400:#94a3b8;--slate-500:#64748b;--slate-600:#475569;--slate-700:#334155;
+    --slate-800:#1e293b;--slate-900:#0f172a;
+    --emerald-50:#ecfdf5;--emerald-100:#d1fae5;--emerald-500:#10b981;--emerald-600:#059669;--emerald-700:#047857;
+    --amber-50:#fffbeb;--amber-100:#fef3c7;--amber-500:#f59e0b;--amber-700:#b45309;
+    --red-50:#fef2f2;--red-500:#ef4444;--red-600:#dc2626;
+    --violet-50:#f5f3ff;--violet-700:#6d28d9;--indigo-50:#eef2ff;--indigo-700:#4338ca;
+    --page:#F5F5F7;
+    --shadow-card:0 2px 8px rgb(0 0 0 / .06);
+    --shadow-hover:0 12px 32px rgb(0 0 0 / .10), 0 2px 8px rgb(0 0 0 / .06);
+    --shadow-xl:0 20px 48px rgb(0 0 0 / .12), 0 4px 12px rgb(0 0 0 / .06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,sans-serif;background:#dfe3e8;color:var(--slate-900);
+    -webkit-font-smoothing:antialiased;padding:40px 24px 80px}
+  .board-head{max-width:1320px;margin:0 auto 36px;text-align:center}
+  .board-head h1{font-size:30px;font-weight:800;letter-spacing:-.02em;color:#0b1220}
+  .board-head .bolt{display:inline-flex;width:34px;height:34px;border-radius:9px;background:var(--brand-600);
+    align-items:center;justify-content:center;vertical-align:middle;margin-right:8px}
+  .board-head p{color:var(--slate-600);font-size:15px;margin-top:8px}
+  .board-head .tokens{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+  .swatch{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--slate-200);
+    border-radius:999px;padding:5px 11px;font-size:12px;color:var(--slate-600);font-weight:500}
+  .swatch i{width:13px;height:13px;border-radius:4px;display:inline-block}
+
+  .frames{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+  .frame-label{font-size:13px;font-weight:700;color:var(--slate-500);text-transform:uppercase;
+    letter-spacing:.06em;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .frame-label .dot{width:8px;height:8px;border-radius:99px;background:var(--brand-500)}
+  .frame{background:var(--page);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-xl);
+    border:1px solid #cdd3da}
+  .row{display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start}
+  .row .col{flex:1;min-width:320px}
+
+  /* ---------- HEADER ---------- */
+  .hdr{background:#fff;border-bottom:1px solid var(--slate-200)}
+  .hdr-main{display:flex;align-items:center;gap:20px;padding:0 28px;height:60px}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;letter-spacing:-.02em}
+  .logo .bolt{width:28px;height:28px;border-radius:8px;background:var(--brand-600);display:flex;align-items:center;justify-content:center}
+  .logo small{color:var(--slate-400);font-weight:400;font-size:11px}
+  .search{flex:1;max-width:460px;display:flex;align-items:center;gap:9px;background:var(--slate-100);
+    border:1px solid var(--slate-200);border-radius:11px;padding:9px 13px;color:var(--slate-400);font-size:13.5px}
+  .hdr-icons{display:flex;align-items:center;gap:8px;margin-left:auto}
+  .icon-btn{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    color:var(--slate-600);position:relative;background:transparent}
+  .icon-btn:hover{background:var(--slate-100)}
+  .cart-badge{position:absolute;top:4px;right:4px;background:var(--brand-600);color:#fff;font-size:9px;
+    font-weight:700;width:15px;height:15px;border-radius:99px;display:flex;align-items:center;justify-content:center}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:11px;font-weight:600;
+    font-size:13.5px;padding:9px 16px;cursor:pointer;border:none;transition:.15s}
+  .btn-primary{background:var(--brand-600);color:#fff}
+  .btn-primary:hover{background:var(--brand-700)}
+  .btn-outline{background:#fff;color:var(--slate-700);border:1px solid var(--slate-200)}
+  .btn-ghost{background:transparent;color:var(--slate-600)}
+  .btn-lg{padding:13px 20px;font-size:15px;border-radius:13px}
+  .btn-sm{padding:7px 12px;font-size:12.5px}
+  .navstrip{height:42px;display:flex;align-items:center;gap:26px;padding:0 28px;border-top:1px solid var(--slate-100);
+    font-size:13.5px;color:var(--slate-600);font-weight:500}
+  .navstrip a{color:var(--slate-600)}
+  .navstrip a.active{color:var(--brand-700);font-weight:600}
+
+  /* ---------- PRODUCT CARD ---------- */
+  .pcard{background:#fff;border:1px solid var(--slate-100);border-radius:18px;overflow:hidden;box-shadow:var(--shadow-card);display:flex;flex-direction:column}
+  .pcard .img{aspect-ratio:1;background:linear-gradient(135deg,#f8fafc,#eef2f7);position:relative;display:flex;align-items:center;justify-content:center}
+  .pcard .img .ph{width:46px;height:46px;color:var(--slate-300)}
+  .pcard .disc{position:absolute;top:10px;left:10px;background:var(--red-500);color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:8px}
+  .pcard .fav{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:99px;background:#fff;box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:center;color:var(--slate-400)}
+  .pcard .body{padding:13px 14px 15px;display:flex;flex-direction:column;gap:6px}
+  .pcard .cat{font-size:11px;color:var(--brand-600);font-weight:600}
+  .pcard .name{font-size:13.5px;font-weight:600;color:var(--slate-800);line-height:1.35;min-height:36px}
+  .pcard .price{font-size:17px;font-weight:800;color:var(--slate-900)}
+  .pcard .cmp{font-size:12.5px;color:var(--slate-400);text-decoration:line-through;font-weight:400;margin-left:6px}
+  .pcard .stock{font-size:11px;color:var(--emerald-600);font-weight:600}
+  .pcard .add{margin-top:6px;background:var(--brand-600);color:#fff;border-radius:10px;padding:9px;text-align:center;font-size:13px;font-weight:600}
+
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px}
+  .pill-brand{background:var(--brand-50);color:var(--brand-700)}
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px}
+  .b-paid{background:var(--brand-50);color:var(--brand-700)}
+  .b-pending{background:var(--amber-50);color:var(--amber-700)}
+  .b-proc{background:var(--violet-50);color:var(--violet-700)}
+  .b-ship{background:var(--indigo-50);color:var(--indigo-700)}
+  .b-deliv{background:var(--emerald-50);color:var(--emerald-700)}
+
+  .sec-title{font-size:21px;font-weight:800;letter-spacing:-.01em;color:var(--slate-900)}
+  .muted{color:var(--slate-500)}
+  .card{background:#fff;border:1px solid var(--slate-200);border-radius:16px;box-shadow:var(--shadow-card)}
+  .stars{color:#f59e0b;font-size:13px;letter-spacing:1px}
+
+  /* footer */
+  .ftr{background:var(--slate-900);color:var(--slate-400);padding:34px 28px 24px}
+  .ftr-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr;gap:28px}
+  .ftr h4{color:#fff;font-size:13px;font-weight:600;margin-bottom:12px}
+  .ftr a,.ftr li{font-size:12.5px;color:var(--slate-400);line-height:2;list-style:none}
+  .ftr .desc{font-size:12.5px;line-height:1.6;color:var(--slate-500);max-width:230px}
+  .ftr-bottom{border-top:1px solid #1e293b;margin-top:22px;padding-top:14px;display:flex;justify-content:space-between;font-size:11.5px;color:#475569}
+
+  /* admin */
+  .adm{display:flex;min-height:560px}
+  .adm-side{width:212px;background:#0b1220;color:#cbd5e1;padding:18px 12px;flex-shrink:0}
+  .adm-side .logo{color:#fff;font-size:14px;padding:0 8px 16px}
+  .adm-side a{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13px;color:#94a3b8;margin-bottom:2px}
+  .adm-side a.active{background:var(--brand-600);color:#fff;font-weight:600}
+  .adm-side a:hover:not(.active){background:#16203a;color:#e2e8f0}
+  .adm-main{flex:1;background:var(--page);padding:24px 28px}
+  .metric{background:#fff;border:1px solid var(--slate-200);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-card)}
+  .metric .k{font-size:12px;color:var(--slate-500);font-weight:500;display:flex;align-items:center;gap:7px}
+  .metric .v{font-size:25px;font-weight:800;color:var(--slate-900);margin-top:6px}
+  .metric .d{font-size:11.5px;color:var(--emerald-600);font-weight:600;margin-top:2px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--slate-500);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;padding:10px 12px;border-bottom:1px solid var(--slate-200)}
+  td{padding:11px 12px;border-bottom:1px solid var(--slate-100);color:var(--slate-700)}
+
+  svg{display:block}
+  .ico{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .ico-sm{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+</style>
+<style>body{background:#fff;padding:0;margin:0;display:inline-block}</style>
+</head><body><div class="frame" style="width:300px">
+        <div style="background:#fff;padding:0">
+          <div class="hdr"><div class="hdr-main" style="height:52px;padding:0 14px"><div class="logo" style="font-size:14px"><span class="bolt" style="width:24px;height:24px"><svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></span>Tele Import</div></div></div>
+          <div style="padding:14px">
+            <div style="font-size:13px;color:var(--slate-400);margin-bottom:10px">← Finalizar compra</div>
+            <div class="card" style="padding:13px;margin-bottom:11px">
+              <div style="font-weight:700;font-size:13px;margin-bottom:10px">Método de entrega</div>
+              <div style="border:2px solid var(--brand-500);background:var(--brand-50);border-radius:11px;padding:11px;font-size:12px;font-weight:600;color:var(--brand-800);margin-bottom:8px">🏬 Retiro en sucursal · Gratis</div>
+              <div style="border:2px solid var(--slate-200);border-radius:11px;padding:11px;font-size:12px;color:var(--slate-600)">🚚 Envío a domicilio · $3.500</div>
+            </div>
+            <div class="card" style="padding:13px">
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--slate-600);margin-bottom:6px"><span>Subtotal</span><b style="color:var(--slate-900)">$2.089.998</b></div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--emerald-600);font-weight:600;margin-bottom:8px"><span>Descuento</span><span>-$208.999</span></div>
+              <div style="display:flex;justify-content:space-between;font-weight:800;border-top:1px solid var(--slate-100);padding-top:9px"><span>Total</span><span>$1.880.999</span></div>
+              <button class="btn btn-primary" style="width:100%;margin-top:11px;font-size:13px">🔒 Pagar con Mercado Pago</button>
+            </div>
+          </div>
+        </div>
+      </div></body></html>

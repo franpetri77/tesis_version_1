@@ -19,8 +19,10 @@ const checkoutSchema = z.object({
   items: z.array(
     z.object({
       product_id: z.string(),
-      quantity: z.number().int().positive(),
-      unit_price: z.number().positive(),
+      // z.coerce tolera valores numéricos que llegan como string (ej. precios
+      // DECIMAL devueltos por MySQL o carritos viejos persistidos en localStorage).
+      quantity: z.coerce.number().int().positive(),
+      unit_price: z.coerce.number().positive(),
       product: z.object({
         name: z.string(),
         sku: z.string(),
@@ -41,10 +43,10 @@ const checkoutSchema = z.object({
     })
     .nullable(),
   coupon_code: z.string().optional(),
-  subtotal: z.number().nonnegative(),
-  discount_amount: z.number().nonnegative(),
-  shipping_cost: z.number().nonnegative(),
-  total: z.number().positive(),
+  subtotal: z.coerce.number().nonnegative(),
+  discount_amount: z.coerce.number().nonnegative(),
+  shipping_cost: z.coerce.number().nonnegative(),
+  total: z.coerce.number().positive(),
   notes: z.string().optional(),
 });
 
@@ -92,11 +94,12 @@ export async function POST(request: NextRequest) {
       init_point?: string;
       sandbox_init_point?: string;
       error?: string;
+      detail?: string;
     };
 
     if (!orderRes.ok) {
       return NextResponse.json(
-        { error: data.error ?? "Error al procesar el pago" },
+        { error: data.error ?? "Error al procesar el pago", detail: data.detail },
         { status: orderRes.status }
       );
     }

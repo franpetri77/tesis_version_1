@@ -11,10 +11,10 @@ export function Footer() {
 
   return (
     <footer className="bg-slate-900 text-slate-400 mt-auto">
-      <div className="container-main py-14">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-8">
+      <div className="container-main py-10 sm:py-14">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-9 lg:gap-8">
           {/* Columna 1: Marca */}
-          <div className="lg:col-span-1">
+          <div className="col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2 mb-4">
               <div className="w-7 h-7 rounded-md bg-brand-600 flex items-center justify-center flex-shrink-0">
                 <Zap className="w-4 h-4 text-white" strokeWidth={2.5} />
@@ -90,7 +90,7 @@ export function Footer() {
           </div>
 
           {/* Columna 4: Contacto */}
-          <div>
+          <div className="col-span-2 lg:col-span-1">
             <h4 className="text-white font-semibold text-sm mb-4">Contacto</h4>
             <ul className="space-y-3 text-sm">
               <li className="flex items-start gap-2.5">
@@ -128,7 +128,7 @@ export function Footer() {
         </div>
 
         {/* Línea inferior */}
-        <div className="mt-12 pt-6 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+        <div className="mt-10 sm:mt-12 pt-6 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left text-xs text-slate-600">
           <span>© {currentYear} Tele Import S.A. Todos los derechos reservados.</span>
           <span>Envío a todo el país · Lunes a viernes 9–18hs</span>
         </div>

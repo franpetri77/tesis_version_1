@@ -15,6 +15,7 @@ import { AddToCartButton } from "@/components/product/AddToCartButton";
 import { ProductImageGallery } from "@/components/product/ProductImageGallery";
 import { ProductReviews } from "@/components/product/ProductReviews";
 import { ProductViewTracker } from "@/components/product/ProductViewTracker";
+import { ShareButtons } from "@/components/product/ShareButtons";
 
 interface ProductPageProps {
   params: { slug: string };
@@ -58,7 +59,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
     (a, b) => a.sort_order - b.sort_order
   );
 
-  const mainImage = sortedImages[0];
   const discount  = product.compare_price
     ? calculateDiscount(product.compare_price, product.price)
     : 0;
@@ -177,6 +177,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
               Retiro en sucursal
             </div>
           </div>
+
+          {/* Compartir en redes sociales */}
+          <ShareButtons productName={product.name} />
 
           {/* Tags */}
           {product.tags && product.tags.length > 0 && (

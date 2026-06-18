@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tele Import S.A. — Mockups de alta fidelidad</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --brand-50:#eff6ff;--brand-100:#dbeafe;--brand-200:#bfdbfe;--brand-300:#93c5fd;
+    --brand-400:#60a5fa;--brand-500:#3b82f6;--brand-600:#2563eb;--brand-700:#1d4ed8;
+    --brand-800:#1e40af;--brand-900:#1e3a8a;
+    --slate-50:#f8fafc;--slate-100:#f1f5f9;--slate-200:#e2e8f0;--slate-300:#cbd5e1;
+    --slate-400:#94a3b8;--slate-500:#64748b;--slate-600:#475569;--slate-700:#334155;
+    --slate-800:#1e293b;--slate-900:#0f172a;
+    --emerald-50:#ecfdf5;--emerald-100:#d1fae5;--emerald-500:#10b981;--emerald-600:#059669;--emerald-700:#047857;
+    --amber-50:#fffbeb;--amber-100:#fef3c7;--amber-500:#f59e0b;--amber-700:#b45309;
+    --red-50:#fef2f2;--red-500:#ef4444;--red-600:#dc2626;
+    --violet-50:#f5f3ff;--violet-700:#6d28d9;--indigo-50:#eef2ff;--indigo-700:#4338ca;
+    --page:#F5F5F7;
+    --shadow-card:0 2px 8px rgb(0 0 0 / .06);
+    --shadow-hover:0 12px 32px rgb(0 0 0 / .10), 0 2px 8px rgb(0 0 0 / .06);
+    --shadow-xl:0 20px 48px rgb(0 0 0 / .12), 0 4px 12px rgb(0 0 0 / .06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,sans-serif;background:#dfe3e8;color:var(--slate-900);
+    -webkit-font-smoothing:antialiased;padding:40px 24px 80px}
+  .board-head{max-width:1320px;margin:0 auto 36px;text-align:center}
+  .board-head h1{font-size:30px;font-weight:800;letter-spacing:-.02em;color:#0b1220}
+  .board-head .bolt{display:inline-flex;width:34px;height:34px;border-radius:9px;background:var(--brand-600);
+    align-items:center;justify-content:center;vertical-align:middle;margin-right:8px}
+  .board-head p{color:var(--slate-600);font-size:15px;margin-top:8px}
+  .board-head .tokens{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+  .swatch{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--slate-200);
+    border-radius:999px;padding:5px 11px;font-size:12px;color:var(--slate-600);font-weight:500}
+  .swatch i{width:13px;height:13px;border-radius:4px;display:inline-block}
+
+  .frames{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+  .frame-label{font-size:13px;font-weight:700;color:var(--slate-500);text-transform:uppercase;
+    letter-spacing:.06em;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .frame-label .dot{width:8px;height:8px;border-radius:99px;background:var(--brand-500)}
+  .frame{background:var(--page);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-xl);
+    border:1px solid #cdd3da}
+  .row{display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start}
+  .row .col{flex:1;min-width:320px}
+
+  /* ---------- HEADER ---------- */
+  .hdr{background:#fff;border-bottom:1px solid var(--slate-200)}
+  .hdr-main{display:flex;align-items:center;gap:20px;padding:0 28px;height:60px}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;letter-spacing:-.02em}
+  .logo .bolt{width:28px;height:28px;border-radius:8px;background:var(--brand-600);display:flex;align-items:center;justify-content:center}
+  .logo small{color:var(--slate-400);font-weight:400;font-size:11px}
+  .search{flex:1;max-width:460px;display:flex;align-items:center;gap:9px;background:var(--slate-100);
+    border:1px solid var(--slate-200);border-radius:11px;padding:9px 13px;color:var(--slate-400);font-size:13.5px}
+  .hdr-icons{display:flex;align-items:center;gap:8px;margin-left:auto}
+  .icon-btn{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    color:var(--slate-600);position:relative;background:transparent}
+  .icon-btn:hover{background:var(--slate-100)}
+  .cart-badge{position:absolute;top:4px;right:4px;background:var(--brand-600);color:#fff;font-size:9px;
+    font-weight:700;width:15px;height:15px;border-radius:99px;display:flex;align-items:center;justify-content:center}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:11px;font-weight:600;
+    font-size:13.5px;padding:9px 16px;cursor:pointer;border:none;transition:.15s}
+  .btn-primary{background:var(--brand-600);color:#fff}
+  .btn-primary:hover{background:var(--brand-700)}
+  .btn-outline{background:#fff;color:var(--slate-700);border:1px solid var(--slate-200)}
+  .btn-ghost{background:transparent;color:var(--slate-600)}
+  .btn-lg{padding:13px 20px;font-size:15px;border-radius:13px}
+  .btn-sm{padding:7px 12px;font-size:12.5px}
+  .navstrip{height:42px;display:flex;align-items:center;gap:26px;padding:0 28px;border-top:1px solid var(--slate-100);
+    font-size:13.5px;color:var(--slate-600);font-weight:500}
+  .navstrip a{color:var(--slate-600)}
+  .navstrip a.active{color:var(--brand-700);font-weight:600}
+
+  /* ---------- PRODUCT CARD ---------- */
+  .pcard{background:#fff;border:1px solid var(--slate-100);border-radius:18px;overflow:hidden;box-shadow:var(--shadow-card);display:flex;flex-direction:column}
+  .pcard .img{aspect-ratio:1;background:linear-gradient(135deg,#f8fafc,#eef2f7);position:relative;display:flex;align-items:center;justify-content:center}
+  .pcard .img .ph{width:46px;height:46px;color:var(--slate-300)}
+  .pcard .disc{position:absolute;top:10px;left:10px;background:var(--red-500);color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:8px}
+  .pcard .fav{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:99px;background:#fff;box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:center;color:var(--slate-400)}
+  .pcard .body{padding:13px 14px 15px;display:flex;flex-direction:column;gap:6px}
+  .pcard .cat{font-size:11px;color:var(--brand-600);font-weight:600}
+  .pcard .name{font-size:13.5px;font-weight:600;color:var(--slate-800);line-height:1.35;min-height:36px}
+  .pcard .price{font-size:17px;font-weight:800;color:var(--slate-900)}
+  .pcard .cmp{font-size:12.5px;color:var(--slate-400);text-decoration:line-through;font-weight:400;margin-left:6px}
+  .pcard .stock{font-size:11px;color:var(--emerald-600);font-weight:600}
+  .pcard .add{margin-top:6px;background:var(--brand-600);color:#fff;border-radius:10px;padding:9px;text-align:center;font-size:13px;font-weight:600}
+
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px}
+  .pill-brand{background:var(--brand-50);color:var(--brand-700)}
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px}
+  .b-paid{background:var(--brand-50);color:var(--brand-700)}
+  .b-pending{background:var(--amber-50);color:var(--amber-700)}
+  .b-proc{background:var(--violet-50);color:var(--violet-700)}
+  .b-ship{background:var(--indigo-50);color:var(--indigo-700)}
+  .b-deliv{background:var(--emerald-50);color:var(--emerald-700)}
+
+  .sec-title{font-size:21px;font-weight:800;letter-spacing:-.01em;color:var(--slate-900)}
+  .muted{color:var(--slate-500)}
+  .card{background:#fff;border:1px solid var(--slate-200);border-radius:16px;box-shadow:var(--shadow-card)}
+  .stars{color:#f59e0b;font-size:13px;letter-spacing:1px}
+
+  /* footer */
+  .ftr{background:var(--slate-900);color:var(--slate-400);padding:34px 28px 24px}
+  .ftr-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr;gap:28px}
+  .ftr h4{color:#fff;font-size:13px;font-weight:600;margin-bottom:12px}
+  .ftr a,.ftr li{font-size:12.5px;color:var(--slate-400);line-height:2;list-style:none}
+  .ftr .desc{font-size:12.5px;line-height:1.6;color:var(--slate-500);max-width:230px}
+  .ftr-bottom{border-top:1px solid #1e293b;margin-top:22px;padding-top:14px;display:flex;justify-content:space-between;font-size:11.5px;color:#475569}
+
+  /* admin */
+  .adm{display:flex;min-height:560px}
+  .adm-side{width:212px;background:#0b1220;color:#cbd5e1;padding:18px 12px;flex-shrink:0}
+  .adm-side .logo{color:#fff;font-size:14px;padding:0 8px 16px}
+  .adm-side a{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13px;color:#94a3b8;margin-bottom:2px}
+  .adm-side a.active{background:var(--brand-600);color:#fff;font-weight:600}
+  .adm-side a:hover:not(.active){background:#16203a;color:#e2e8f0}
+  .adm-main{flex:1;background:var(--page);padding:24px 28px}
+  .metric{background:#fff;border:1px solid var(--slate-200);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-card)}
+  .metric .k{font-size:12px;color:var(--slate-500);font-weight:500;display:flex;align-items:center;gap:7px}
+  .metric .v{font-size:25px;font-weight:800;color:var(--slate-900);margin-top:6px}
+  .metric .d{font-size:11.5px;color:var(--emerald-600);font-weight:600;margin-top:2px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--slate-500);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;padding:10px 12px;border-bottom:1px solid var(--slate-200)}
+  td{padding:11px 12px;border-bottom:1px solid var(--slate-100);color:var(--slate-700)}
+
+  svg{display:block}
+  .ico{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .ico-sm{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+</style>
+</head>
+<body>
+
+<div class="board-head">
+  <h1><span class="bolt"><svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></span>Tele Import S.A. — Mockups de alta fidelidad</h1>
+  <p>Diseño fiel a la implementación · paleta y tipografía extraídas del código del proyecto · importable a Figma (plugin html.to.design)</p>
+  <div class="tokens">
+    <span class="swatch"><i style="background:#2563eb"></i> brand-600 #2563EB</span>
+    <span class="swatch"><i style="background:#3b82f6"></i> brand-500</span>
+    <span class="swatch"><i style="background:#1e3a8a"></i> brand-900</span>
+    <span class="swatch"><i style="background:#F5F5F7;border:1px solid #e2e8f0"></i> page #F5F5F7</span>
+    <span class="swatch"><i style="background:#0f172a"></i> slate-900</span>
+    <span class="swatch">Aa Inter</span>
+    <span class="swatch">Radio 16px</span>
+  </div>
+</div>
+
+<div class="frames">
+
+  <!-- ============ 1. HOME ============ -->
+  <div>
+    <div class="frame-label"><span class="dot"></span>1 · Home — Inicio</div>
+    <div class="frame">
+      <!-- header -->
+      <div class="hdr">
+        <div class="hdr-main">
+          <div class="logo"><span class="bolt"><svg width="17" height="17" viewBox="0 0 24 24" fill="#fff"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></span>Tele Import <small>S.A.</small></div>
+          <div class="search"><svg class="ico-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Buscar productos, marcas, SKU…</div>
+          <div class="hdr-icons">
+            <div class="icon-btn"><svg class="ico" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+            <div class="icon-btn"><svg class="ico" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 2-1.58l1.65-7.42H5.12"/></svg><span class="cart-badge">3</span></div>
+            <button class="btn btn-outline btn-sm">Ingresar</button>
+          </div>
+        </div>
+        <div class="navstrip">
+          <a class="active">Catálogo</a><a>Televisores</a><a>Smartphones</a><a>Gaming</a><a>Laptops y PCs</a><a style="margin-left:auto;color:var(--brand-600);font-weight:600">Ofertas 🔥</a>
+        </div>
+      </div>
+      <!-- hero -->
+      <div style="padding:24px 28px">
+        <div style="border-radius:18px;overflow:hidden;background:linear-gradient(120deg,#1e3a8a,#2563eb 55%,#3b82f6);color:#fff;padding:42px 40px;position:relative;min-height:210px;display:flex;flex-direction:column;justify-content:center">
+          <span class="pill" style="background:rgba(255,255,255,.18);color:#fff;width:fit-content;margin-bottom:12px">Distribuidor mayorista y minorista</span>
+          <div style="font-size:34px;font-weight:800;letter-spacing:-.02em;max-width:560px;line-height:1.1">Insumos electrónicos para profesionales y entusiastas</div>
+          <div style="opacity:.85;margin-top:10px;font-size:15px;max-width:480px">Las mejores marcas con stock real, envío a todo el país y pago seguro con Mercado Pago.</div>
+          <div style="display:flex;gap:12px;margin-top:20px">
+            <button class="btn btn-lg" style="background:#fff;color:var(--brand-700)">Ver catálogo →</button>
+            <button class="btn btn-lg" style="background:rgba(255,255,255,.15);color:#fff">Ofertas del mes</button>
+          </div>
+          <div style="position:absolute;right:30px;bottom:18px;display:flex;gap:6px">
+            <span style="width:24px;height:6px;border-radius:9px;background:#fff"></span>
+            <span style="width:8px;height:6px;border-radius:9px;background:rgba(255,255,255,.5)"></span>
+            <span style="width:8px;height:6px;border-radius:9px;background:rgba(255,255,255,.5)"></span>
+          </div>
+        </div>
+        <!-- destacados -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:30px 2px 16px">
+          <div class="sec-title">Productos destacados</div>
+          <a style="color:var(--brand-600);font-weight:600;font-size:13.5px">Ver todos →</a>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px">
+          <!-- card 1 -->
+          <div class="pcard">
+            <div class="img"><span class="disc">-18% OFF</span><div class="fav"><svg class="ico-sm" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg></div>
+              <svg width="64" height="64" viewBox="0 0 24 24" class="ph" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M11 18h2"/></svg></div>
+            <div class="body"><div class="cat">Smartphones</div><div class="name">Apple iPhone 15 128GB Negro</div>
+              <div><span class="price">$1.299.999</span><span class="cmp">$1.589.999</span></div>
+              <div class="stock">✓ 8 unidades</div><div class="add">Agregar al carrito</div></div>
+          </div>
+          <!-- card 2 -->
+          <div class="pcard">
+            <div class="img"><div class="fav"><svg class="ico-sm" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg></div>
+              <svg width="74" height="74" viewBox="0 0 24 24" class="ph" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></div>
+            <div class="body"><div class="cat">Televisores</div><div class="name">Smart TV Samsung 55" 4K UHD</div>
+              <div><span class="price">$789.999</span></div>
+              <div class="stock">✓ 12 unidades</div><div class="add">Agregar al carrito</div></div>
+          </div>
+          <!-- card 3 -->
+          <div class="pcard">
+            <div class="img"><span class="disc">-12% OFF</span><div class="fav"><svg class="ico-sm" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg></div>
+              <svg width="74" height="74" viewBox="0 0 24 24" class="ph" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+            <div class="body"><div class="cat">Laptops y PCs</div><div class="name">Notebook Lenovo IdeaPad 15" i5</div>
+              <div><span class="price">$945.000</span><span class="cmp">$1.075.000</span></div>
+              <div class="stock">✓ 5 unidades</div><div class="add">Agregar al carrito</div></div>
+          </div>
+          <!-- card 4 -->
+          <div class="pcard">
+            <div class="img"><div class="fav"><svg class="ico-sm" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg></div>
+              <svg width="70" height="70" viewBox="0 0 24 24" class="ph" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M9 7h6"/></svg></div>
+            <div class="body"><div class="cat">Gaming</div><div class="name">Joystick Inalámbrico PS5 DualSense</div>
+              <div><span class="price">$129.999</span></div>
+              <div class="stock" style="color:var(--amber-700)">¡Últimas 3 unidades!</div><div class="add">Agregar al carrito</div></div>
+          </div>
+        </div>
+      </div>
+      <!-- footer -->
+      <div class="ftr">
+        <div class="ftr-grid">
+          <div><div class="logo" style="color:#fff;margin-bottom:12px"><span class="bolt"><svg width="15" height="15" viewBox="0 0 24 24" fill="#fff"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></span>Tele Import <small>S.A.</small></div><p class="desc">Insumos electrónicos y de computación para profesionales y entusiastas. Distribuidor mayorista y minorista.</p></div>
+          <div><h4>Productos</h4><ul><li>Catálogo completo</li><li>Televisores</li><li>Smartphones</li><li>Gaming</li><li>Laptops y PCs</li></ul></div>
+          <div><h4>Mi cuenta</h4><ul><li>Ingresar</li><li>Crear cuenta</li><li>Mis pedidos</li><li>Mi perfil</li></ul></div>
+          <div><h4>Contacto</h4><ul><li>📍 Buenos Aires, Argentina</li><li>✉ ventas@teleimport.com.ar</li><li>☎ (011) 4xxx-xxxx</li></ul></div>
+        </div>
+        <div class="ftr-bottom"><span>© 2026 Tele Import S.A. Todos los derechos reservados.</span><span>Envío a todo el país · Lun a Vie 9–18hs</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 2. CATALOGO ============ -->
+  <div>
+    <div class="frame-label"><span class="dot"></span>2 · Catálogo con filtros</div>
+    <div class="frame">
+      <div class="hdr"><div class="hdr-main">
+        <div class="logo"><span class="bolt"><svg width="17" height="17" viewBox="0 0 24 24" fill="#fff"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></span>Tele Import <small>S.A.</small></div>
+        <div class="search"><svg class="ico-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> notebook</div>
+        <div class="hdr-icons"><div class="icon-btn"><svg class="ico" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 2-1.58l1.65-7.42H5.12"/></svg><span class="cart-badge">3</span></div><button class="btn btn-outline btn-sm">Mi cuenta</button></div>
+      </div></div>
+      <div style="padding:22px 28px">
+        <div style="font-size:13px;color:var(--slate-400);margin-bottom:14px">Inicio › Catálogo › <b style="color:var(--slate-600)">Laptops y PCs</b></div>
+        <div style="display:flex;gap:24px">
+          <!-- filtros -->
+          <div style="width:240px;flex-shrink:0">
+            <div class="card" style="padding:18px">
+              <div style="font-weight:700;margin-bottom:14px">Filtros</div>
+              <div style="font-size:12px;font-weight:700;color:var(--slate-500);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Categorías</div>
+              <div style="display:flex;flex-direction:column;gap:9px;font-size:13.5px;color:var(--slate-600)">
+                <label style="display:flex;gap:8px;align-items:center"><span style="width:15px;height:15px;border:1.5px solid var(--brand-600);border-radius:4px;background:var(--brand-600);display:inline-block"></span> Laptops y PCs <span style="margin-left:auto;color:var(--slate-400)">24</span></label>
+                <label style="display:flex;gap:8px;align-items:center"><span style="width:15px;height:15px;border:1.5px solid var(--slate-300);border-radius:4px;display:inline-block"></span> Smartphones <span style="margin-left:auto;color:var(--slate-400)">38</span></label>
+                <label style="display:flex;gap:8px;align-items:center"><span style="width:15px;height:15px;border:1.5px solid var(--slate-300);border-radius:4px;display:inline-block"></span> Televisores <span style="margin-left:auto;color:var(--slate-400)">19</span></label>
+                <label style="display:flex;gap:8px;align-items:center"><span style="width:15px;height:15px;border:1.5px solid var(--slate-300);border-radius:4px;display:inline-block"></span> Gaming <span style="margin-left:auto;color:var(--slate-400)">27</span></label>
+              </div>
+              <div style="height:1px;background:var(--slate-100);margin:16px 0"></div>
+              <div style="font-size:12px;font-weight:700;color:var(--slate-500);text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px">Precio</div>
+              <div style="height:4px;background:var(--slate-200);border-radius:9px;position:relative;margin:0 4px"><span style="position:absolute;left:15%;right:35%;top:0;bottom:0;background:var(--brand-500);border-radius:9px"></span><span style="position:absolute;left:15%;top:-4px;width:12px;height:12px;border-radius:99px;background:#fff;border:2px solid var(--brand-600)"></span><span style="position:absolute;right:35%;top:-4px;width:12px;height:12px;border-radius:99px;background:#fff;border:2px solid var(--brand-600)"></span></div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--slate-500);margin-top:10px"><span>$200.000</span><span>$1.200.000</span></div>
+            </div>
+          </div>
+          <!-- grid -->
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div style="font-size:13.5px;color:var(--slate-500)"><b style="color:var(--slate-800)">24</b> productos</div>
+              <div style="display:flex;gap:8px">
+                <span class="pill pill-brand">Laptops y PCs ✕</span>
+                <span class="btn btn-outline btn-sm">Ordenar: Destacados ▾</span>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
+              <div class="pcard"><div class="img"><span class="disc">-12%</span><svg width="74" height="74" viewBox="0 0 24 24" class="ph" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><div class="body"><div class="cat">Laptops y PCs</div><div class="name">Notebook Lenovo IdeaPad 15" i5</div><div><span class="price">$945.000</span><span class="cmp">$1.075.000</span></div><div class="stock">✓ 5 unidades</div><div class="add">Agregar</div></div></div>
+              <div class="pcard"><div class="img"><svg width="74" height="74" viewBox="0 0 24 24" class="ph" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><div class="body"><div class="cat">Laptops y PCs</div><div class="name">Notebook HP Pavilion 14" Ryzen 7</div><div><span class="price">$1.120.000</span></div><div class="stock">✓ 9 unidades</div><div class="add">Agregar</div></div></div>
+              <div class="pcard"><div class="img"><span class="disc">-20%</span><svg width="70" height="70" viewBox="0 0 24 24" class="ph" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M3 20h18"/></svg></div><div class="body"><div class="cat">Laptops y PCs</div><div class="name">PC de Escritorio Gamer Ryzen 5 + RTX 4060</div><div><span class="price">$1.450.000</span><span class="cmp">$1.810.000</span></div><div class="stock">✓ 4 unidades</div><div class="add">Agregar</div></div></div>
+              <div class="pcard"><div class="img"><svg width="70" height="70" viewBox="0 0 24 24" class="ph" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></div><div class="body"><div class="cat">Laptops y PCs</div><div class="name">Monitor LG UltraGear 27" 165Hz</div><div><span class="price">$389.999</span></div><div class="stock">✓ 11 unidades</div><div class="add">Agregar</div></div></div>
+              <div class="pcard"><div class="img"><svg width="62" height="62" viewBox="0 0 24 24" class="ph" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="4" y="4" width="16" height="12" rx="2"/><path d="M2 20h20"/></svg></div><div class="body"><div class="cat">Laptops y PCs</div><div class="name">Teclado Mecánico Redragon RGB</div><div><span class="price">$64.999</span></div><div class="stock">✓ 22 unidades</div><div class="add">Agregar</div></div></div>
+              <div class="pcard"><div class="img"><span class="disc">-15%</span><svg width="62" height="62" viewBox="0 0 24 24" class="ph" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="12" cy="12" r="8"/></svg></div><div class="body"><div class="cat">Laptops y PCs</div><div class="name">Mouse Logitech MX Master 3S</div><div><span class="price">$98.500</span><span class="cmp">$115.900</span></div><div class="stock">✓ 16 unidades</div><div class="add">Agregar</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3. PRODUCTO ============ -->
+  <div>
+    <div class="frame-label"><span class="dot"></span>3 · Detalle de producto (con zoom, reseñas y compartir)</div>
+    <div class="frame">
+      <div class="hdr"><div class="hdr-main">
+        <div class="logo"><span class="bolt"><svg width="17" height="17" viewBox="0 0 24 24" fill="#fff"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></span>Tele Import <small>S.A.</small></div>
+        <div class="search"><svg class="ico-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Buscar…</div>
+        <div class="hdr-icons"><div class="icon-btn"><svg class="ico" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 2-1.58l1.65-7.42H5.12"/></svg><span class="cart-badge">3</span></div></div>
+      </div></div>
+      <div style="padding:24px 28px">
+        <div style="font-size:13px;color:var(--slate-400);margin-bottom:18px">Inicio › Catálogo › Smartphones › <b style="color:var(--slate-600)">iPhone 15</b></div>
+        <div class="row">
+          <!-- galeria -->
+          <div class="col" style="max-width:430px">
+            <div style="aspect-ratio:1;background:linear-gradient(135deg,#f8fafc,#eef2f7);border-radius:18px;position:relative;display:flex;align-items:center;justify-content:center;border:1px solid var(--slate-100)">
+              <span class="disc" style="position:absolute;top:16px;left:16px">-18% OFF</span>
+              <div style="position:absolute;bottom:14px;right:14px;background:rgba(15,23,42,.6);color:#fff;font-size:12px;padding:6px 10px;border-radius:10px;display:flex;gap:6px;align-items:center"><svg class="ico-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3M11 8v6M8 11h6"/></svg> Ampliar</div>
+              <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1"><rect x="5" y="2" width="14" height="20" rx="2.5"/><path d="M11 18h2"/></svg>
+            </div>
+            <div style="display:flex;gap:9px;margin-top:12px">
+              <div style="width:64px;height:64px;border-radius:12px;border:2px solid var(--brand-400);background:#f8fafc;display:flex;align-items:center;justify-content:center"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1"><rect x="5" y="2" width="14" height="20" rx="2"/></svg></div>
+              <div style="width:64px;height:64px;border-radius:12px;border:1px solid var(--slate-100);background:#f8fafc;display:flex;align-items:center;justify-content:center"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1"><rect x="5" y="2" width="14" height="20" rx="2"/></svg></div>
+              <div style="width:64px;height:64px;border-radius:12px;border:1px solid var(--slate-100);background:#f8fafc;display:flex;align-items:center;justify-content:center"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1"><rect x="5" y="2" width="14" height="20" rx="2"/></svg></div>
+            </div>
+          </div>
+          <!-- info -->
+          <div class="col">
+            <span class="pill pill-brand">Smartphones</span>
+            <div style="font-size:27px;font-weight:800;letter-spacing:-.02em;margin:12px 0 6px;line-height:1.15">Apple iPhone 15 128GB — Negro</div>
+            <div style="font-size:12px;color:var(--slate-400);margin-bottom:14px">SKU: IPH15-128-BLK</div>
+            <div style="display:flex;align-items:baseline;gap:12px;margin:6px 0 14px">
+              <span style="font-size:30px;font-weight:800">$1.299.999</span>
+              <span style="font-size:17px;color:var(--slate-400);text-decoration:line-through">$1.589.999</span>
+              <span style="font-size:13px;font-weight:700;color:var(--emerald-600);background:var(--emerald-50);padding:2px 9px;border-radius:9px">-18% OFF</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--emerald-700);font-weight:600;margin-bottom:16px"><span style="width:8px;height:8px;border-radius:99px;background:var(--emerald-500)"></span> 8 unidades disponibles</div>
+            <p style="font-size:13.5px;color:var(--slate-600);line-height:1.6;border-left:2px solid var(--brand-200);padding-left:12px;margin-bottom:18px">Pantalla Super Retina XDR de 6.1", chip A16 Bionic, sistema de cámara dual de 48MP y conector USB-C. Garantía oficial 12 meses.</p>
+            <div style="display:flex;gap:12px;margin-bottom:18px">
+              <div style="display:flex;align-items:center;border:1px solid var(--slate-200);border-radius:11px;overflow:hidden"><span style="width:40px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--slate-500);font-size:18px">−</span><span style="width:44px;text-align:center;font-weight:700">1</span><span style="width:40px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--slate-500);font-size:18px">+</span></div>
+              <button class="btn btn-primary btn-lg" style="flex:1"><svg class="ico-sm" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 2-1.58l1.65-7.42H5.12"/></svg> Agregar al carrito</button>
+            </div>
+            <div style="display:flex;gap:18px;font-size:12.5px;color:var(--slate-500);margin-bottom:16px"><span>🚚 Envío a todo el país</span><span>🏬 Retiro en sucursal</span></div>
+            <!-- share -->
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:16px">
+              <span style="font-size:12px;font-weight:600;color:var(--slate-500)">Compartir:</span>
+              <span style="width:34px;height:34px;border:1px solid var(--slate-200);border-radius:9px;display:flex;align-items:center;justify-content:center;color:#25D366"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.1-1.7-.9-2-1-.3-.1-.5-.1-.6.2l-.9 1.1c-.2.2-.3.2-.6.1-1.5-.7-2.5-1.3-3.5-3-.3-.5.3-.4.8-1.4.1-.2 0-.4 0-.5L9.6 7c-.2-.5-.4-.5-.6-.5h-.6c-.2 0-.5.1-.8.4-1 1-1.2 2.2-.5 3.5 1.1 2 2.6 3.8 4.9 4.9 1.6.7 2.3.6 3.2.5.5-.1 1.7-.7 1.9-1.4.2-.7.2-1.2.1-1.4-.1-.1-.3-.2-.6-.3M12 21.5a9.5 9.5 0 0 1-4.8-1.3l-3.4.9.9-3.3A9.5 9.5 0 1 1 12 21.5"/></svg></span>
+              <span style="width:34px;height:34px;border:1px solid var(--slate-200);border-radius:9px;display:flex;align-items:center;justify-content:center;color:#1877F2"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12a12 12 0 1 0-13.9 11.9v-8.4H7.1V12h3V9.4c0-3 1.8-4.7 4.5-4.7 1.3 0 2.7.2 2.7.2v3h-1.5c-1.5 0-2 .9-2 1.9V12h3.3l-.5 3.5h-2.8v8.4A12 12 0 0 0 24 12"/></svg></span>
+              <span style="width:34px;height:34px;border:1px solid var(--slate-200);border-radius:9px;display:flex;align-items:center;justify-content:center;color:#0f172a"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.2 2.2h3.3l-7.2 8.3 8.5 11.3h-6.6l-5.2-6.8-6 6.8H1.7l7.7-8.8L1.3 2.2h6.8l4.7 6.2zM17 19.8h1.8L7.1 4.1H5.1z"/></svg></span>
+              <span style="width:34px;height:34px;border:1px solid var(--slate-200);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--slate-500)"><svg class="ico-sm" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></span>
+            </div>
+            <div style="display:flex;gap:8px"><span class="badge" style="background:var(--slate-100);color:var(--slate-600)">5G</span><span class="badge" style="background:var(--slate-100);color:var(--slate-600)">USB-C</span><span class="badge" style="background:var(--slate-100);color:var(--slate-600)">Garantía oficial</span></div>
+          </div>
+        </div>
+        <!-- reseñas -->
+        <div style="border-top:1px solid var(--slate-100);margin-top:28px;padding-top:22px">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div class="sec-title" style="font-size:18px">Reseñas</div><span class="stars">★★★★★</span><span style="font-size:13px;color:var(--slate-500)">4.8 · 23 reseñas</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="card" style="padding:15px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><b style="font-size:13.5px">Martín G.</b><span class="stars">★★★★★</span></div><p style="font-size:13px;color:var(--slate-600);line-height:1.5">Excelente equipo, llegó rápido y bien embalado. La cámara es una locura.</p></div>
+            <div class="card" style="padding:15px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><b style="font-size:13.5px">Lucía R.</b><span class="stars">★★★★☆</span></div><p style="font-size:13px;color:var(--slate-600);line-height:1.5">Muy bueno, aunque esperaba el cargador incluido. Igual lo recomiendo.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 4 + 5 CARRITO / CHECKOUT ============ -->
+  <div class="row">
+    <div class="col">
+      <div class="frame-label"><span class="dot"></span>4 · Carrito</div>
+      <div class="frame">
+        <div class="hdr"><div class="hdr-main"><div class="logo"><span class="bolt"><svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></span>Tele Import <small>S.A.</small></div><div class="hdr-icons" style="margin-left:auto"><div class="icon-btn"><svg class="ico" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 2-1.58l1.65-7.42H5.12"/></svg><span class="cart-badge">3</span></div></div></div></div>
+        <div style="padding:22px 24px">
+          <div class="sec-title" style="font-size:19px;margin-bottom:16px">Carrito de compras <span style="font-weight:400;color:var(--slate-400);font-size:14px">(3 productos)</span></div>
+          <!-- item -->
+          <div class="card" style="padding:14px;display:flex;gap:13px;align-items:center;margin-bottom:11px">
+            <div style="width:66px;height:66px;border-radius:12px;background:#f8fafc;border:1px solid var(--slate-100);flex-shrink:0;display:flex;align-items:center;justify-content:center"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.2"><rect x="5" y="2" width="14" height="20" rx="2"/></svg></div>
+            <div style="flex:1"><div style="font-size:13.5px;font-weight:600">Apple iPhone 15 128GB Negro</div><div style="font-size:11px;color:var(--slate-400);margin-top:2px">SKU: IPH15-128-BLK</div><div style="color:var(--brand-700);font-weight:700;font-size:13.5px;margin-top:5px">$1.299.999</div></div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:9px"><b style="font-size:13.5px">$1.299.999</b><div style="display:flex;align-items:center;gap:8px"><div style="display:flex;align-items:center;border:1px solid var(--slate-200);border-radius:9px;background:var(--slate-50)"><span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:var(--slate-500)">−</span><span style="width:28px;text-align:center;font-size:13px;font-weight:700">1</span><span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:var(--slate-500)">+</span></div><span style="color:var(--slate-400)"><svg class="ico-sm" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span></div></div>
+          </div>
+          <div class="card" style="padding:14px;display:flex;gap:13px;align-items:center;margin-bottom:11px">
+            <div style="width:66px;height:66px;border-radius:12px;background:#f8fafc;border:1px solid var(--slate-100);flex-shrink:0;display:flex;align-items:center;justify-content:center"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.2"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8"/></svg></div>
+            <div style="flex:1"><div style="font-size:13.5px;font-weight:600">Smart TV Samsung 55" 4K UHD</div><div style="font-size:11px;color:var(--slate-400);margin-top:2px">SKU: TV-SAM-55-4K</div><div style="color:var(--brand-700);font-weight:700;font-size:13.5px;margin-top:5px">$789.999</div></div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:9px"><b style="font-size:13.5px">$789.999</b><div style="display:flex;align-items:center;gap:8px"><div style="display:flex;align-items:center;border:1px solid var(--slate-200);border-radius:9px;background:var(--slate-50)"><span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:var(--slate-500)">−</span><span style="width:28px;text-align:center;font-size:13px;font-weight:700">1</span><span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:var(--slate-500)">+</span></div><span style="color:var(--slate-400)"><svg class="ico-sm" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></span></div></div>
+          </div>
+          <a style="color:var(--brand-600);font-weight:600;font-size:13px">← Continuar comprando</a>
+          <div class="card" style="padding:18px;margin-top:16px">
+            <div style="font-weight:700;margin-bottom:14px">Resumen del pedido</div>
+            <div style="display:flex;justify-content:space-between;font-size:13.5px;color:var(--slate-600);margin-bottom:9px"><span>Subtotal</span><b style="color:var(--slate-900)">$2.089.998</b></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--slate-400);margin-bottom:12px"><span>Envío</span><span>Se calcula en el checkout</span></div>
+            <div style="display:flex;justify-content:space-between;font-weight:800;border-top:1px solid var(--slate-100);padding-top:12px"><span>Total estimado</span><span style="font-size:18px">$2.089.998</span></div>
+            <button class="btn btn-primary btn-lg" style="width:100%;margin-top:14px">Finalizar compra →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="frame-label"><span class="dot"></span>5 · Checkout (Mercado Pago)</div>
+      <div class="frame">
+        <div class="hdr"><div class="hdr-main"><div class="logo"><span class="bolt"><svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></span>Tele Import <small>S.A.</small></div></div></div>
+        <div style="padding:20px 24px">
+          <div style="font-size:13px;color:var(--slate-400);margin-bottom:14px">← Carrito › <b style="color:var(--slate-600)">Finalizar compra</b></div>
+          <!-- entrega -->
+          <div class="card" style="padding:18px;margin-bottom:14px">
+            <div style="font-weight:700;margin-bottom:13px;display:flex;align-items:center;gap:8px"><span style="width:22px;height:22px;border-radius:99px;background:var(--brand-600);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:700">1</span> Método de entrega</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
+              <div style="border:2px solid var(--brand-500);background:var(--brand-50);border-radius:12px;padding:13px"><div style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--brand-800)">🏬 Retiro en sucursal <span class="badge" style="background:var(--emerald-100);color:var(--emerald-700);font-size:9px">Gratis</span></div><div style="font-size:11.5px;color:var(--slate-500);margin-top:3px">Sin costo. Listo en 24hs hábiles.</div></div>
+              <div style="border:2px solid var(--slate-200);border-radius:12px;padding:13px"><div style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--slate-700)">🚚 Envío a domicilio</div><div style="font-size:11.5px;color:var(--slate-400);margin-top:3px">Costo fijo $3.500. 3–7 días hábiles.</div></div>
+            </div>
+          </div>
+          <!-- notas -->
+          <div class="card" style="padding:18px;margin-bottom:14px">
+            <div style="font-weight:700;margin-bottom:11px;display:flex;align-items:center;gap:8px"><span style="width:22px;height:22px;border-radius:99px;background:var(--slate-200);color:var(--slate-600);font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:700">2</span> Notas del pedido <span style="font-size:11px;color:var(--slate-400);font-weight:400">(opcional)</span></div>
+            <div style="border:1px solid var(--slate-200);border-radius:11px;padding:11px;font-size:12.5px;color:var(--slate-400);min-height:54px">Instrucciones especiales, horario de entrega, etc.</div>
+          </div>
+          <!-- resumen -->
+          <div class="card" style="padding:18px">
+            <div style="font-weight:700;margin-bottom:12px">Resumen del pedido</div>
+            <div style="display:flex;gap:9px;margin-bottom:12px"><div style="flex:1;border:1px solid var(--slate-200);border-radius:10px;padding:8px 11px;font-size:12px;color:var(--slate-400);font-family:monospace;letter-spacing:1px">CÓDIGO</div><button class="btn btn-outline btn-sm">Aplicar</button></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--slate-600);margin-bottom:7px"><span>Subtotal</span><b style="color:var(--slate-900)">$2.089.998</b></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--emerald-600);font-weight:600;margin-bottom:7px"><span>Descuento (BIENVENIDO10)</span><span>-$208.999</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--slate-600);margin-bottom:10px"><span>Envío</span><span style="color:var(--emerald-600);font-weight:600">Gratis</span></div>
+            <div style="display:flex;justify-content:space-between;font-weight:800;border-top:1px solid var(--slate-100);padding-top:11px"><span>Total</span><span style="font-size:17px">$1.880.999</span></div>
+            <button class="btn btn-primary btn-lg" style="width:100%;margin-top:14px"><svg class="ico-sm" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Pagar con Mercado Pago</button>
+            <div style="text-align:center;font-size:11px;color:var(--slate-400);margin-top:10px">🔒 Pago 100% seguro · SSL cifrado</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 6. ADMIN ============ -->
+  <div>
+    <div class="frame-label"><span class="dot"></span>6 · Panel de administración — Dashboard</div>
+    <div class="frame">
+      <div class="adm">
+        <div class="adm-side">
+          <div class="logo"><span class="bolt" style="width:24px;height:24px"><svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></span>Tele Import <small style="color:#64748b">Admin</small></div>
+          <a class="active"><svg class="ico-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg> Dashboard</a>
+          <a><svg class="ico-sm" viewBox="0 0 24 24"><path d="m7.5 4.27 9 5.15M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/></svg> Productos</a>
+          <a><svg class="ico-sm" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5M17 17a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg> Stock</a>
+          <a><svg class="ico-sm" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0"/></svg> Pedidos</a>
+          <a><svg class="ico-sm" viewBox="0 0 24 24"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><path d="M7 7h.01"/></svg> Promociones</a>
+          <a><svg class="ico-sm" viewBox="0 0 24 24"><path d="M3 3v18h18M18.7 8l-5.1 5.2-2.8-2.8L7 14.3"/></svg> Reportes</a>
+          <a><svg class="ico-sm" viewBox="0 0 24 24"><path d="M12 2 3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5z"/></svg> Reseñas</a>
+          <a><svg class="ico-sm" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg> Usuarios</a>
+          <a><svg class="ico-sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15h6"/></svg> Auditoría</a>
+        </div>
+        <div class="adm-main">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px"><div><div class="sec-title">Dashboard</div><div class="muted" style="font-size:13px">Resumen general · hoy, 13 jun 2026</div></div><button class="btn btn-primary btn-sm">+ Nuevo producto</button></div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
+            <div class="metric"><div class="k">🧾 Pedidos totales</div><div class="v">1.284</div><div class="d">▲ 12% vs mes ant.</div></div>
+            <div class="metric"><div class="k">💰 Ingresos</div><div class="v">$48.9M</div><div class="d">▲ 8% vs mes ant.</div></div>
+            <div class="metric"><div class="k">📦 Productos</div><div class="v">312</div><div class="d" style="color:var(--amber-700)">7 con stock bajo</div></div>
+            <div class="metric"><div class="k">👥 Usuarios</div><div class="v">2.041</div><div class="d">▲ 34 nuevos</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px">
+            <div class="card" style="padding:0;overflow:hidden">
+              <div style="padding:14px 16px;font-weight:700;border-bottom:1px solid var(--slate-100);display:flex;justify-content:space-between">Pedidos recientes <a style="color:var(--brand-600);font-size:12.5px;font-weight:600">Ver todos</a></div>
+              <table>
+                <tr><th>Pedido</th><th>Cliente</th><th>Total</th><th>Estado</th></tr>
+                <tr><td style="font-family:monospace">TI-20260613-A1F9</td><td>Martín González</td><td><b>$1.880.999</b></td><td><span class="badge b-paid">Pagado</span></td></tr>
+                <tr><td style="font-family:monospace">TI-20260613-7C2D</td><td>Lucía Romero</td><td><b>$789.999</b></td><td><span class="badge b-proc">Procesando</span></td></tr>
+                <tr><td style="font-family:monospace">TI-20260612-B83E</td><td>Diego Fernández</td><td><b>$129.999</b></td><td><span class="badge b-ship">Enviado</span></td></tr>
+                <tr><td style="font-family:monospace">TI-20260612-44A0</td><td>Sofía Pérez</td><td><b>$945.000</b></td><td><span class="badge b-deliv">Entregado</span></td></tr>
+                <tr><td style="font-family:monospace">TI-20260611-9E11</td><td>Bruno Costa</td><td><b>$64.999</b></td><td><span class="badge b-pending">Pendiente</span></td></tr>
+              </table>
+            </div>
+            <div class="card" style="padding:16px">
+              <div style="font-weight:700;margin-bottom:12px">⚠ Stock bajo</div>
+              <div style="display:flex;flex-direction:column;gap:11px">
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12.5px;color:var(--slate-700)">Joystick PS5 DualSense</span><span class="badge" style="background:var(--red-50);color:var(--red-600)">3 u.</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12.5px;color:var(--slate-700)">Notebook Lenovo IdeaPad</span><span class="badge" style="background:var(--amber-50);color:var(--amber-700)">5 u.</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12.5px;color:var(--slate-700)">PC Gamer RTX 4060</span><span class="badge" style="background:var(--amber-50);color:var(--amber-700)">4 u.</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12.5px;color:var(--slate-700)">Auriculares HyperX</span><span class="badge" style="background:var(--red-50);color:var(--red-600)">2 u.</span></div>
+              </div>
+              <div style="height:1px;background:var(--slate-100);margin:14px 0"></div>
+              <div style="font-weight:700;margin-bottom:10px;font-size:13px">Pedidos por estado</div>
+              <div style="display:flex;gap:5px;height:8px;border-radius:9px;overflow:hidden;margin-bottom:8px"><span style="flex:3;background:var(--amber-500)"></span><span style="flex:5;background:var(--brand-500)"></span><span style="flex:4;background:var(--violet-700)"></span><span style="flex:6;background:var(--emerald-500)"></span></div>
+              <div style="font-size:11px;color:var(--slate-500);display:flex;gap:10px;flex-wrap:wrap"><span>● Pendiente</span><span>● Pagado</span><span>● Procesando</span><span>● Entregado</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MOBILE ============ -->
+  <div>
+    <div class="frame-label"><span class="dot"></span>7 · Responsive — Home en mobile</div>
+    <div style="display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start">
+      <div class="frame" style="width:300px">
+        <div class="hdr"><div class="hdr-main" style="height:52px;padding:0 14px;gap:10px"><div class="logo" style="font-size:14px"><span class="bolt" style="width:24px;height:24px"><svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></span>Tele Import</div><div class="hdr-icons" style="margin-left:auto"><div class="icon-btn" style="width:32px;height:32px"><svg class="ico-sm" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 2-1.58l1.65-7.42H5.12"/></svg><span class="cart-badge">3</span></div><div class="icon-btn" style="width:32px;height:32px"><svg class="ico-sm" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg></div></div></div></div>
+        <div style="padding:14px">
+          <div style="border-radius:14px;background:linear-gradient(120deg,#1e3a8a,#2563eb);color:#fff;padding:20px 16px;min-height:130px">
+            <span class="pill" style="background:rgba(255,255,255,.18);color:#fff;font-size:10px">Mayorista y minorista</span>
+            <div style="font-size:18px;font-weight:800;margin-top:8px;line-height:1.15">Insumos electrónicos al mejor precio</div>
+            <button class="btn btn-sm" style="background:#fff;color:var(--brand-700);margin-top:12px">Ver catálogo →</button>
+          </div>
+          <div style="font-weight:800;font-size:15px;margin:16px 2px 10px">Destacados</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
+            <div class="pcard"><div class="img"><span class="disc" style="font-size:9px">-18%</span><svg width="40" height="40" viewBox="0 0 24 24" class="ph" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="5" y="2" width="14" height="20" rx="2"/></svg></div><div class="body" style="padding:9px"><div class="cat" style="font-size:10px">Smartphones</div><div class="name" style="font-size:11.5px;min-height:30px">iPhone 15 128GB</div><div class="price" style="font-size:14px">$1.299.999</div><div class="add" style="font-size:11px;padding:7px">Agregar</div></div></div>
+            <div class="pcard"><div class="img"><svg width="44" height="44" viewBox="0 0 24 24" class="ph" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8"/></svg></div><div class="body" style="padding:9px"><div class="cat" style="font-size:10px">Televisores</div><div class="name" style="font-size:11.5px;min-height:30px">Smart TV 55" 4K</div><div class="price" style="font-size:14px">$789.999</div><div class="add" style="font-size:11px;padding:7px">Agregar</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="frame" style="width:300px">
+        <div style="background:#fff;padding:0">
+          <div class="hdr"><div class="hdr-main" style="height:52px;padding:0 14px"><div class="logo" style="font-size:14px"><span class="bolt" style="width:24px;height:24px"><svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></span>Tele Import</div></div></div>
+          <div style="padding:14px">
+            <div style="font-size:13px;color:var(--slate-400);margin-bottom:10px">← Finalizar compra</div>
+            <div class="card" style="padding:13px;margin-bottom:11px">
+              <div style="font-weight:700;font-size:13px;margin-bottom:10px">Método de entrega</div>
+              <div style="border:2px solid var(--brand-500);background:var(--brand-50);border-radius:11px;padding:11px;font-size:12px;font-weight:600;color:var(--brand-800);margin-bottom:8px">🏬 Retiro en sucursal · Gratis</div>
+              <div style="border:2px solid var(--slate-200);border-radius:11px;padding:11px;font-size:12px;color:var(--slate-600)">🚚 Envío a domicilio · $3.500</div>
+            </div>
+            <div class="card" style="padding:13px">
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--slate-600);margin-bottom:6px"><span>Subtotal</span><b style="color:var(--slate-900)">$2.089.998</b></div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--emerald-600);font-weight:600;margin-bottom:8px"><span>Descuento</span><span>-$208.999</span></div>
+              <div style="display:flex;justify-content:space-between;font-weight:800;border-top:1px solid var(--slate-100);padding-top:9px"><span>Total</span><span>$1.880.999</span></div>
+              <button class="btn btn-primary" style="width:100%;margin-top:11px;font-size:13px">🔒 Pagar con Mercado Pago</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

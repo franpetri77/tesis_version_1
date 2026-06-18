@@ -15,6 +15,11 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME     ?? "tele_import",
   // Devolver fechas como strings para mantener compatibilidad con código existente
   dateStrings: true,
+  // Devolver columnas DECIMAL como number (no string). Por defecto mysql2 las
+  // devuelve como string para preservar precisión; eso rompía la validación
+  // del checkout (price/unit_price llegaban como "189999.00" en vez de 189999).
+  // DECIMAL(15,2) está dentro del rango seguro de Number, así que es seguro.
+  decimalNumbers: true,
   // Límite de conexiones simultáneas en el pool
   connectionLimit: 10,
   waitForConnections: true,

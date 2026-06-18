@@ -51,7 +51,9 @@
       "Bash(grep -r \"product-views\\\\|productViews\\\\|product_views\" backend/src/routes/ --include=\"*.ts\" -l)",
       "Bash(grep -r \"recommendations\\\\|recomend\" backend/src/routes/ --include=\"*.ts\" -l)",
       "Bash(ls frontend/src/app/\\\\\\(public\\\\\\)/)",
-      "Bash(grep -v \"node_modules\\\\|//.*notif\")"
+      "Bash(grep -v \"node_modules\\\\|//.*notif\")",
+      "Bash(pandoc \"C:\\\\Users\\\\popet\\\\Downloads\\\\tesis recortada.docx\" -o \"C:\\\\Users\\\\popet\\\\OneDrive\\\\Desktop\\\\proyectos\\\\nuevotesis\\\\tesis_current.md\")",
+      "PowerShell(pandoc \"C:\\\\Users\\\\popet\\\\Downloads\\\\tesis recortada.docx\" -o \"C:\\\\Users\\\\popet\\\\OneDrive\\\\Desktop\\\\proyectos\\\\nuevotesis\\\\tesis_current.md\"; if \\($?\\) { \\(Get-Item \"C:\\\\Users\\\\popet\\\\OneDrive\\\\Desktop\\\\proyectos\\\\nuevotesis\\\\tesis_current.md\"\\).Length })"
     ]
   }
 }

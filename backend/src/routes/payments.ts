@@ -12,6 +12,7 @@ import { z } from "zod";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
+import { sendOrderNotificationToManager } from "../services/email";
 
 export const paymentsRouter = Router();
 
@@ -93,20 +94,32 @@ async function buildMpPreference(params: {
   sandbox_init_point: string | null;
 }> {
   const preferenceClient = new Preference(mpClient);
+
+  const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+  const backendUrl  = process.env.BACKEND_URL  ?? "http://localhost:4000";
+
+  // Mercado Pago RECHAZA la preferencia cuando se usa `auto_return` con
+  // `back_urls` localhost, o cuando `notification_url` es localhost, porque
+  // exige URLs públicamente alcanzables. En entorno local los omitimos para
+  // poder generar la preferencia y probar la compra de punta a punta; en
+  // producción (URLs https públicas) se incluyen normalmente.
+  const isLocal = (u: string) => /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(u);
+
   const pref = await preferenceClient.create({
     body: {
       items: params.items.map((i) => ({ ...i, currency_id: "ARS" })),
       payer: params.payer,
       back_urls: {
-        success: `${process.env.FRONTEND_URL ?? "http://localhost:3000"}/checkout/exitoso?order=${params.orderId}`,
-        failure: `${process.env.FRONTEND_URL ?? "http://localhost:3000"}/checkout/fallido?order=${params.orderId}`,
-        pending: `${process.env.FRONTEND_URL ?? "http://localhost:3000"}/checkout/pendiente?order=${params.orderId}`,
+        success: `${frontendUrl}/checkout/exitoso?order=${params.orderId}`,
+        failure: `${frontendUrl}/checkout/fallido?order=${params.orderId}`,
+        pending: `${frontendUrl}/checkout/pendiente?order=${params.orderId}`,
       },
-      auto_return: "approved",
       external_reference: params.orderId,
-      notification_url: `${process.env.BACKEND_URL ?? "http://localhost:4000"}/webhooks/mercadopago`,
       statement_descriptor: "TELE IMPORT",
       metadata: { order_number: params.orderNumber },
+      // Solo con URLs públicas (no localhost):
+      ...(isLocal(frontendUrl) ? {} : { auto_return: "approved" as const }),
+      ...(isLocal(backendUrl) ? {} : { notification_url: `${backendUrl}/webhooks/mercadopago` }),
     },
   });
   return {
@@ -199,8 +212,10 @@ const createOrderSchema = z.object({
     .array(
       z.object({
         product_id: z.string(),
-        quantity:   z.number().int().positive(),
-        unit_price: z.number().positive(),
+        // z.coerce tolera numéricos que llegan como string (precios DECIMAL de
+        // MySQL o carritos viejos persistidos en localStorage del cliente).
+        quantity:   z.coerce.number().int().positive(),
+        unit_price: z.coerce.number().positive(),
         product: z.object({
           name: z.string(),
           sku:  z.string(),
@@ -222,10 +237,10 @@ const createOrderSchema = z.object({
     })
     .nullable(),
   coupon_code:     z.string().optional(),
-  subtotal:        z.number().nonnegative(),
-  discount_amount: z.number().nonnegative(),
-  shipping_cost:   z.number().nonnegative(),
-  total:           z.number().positive(),
+  subtotal:        z.coerce.number().nonnegative(),
+  discount_amount: z.coerce.number().nonnegative(),
+  shipping_cost:   z.coerce.number().nonnegative(),
+  total:           z.coerce.number().positive(),
   notes:           z.string().optional(),
 });
 
@@ -433,6 +448,22 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
       },
     });
 
+    // ── 7. Notificar por email al encargado de la sucursal (no bloqueante) ──
+    // El pedido ya fue creado: avisamos al encargado para que prepare el despacho.
+    void sendOrderNotificationToManager({
+      orderNumber,
+      customerName:   `${user.first_name} ${user.last_name}`.trim(),
+      customerEmail:  user.email,
+      deliveryMethod: body.delivery_method,
+      shippingAddress: body.shipping_address,
+      items: body.items.map((i) => ({
+        name:     productMap.get(i.product_id)?.name ?? i.product.name,
+        quantity: i.quantity,
+      })),
+      total: serverTotal,
+      notes: body.notes,
+    });
+
     return res.status(201).json({
       order_id:            orderId,
       order_number:        orderNumber,
@@ -444,8 +475,15 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: "Datos del pedido inválidos", details: error.errors });
     }
-    console.error("[Payments] Error creando pedido:", error);
-    return res.status(500).json({ error: "Error al crear el pedido" });
+    // Mercado Pago (y otros) suelen anidar el motivo real en cause/message.
+    // Lo exponemos para poder diagnosticar (token inválido, back_url, etc.).
+    const mpError = error as { message?: string; cause?: unknown; status?: number };
+    const detail =
+      (Array.isArray(mpError.cause) && mpError.cause[0]?.description) ||
+      mpError.message ||
+      String(error);
+    console.error("[Payments] Error creando pedido:", detail, error);
+    return res.status(500).json({ error: "Error al crear el pedido", detail });
   }
 });
 

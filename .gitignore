@@ -30,3 +30,9 @@ Thumbs.db
 
 # Directus snapshots (optional local state)
 directus/snapshots/*.tmp
+
+# Claude Code local config
+.claude/
+
+# Root lockfile (no root package.json)
+/package-lock.json

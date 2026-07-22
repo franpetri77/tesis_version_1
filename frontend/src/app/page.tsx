@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     "Tele Import S.A. — Distribuidor de componentes electrónicos, periféricos y accesorios de computación. Envío a todo el país.",
 };
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 // -----------------------------------------------
 // Secciones principales de la tienda (estilo departamentos)

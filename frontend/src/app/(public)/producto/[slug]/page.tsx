@@ -9,7 +9,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Tag, ChevronRight, CheckCircle2, XCircle, Truck, Store } from "lucide-react";
-import { getProductBySlug, getAllProductSlugs, getProductImageUrl } from "@/lib/api/catalog";
+import { getProductBySlug, getProductImageUrl } from "@/lib/api/catalog";
 import { formatPrice, calculateDiscount } from "@/lib/utils/format";
 import { AddToCartButton } from "@/components/product/AddToCartButton";
 import { ProductImageGallery } from "@/components/product/ProductImageGallery";
@@ -38,13 +38,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   };
 }
 
-// Pre-genera páginas en build time (SSG)
-export async function generateStaticParams() {
-  const slugs = await getAllProductSlugs();
-  return slugs.map((slug) => ({ slug }));
-}
-
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const product = await getProductBySlug(params.slug);

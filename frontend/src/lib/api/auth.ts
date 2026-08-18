@@ -42,3 +42,25 @@ export async function getMe(token: string): Promise<User> {
   const res = await apiGet<User>("/auth/me", token);
   return res.data;
 }
+
+/**
+ * Solicita el email de recuperación de contraseña.
+ * Responde igual exista o no la cuenta (no revela emails registrados).
+ */
+export async function forgotPassword(email: string): Promise<void> {
+  await apiPost("/auth/forgot-password", { email });
+}
+
+/**
+ * Restablece la contraseña usando el token recibido por email.
+ */
+export async function resetPassword(token: string, password: string): Promise<void> {
+  await apiPost("/auth/reset-password", { token, password });
+}
+
+/**
+ * Reenvía el email de verificación de cuenta.
+ */
+export async function resendVerification(email: string): Promise<void> {
+  await apiPost("/auth/resend-verification", { email });
+}

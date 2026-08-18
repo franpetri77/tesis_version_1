@@ -357,6 +357,42 @@ export async function initSchema(pool: Pool): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
+    // -----------------------------------------------
+    // TABLA: auth_tokens (verificación de email y reseteo de contraseña)
+    // Guarda solo el HASH del token (sha256), nunca el token en claro.
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS auth_tokens (
+        id          VARCHAR(50)   NOT NULL,
+        user_id     VARCHAR(50)   NOT NULL,
+        token_hash  CHAR(64)      NOT NULL,
+        type        ENUM('verify_email','reset_password') NOT NULL,
+        expires_at  DATETIME      NOT NULL,
+        used_at     DATETIME      NULL,
+        created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_auth_tokens_hash (token_hash),
+        KEY idx_auth_tokens_user (user_id, type),
+        CONSTRAINT fk_auth_tokens_user
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // -----------------------------------------------
+    // Columna email_verified en users (idempotente).
+    // MySQL no soporta "ADD COLUMN IF NOT EXISTS", así que
+    // consultamos information_schema antes de alterar.
+    // -----------------------------------------------
+    const [cols] = await conn.query(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'email_verified'`
+    );
+    if ((cols as unknown[]).length === 0) {
+      await conn.query(
+        "ALTER TABLE users ADD COLUMN email_verified TINYINT(1) NOT NULL DEFAULT 0 AFTER role"
+      );
+    }
+
     // Restaurar verificación de claves foráneas
     await conn.query("SET FOREIGN_KEY_CHECKS = 1");
 

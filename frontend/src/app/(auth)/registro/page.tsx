@@ -74,6 +74,10 @@ export default function RegisterPage() {
     if (!form.password) newErrors.password = "La contraseña es requerida";
     else if (form.password.length < 8)
       newErrors.password = "La contraseña debe tener al menos 8 caracteres";
+    else if (form.password.length > 72)
+      newErrors.password = "La contraseña no puede superar los 72 caracteres";
+    else if (!/[a-zA-Z]/.test(form.password) || !/[0-9]/.test(form.password))
+      newErrors.password = "Debe incluir al menos una letra y un número";
     if (form.password !== form.confirm_password)
       newErrors.confirm_password = "Las contraseñas no coinciden";
 

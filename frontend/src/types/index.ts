@@ -18,6 +18,8 @@ export interface User {
   phone?: string;
   role: UserRole;
   avatar?: string;
+  /** 1 = email verificado, 0 = pendiente de verificación */
+  email_verified?: number;
   created_at: string;
   updated_at: string;
 }

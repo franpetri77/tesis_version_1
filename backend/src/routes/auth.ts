@@ -19,14 +19,76 @@
 import { Router, Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes, createHash } from "crypto";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
+import { sendVerificationEmail, sendPasswordResetEmail } from "../services/mailer";
 
 export const authRouter = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "tele-import-dev-secret-2024";
 const JWT_EXPIRES_IN = "7d"; // Token válido por 7 días
+const FRONTEND_URL = (process.env.FRONTEND_URL ?? "http://localhost:3000").replace(/\/$/, "");
+
+// -----------------------------------------------
+// Helpers de tokens de un solo uso (verificación / reseteo)
+// Se guarda solo el hash sha256; el token en claro viaja en el email.
+// -----------------------------------------------
+function generateToken(): { raw: string; hash: string } {
+  const raw = randomBytes(32).toString("hex");
+  const hash = createHash("sha256").update(raw).digest("hex");
+  return { raw, hash };
+}
+
+function hashToken(raw: string): string {
+  return createHash("sha256").update(raw).digest("hex");
+}
+
+/** Crea un token en la DB y devuelve el valor en claro para el email. */
+async function createAuthToken(
+  userId: string,
+  type: "verify_email" | "reset_password",
+  ttlMinutes: number
+): Promise<string> {
+  const { raw, hash } = generateToken();
+  const expiresAt = new Date(Date.now() + ttlMinutes * 60_000);
+  // Invalidar tokens previos del mismo tipo para este usuario
+  await db.query("DELETE FROM auth_tokens WHERE user_id = ? AND type = ?", [userId, type]);
+  await db.query(
+    `INSERT INTO auth_tokens (id, user_id, token_hash, type, expires_at)
+     VALUES (?, ?, ?, ?, ?)`,
+    [randomUUID(), userId, hash, type, expiresAt]
+  );
+  return raw;
+}
+
+// -----------------------------------------------
+// Validaciones de credenciales (compartidas)
+// -----------------------------------------------
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Devuelve un mensaje de error si el email es inválido, o null si es válido. */
+function validateEmail(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw.trim()) return "El email es requerido";
+  const email = raw.trim().toLowerCase();
+  if (email.length > 255) return "El email es demasiado largo";
+  if (!EMAIL_REGEX.test(email)) return "El email no tiene un formato válido";
+  return null;
+}
+
+/**
+ * Devuelve un mensaje de error si la contraseña no cumple la política, o null.
+ * Política: 8–72 caracteres, al menos una letra y un número.
+ * (72 es el límite efectivo de bcrypt; más allá se truncaría silenciosamente.)
+ */
+function validatePassword(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw) return "La contraseña es requerida";
+  if (raw.length < 8) return "La contraseña debe tener al menos 8 caracteres";
+  if (raw.length > 72) return "La contraseña no puede superar los 72 caracteres";
+  if (!/[a-zA-Z]/.test(raw)) return "La contraseña debe incluir al menos una letra";
+  if (!/[0-9]/.test(raw)) return "La contraseña debe incluir al menos un número";
+  return null;
+}
 
 // -----------------------------------------------
 // Tipos internos
@@ -39,6 +101,7 @@ interface DbUser extends RowDataPacket {
   last_name: string;
   phone: string | null;
   role: string;
+  email_verified: number;
   created_at: string;
   updated_at: string;
 }
@@ -138,21 +201,34 @@ authRouter.post("/login", async (req, res) => {
 authRouter.post("/register", async (req, res) => {
   const { email, password, first_name, last_name, phone } = req.body;
 
-  if (!email || !password || !first_name || !last_name) {
-    res.status(400).json({ error: "Nombre, apellido, email y contraseña son requeridos" });
+  // Nombre y apellido requeridos
+  if (typeof first_name !== "string" || !first_name.trim() ||
+      typeof last_name !== "string" || !last_name.trim()) {
+    res.status(400).json({ error: "Nombre y apellido son requeridos" });
     return;
   }
 
-  if (password.length < 8) {
-    res.status(400).json({ error: "La contraseña debe tener al menos 8 caracteres" });
+  // Validación de email
+  const emailError = validateEmail(email);
+  if (emailError) {
+    res.status(400).json({ error: emailError });
     return;
   }
+
+  // Validación de contraseña
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    res.status(400).json({ error: passwordError });
+    return;
+  }
+
+  const normalizedEmail = (email as string).trim().toLowerCase();
 
   try {
     // Verificar si el email ya existe
     const [existing] = await db.query<RowDataPacket[]>(
       "SELECT id FROM users WHERE email = ?",
-      [email.toLowerCase().trim()]
+      [normalizedEmail]
     );
 
     if (existing.length > 0) {
@@ -164,15 +240,25 @@ authRouter.post("/register", async (req, res) => {
     // Generar UUID en la app para evitar dependencia del DEFAULT de la DB
     const newUserId = randomUUID();
 
-    await db.query(
-      `INSERT INTO users (id, email, password, first_name, last_name, phone, role)
-       VALUES (?, ?, ?, ?, ?, ?, 'customer')`,
-      [newUserId, email.toLowerCase().trim(), hashedPassword, first_name, last_name, phone ?? null]
-    );
+    try {
+      await db.query(
+        `INSERT INTO users (id, email, password, first_name, last_name, phone, role)
+         VALUES (?, ?, ?, ?, ?, ?, 'customer')`,
+        [newUserId, normalizedEmail, hashedPassword, first_name.trim(), last_name.trim(), phone ?? null]
+      );
+    } catch (insertErr) {
+      // Race condition: dos registros simultáneos con el mismo email.
+      // El UNIQUE KEY de la DB lo bloquea → devolvemos 409 amigable.
+      if ((insertErr as { code?: string }).code === "ER_DUP_ENTRY") {
+        res.status(409).json({ error: "Ya existe una cuenta con ese email" });
+        return;
+      }
+      throw insertErr;
+    }
 
     // Recuperar el usuario creado usando el UUID conocido
     const [newRows] = await db.query<DbUser[]>(
-      "SELECT id, email, first_name, last_name, phone, role, created_at FROM users WHERE id = ?",
+      "SELECT id, email, first_name, last_name, phone, role, email_verified, created_at FROM users WHERE id = ?",
       [newUserId]
     );
     const newUser = newRows[0];
@@ -181,9 +267,157 @@ authRouter.post("/register", async (req, res) => {
       expiresIn: JWT_EXPIRES_IN,
     });
 
+    // Enviar email de verificación (no bloquea el registro si falla el envío).
+    try {
+      const verifyToken = await createAuthToken(newUserId, "verify_email", 24 * 60);
+      await sendVerificationEmail(normalizedEmail, verifyToken, first_name.trim());
+    } catch (mailErr) {
+      console.error("[Auth] No se pudo enviar el email de verificación:", mailErr);
+    }
+
     res.status(201).json({ data: { user: newUser, access_token: token } });
   } catch (error) {
     console.error("[Auth] Error en register:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// -----------------------------------------------
+// GET /auth/verify-email?token=...
+// Marca el email como verificado y redirige al frontend.
+// (Es GET para que funcione al hacer clic directo desde el correo.)
+// -----------------------------------------------
+authRouter.get("/verify-email", async (req, res) => {
+  const raw = typeof req.query.token === "string" ? req.query.token : "";
+  const redirect = (status: string) =>
+    res.redirect(`${FRONTEND_URL}/verificar-email?status=${status}`);
+
+  if (!raw) return redirect("invalid");
+
+  try {
+    const [rows] = await db.query<RowDataPacket[]>(
+      `SELECT id, user_id, expires_at, used_at FROM auth_tokens
+       WHERE token_hash = ? AND type = 'verify_email' LIMIT 1`,
+      [hashToken(raw)]
+    );
+    const tk = rows[0];
+
+    if (!tk || tk.used_at || new Date(tk.expires_at) < new Date()) {
+      return redirect("invalid");
+    }
+
+    await db.query("UPDATE users SET email_verified = 1 WHERE id = ?", [tk.user_id]);
+    await db.query("UPDATE auth_tokens SET used_at = NOW() WHERE id = ?", [tk.id]);
+    return redirect("ok");
+  } catch (error) {
+    console.error("[Auth] Error en verify-email:", error);
+    return redirect("error");
+  }
+});
+
+// -----------------------------------------------
+// POST /auth/resend-verification
+// Body: { email }. Reenvía el email de verificación si corresponde.
+// Responde 200 siempre (no revela si el email existe).
+// -----------------------------------------------
+authRouter.post("/resend-verification", async (req, res) => {
+  const emailError = validateEmail(req.body?.email);
+  if (emailError) {
+    res.status(400).json({ error: emailError });
+    return;
+  }
+  const normalizedEmail = (req.body.email as string).trim().toLowerCase();
+
+  try {
+    const [rows] = await db.query<DbUser[]>(
+      "SELECT id, first_name, email_verified FROM users WHERE email = ? LIMIT 1",
+      [normalizedEmail]
+    );
+    const user = rows[0];
+    if (user && !user.email_verified) {
+      const verifyToken = await createAuthToken(user.id, "verify_email", 24 * 60);
+      await sendVerificationEmail(normalizedEmail, verifyToken, user.first_name);
+    }
+    res.json({ data: { sent: true } });
+  } catch (error) {
+    console.error("[Auth] Error en resend-verification:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// -----------------------------------------------
+// POST /auth/forgot-password
+// Body: { email }. Envía el email de reseteo si la cuenta existe.
+// Responde 200 siempre para no revelar qué emails están registrados.
+// -----------------------------------------------
+authRouter.post("/forgot-password", async (req, res) => {
+  const emailError = validateEmail(req.body?.email);
+  if (emailError) {
+    res.status(400).json({ error: emailError });
+    return;
+  }
+  const normalizedEmail = (req.body.email as string).trim().toLowerCase();
+
+  try {
+    const [rows] = await db.query<DbUser[]>(
+      "SELECT id, first_name FROM users WHERE email = ? LIMIT 1",
+      [normalizedEmail]
+    );
+    const user = rows[0];
+    if (user) {
+      const resetToken = await createAuthToken(user.id, "reset_password", 60);
+      await sendPasswordResetEmail(normalizedEmail, resetToken, user.first_name);
+    }
+    // Respuesta uniforme exista o no la cuenta
+    res.json({ data: { sent: true } });
+  } catch (error) {
+    console.error("[Auth] Error en forgot-password:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// -----------------------------------------------
+// POST /auth/reset-password
+// Body: { token, password }. Valida el token y actualiza la contraseña.
+// -----------------------------------------------
+authRouter.post("/reset-password", async (req, res) => {
+  const { token, password } = req.body ?? {};
+
+  if (typeof token !== "string" || !token) {
+    res.status(400).json({ error: "Token inválido" });
+    return;
+  }
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    res.status(400).json({ error: passwordError });
+    return;
+  }
+
+  try {
+    const [rows] = await db.query<RowDataPacket[]>(
+      `SELECT id, user_id, expires_at, used_at FROM auth_tokens
+       WHERE token_hash = ? AND type = 'reset_password' LIMIT 1`,
+      [hashToken(token)]
+    );
+    const tk = rows[0];
+
+    if (!tk || tk.used_at || new Date(tk.expires_at) < new Date()) {
+      res.status(400).json({ error: "El enlace es inválido o expiró. Solicitá uno nuevo." });
+      return;
+    }
+
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    await db.query("UPDATE users SET password = ? WHERE id = ?", [hashedPassword, tk.user_id]);
+    await db.query("UPDATE auth_tokens SET used_at = NOW() WHERE id = ?", [tk.id]);
+    // Invalidar cualquier otro token de reseteo pendiente del usuario
+    await db.query(
+      "DELETE FROM auth_tokens WHERE user_id = ? AND type = 'reset_password' AND used_at IS NULL",
+      [tk.user_id]
+    );
+
+    res.json({ data: { reset: true } });
+  } catch (error) {
+    console.error("[Auth] Error en reset-password:", error);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
@@ -197,7 +431,7 @@ authRouter.get("/me", requireAuth, async (req, res) => {
 
   try {
     const [rows] = await db.query<DbUser[]>(
-      "SELECT id, email, first_name, last_name, phone, role, created_at, updated_at FROM users WHERE id = ?",
+      "SELECT id, email, first_name, last_name, phone, role, email_verified, created_at, updated_at FROM users WHERE id = ?",
       [userId]
     );
     const user = rows[0];
@@ -239,7 +473,7 @@ authRouter.patch("/me", requireAuth, async (req, res) => {
     );
 
     const [rows] = await db.query<DbUser[]>(
-      "SELECT id, email, first_name, last_name, phone, role, created_at, updated_at FROM users WHERE id = ?",
+      "SELECT id, email, first_name, last_name, phone, role, email_verified, created_at, updated_at FROM users WHERE id = ?",
       [userId]
     );
 

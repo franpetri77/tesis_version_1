@@ -7,6 +7,7 @@
 import { create } from "zustand";
 
 export type ModalType =
+  | "auth"
   | "login-success"
   | "logout-confirm"
   | "logout-success"
@@ -17,6 +18,8 @@ export type ModalType =
 interface ModalPayload {
   firstName?: string;
   email?: string;
+  /** Pestaña inicial del modal de autenticación */
+  authTab?: "login" | "register";
 }
 
 interface ModalState {

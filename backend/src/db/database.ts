@@ -6,6 +6,12 @@
 
 import mysql from "mysql2/promise";
 
+// SSL: se activa con DB_SSL=true (requerido por Railway, Aiven, PlanetScale, etc.)
+// rejectUnauthorized:false evita tener que embeber el CA del proveedor.
+const sslConfig = process.env.DB_SSL === "true"
+  ? { ssl: { rejectUnauthorized: false } }
+  : {};
+
 // Pool de conexiones reutilizadas (más eficiente que abrir/cerrar conexiones individuales)
 const pool = mysql.createPool({
   host:     process.env.DB_HOST     ?? "localhost",
@@ -13,6 +19,7 @@ const pool = mysql.createPool({
   user:     process.env.DB_USER     ?? "root",
   password: process.env.DB_PASSWORD ?? "",
   database: process.env.DB_NAME     ?? "tele_import",
+  ...sslConfig,
   // Devolver fechas como strings para mantener compatibilidad con código existente
   dateStrings: true,
   // Devolver columnas DECIMAL como number (no string). Por defecto mysql2 las

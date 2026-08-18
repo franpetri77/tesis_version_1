@@ -6,6 +6,12 @@
 
 import mysql from "mysql2/promise";
 
+// SSL: se activa con DB_SSL=true. Railway y otros proveedores administrados
+// cierran la conexión si el cliente no negocia TLS (PROTOCOL_CONNECTION_LOST).
+const sslConfig = process.env.DB_SSL === "true"
+  ? { ssl: { rejectUnauthorized: false } }
+  : {};
+
 // Pool de conexiones reutilizadas (más eficiente que abrir/cerrar conexiones individuales)
 const pool = mysql.createPool({
   host:     process.env.DB_HOST     ?? "localhost",
@@ -13,6 +19,7 @@ const pool = mysql.createPool({
   user:     process.env.DB_USER     ?? "root",
   password: process.env.DB_PASSWORD ?? "",
   database: process.env.DB_NAME     ?? "tele_import",
+  ...sslConfig,
   // Devolver fechas como strings para mantener compatibilidad con código existente
   dateStrings: true,
   // Límite de conexiones simultáneas en el pool

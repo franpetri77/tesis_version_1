@@ -22,6 +22,11 @@ const pool = mysql.createPool({
   ...sslConfig,
   // Devolver fechas como strings para mantener compatibilidad con código existente
   dateStrings: true,
+  // Devolver columnas DECIMAL como number. Por defecto mysql2 las entrega como
+  // string para preservar precisión, y eso rompía la validación del checkout
+  // (price/unit_price llegaban como "189999.00"). DECIMAL(15,2) entra holgado
+  // en el rango seguro de Number.
+  decimalNumbers: true,
   // Límite de conexiones simultáneas en el pool
   connectionLimit: 10,
   waitForConnections: true,

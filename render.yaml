@@ -1,3 +1,9 @@
+# =============================================
+# BLUEPRINT DE RENDER — BACKEND TELE IMPORT S.A.
+# La base de datos NO vive aca: es un MySQL administrado externo
+# (el sistema de archivos de Render es efimero). Ver DEPLOY.md.
+# Las variables con `sync: false` se cargan a mano en el panel.
+# =============================================
 services:
   - type: web
     name: tele-import-backend
@@ -11,23 +17,50 @@ services:
         value: 20
       - key: PORT
         value: 4000
-      - key: DB_PATH
-        value: /var/data/tele_import.db
+
+      # --- Base de datos MySQL administrada ---
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      # Obligatorio con proveedores administrados: exigen TLS y cierran
+      # la conexion si el cliente no lo negocia.
+      - key: DB_SSL
+        value: "true"
+
+      # --- URLs y CORS ---
       - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
         sync: false
       - key: BACKEND_URL
         sync: false
+
+      # --- Autenticacion ---
       - key: JWT_SECRET
-        sync: false
+        generateValue: true
+
+      # --- Mercado Pago ---
       - key: MP_ACCESS_TOKEN
         sync: false
       - key: MP_WEBHOOK_SECRET
         sync: false
-      - key: DIRECTUS_URL
+
+      # --- SMTP (opcional): sin estos valores el backend no envia
+      # correos, registra el enlace en consola. ---
+      - key: SMTP_HOST
         sync: false
-      - key: DIRECTUS_SERVICE_TOKEN
+      - key: SMTP_PORT
         sync: false
-    disk:
-      name: tele-import-data
-      mountPath: /var/data
-      sizeGB: 1
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false

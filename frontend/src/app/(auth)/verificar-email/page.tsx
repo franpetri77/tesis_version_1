@@ -50,7 +50,7 @@ export default function VerifyEmailPage({ searchParams }: PageProps) {
 
         <Link
           href="/"
-          className="mt-6 inline-flex items-center justify-center gap-2 w-full py-2.5 px-5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition-all shadow-sm hover:shadow-md"
+          className="mt-6 inline-flex items-center justify-center gap-2 w-full py-2.5 px-5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transicion-ui shadow-sm hover:shadow-md"
         >
           Ir al inicio
           <ArrowRight className="w-4 h-4" />

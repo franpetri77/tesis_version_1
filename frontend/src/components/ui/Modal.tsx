@@ -90,7 +90,7 @@ export function Modal({
             aria-label="Cerrar"
             className="absolute top-3.5 right-3.5 w-8 h-8 flex items-center justify-center
                        rounded-xl text-slate-400 hover:text-slate-700
-                       hover:bg-slate-100 transition-all z-10"
+                       hover:bg-slate-100 transicion-ui z-10"
           >
             <X className="w-4 h-4" />
           </button>

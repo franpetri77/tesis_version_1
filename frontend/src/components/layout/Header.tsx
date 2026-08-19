@@ -104,7 +104,7 @@ export function Header() {
                 placeholder="Buscar productos, marcas o modelos..."
                 className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 bg-slate-50
                            text-sm text-slate-900 placeholder:text-slate-400
-                           transition-all focus:outline-none focus:ring-2 focus:ring-brand-500/30
+                           transicion-ui focus:outline-none focus:ring-2 focus:ring-brand-500/30
                            focus:border-brand-400 focus:bg-white"
               />
             </div>
@@ -201,7 +201,7 @@ export function Header() {
               aria-label={`Carrito${totalItems > 0 ? ` — ${totalItems} productos` : ""}`}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold",
-                "transition-all duration-200",
+                "transicion-ui duration-200",
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
                 totalItems > 0
                   ? "bg-brand-600 text-white hover:bg-brand-700 shadow-sm shadow-brand-600/20"
@@ -227,7 +227,7 @@ export function Header() {
               href="/carrito"
               aria-label="Carrito"
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all",
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transicion-ui",
                 totalItems > 0
                   ? "bg-brand-600 text-white"
                   : "text-slate-600 hover:bg-slate-100"
@@ -262,7 +262,7 @@ export function Header() {
                 href={href}
                 className="whitespace-nowrap px-2.5 py-1 text-[12px] font-medium
                            text-slate-500 hover:text-brand-600 hover:bg-brand-50
-                           rounded-md transition-all flex-shrink-0"
+                           rounded-md transicion-ui flex-shrink-0"
               >
                 {label}
               </Link>
@@ -274,7 +274,7 @@ export function Header() {
 
       {/* ── Menú mobile desplegable ── */}
       <div className={cn(
-        "md:hidden overflow-hidden transition-all duration-300 ease-in-out border-t border-slate-100",
+        "md:hidden overflow-hidden transicion-ui duration-300 ease-in-out border-t border-slate-100",
         isMobileMenuOpen ? "max-h-[440px] pb-4" : "max-h-0"
       )}>
 

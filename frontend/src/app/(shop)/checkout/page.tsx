@@ -247,7 +247,7 @@ export default function CheckoutPage() {
                     <label
                       key={value}
                       className={cn(
-                        "flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all duration-150",
+                        "flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transicion-ui duration-150",
                         form.delivery_method === value
                           ? "border-brand-500 bg-brand-50"
                           : "border-slate-200 hover:border-slate-300 bg-white"

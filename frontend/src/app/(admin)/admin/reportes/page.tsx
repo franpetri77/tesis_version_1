@@ -376,7 +376,7 @@ export default function AdminReportsPage() {
                     <div className="ml-9">
                       <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-emerald-400 rounded-full transition-all"
+                          className="h-full bg-emerald-400 rounded-full transicion-ui"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -445,7 +445,7 @@ export default function AdminReportsPage() {
                       <div className="ml-9">
                         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-amber-400 rounded-full transition-all"
+                            className="h-full bg-amber-400 rounded-full transicion-ui"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -615,7 +615,7 @@ export default function AdminReportsPage() {
                   <div className="ml-9">
                     <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-violet-400 rounded-full transition-all"
+                        className="h-full bg-violet-400 rounded-full transicion-ui"
                         style={{ width: `${pct}%` }}
                       />
                     </div>

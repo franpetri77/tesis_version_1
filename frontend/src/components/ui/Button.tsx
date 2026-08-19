@@ -58,7 +58,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(
           // Estilos base
           "inline-flex items-center justify-center gap-2 font-semibold",
-          "transition-all duration-150 active:scale-[0.98]",
+          "transicion-ui duration-150 active:scale-[0.98]",
           "focus:outline-none focus:ring-2 focus:ring-offset-1",
           "disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100",
           // Variante y tamaño

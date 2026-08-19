@@ -96,7 +96,7 @@ export function ActiveFilterChips({
                      text-[11.5px] font-semibold
                      border border-brand-200/60
                      hover:bg-red-50 hover:text-red-700 hover:border-red-200
-                     transition-all duration-150"
+                     transicion-ui duration-150"
         >
           <chip.Icon className="w-3 h-3 flex-shrink-0 opacity-70" />
           <span className="max-w-[140px] truncate">{chip.label}</span>

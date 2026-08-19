@@ -199,7 +199,7 @@ export function CatalogFilters({
           <button
             onClick={applyPrice}
             className="w-full py-2 rounded-lg bg-brand-600 hover:bg-brand-700 active:scale-[0.98]
-                       text-white text-[12px] font-semibold transition-all shadow-sm"
+                       text-white text-[12px] font-semibold transicion-ui shadow-sm"
           >
             Aplicar rango
           </button>
@@ -236,7 +236,7 @@ export function CatalogFilters({
                 onClick={() => navigate({ orden: value, pagina: undefined })}
                 className={cn(
                   "w-full text-left text-[12px] flex items-center justify-between",
-                  "py-2 px-2.5 rounded-lg transition-all",
+                  "py-2 px-2.5 rounded-lg transicion-ui",
                   isActive
                     ? "bg-brand-50 text-brand-700 font-semibold"
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
@@ -269,7 +269,7 @@ export function CatalogFilters({
         className="md:hidden flex items-center gap-2 px-4 py-2.5 rounded-xl
                    bg-white text-[13px] font-semibold text-slate-700
                    border border-slate-200 hover:border-slate-300
-                   shadow-sm hover:shadow transition-all"
+                   shadow-sm hover:shadow transicion-ui"
       >
         <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
         Filtros
@@ -423,7 +423,7 @@ function CategoryButton({ label, active, count, onClick }: CategoryButtonProps) 
       onClick={onClick}
       className={cn(
         "w-full text-left text-[12px] flex items-center justify-between",
-        "py-2 px-2.5 rounded-lg transition-all duration-150",
+        "py-2 px-2.5 rounded-lg transicion-ui duration-150",
         active
           ? "bg-brand-600 text-white font-semibold shadow-sm shadow-brand-600/20"
           : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"

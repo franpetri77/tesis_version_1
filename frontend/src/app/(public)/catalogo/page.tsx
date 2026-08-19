@@ -150,7 +150,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
             {/* Acento visual izquierdo */}
             <div className="hidden sm:block w-1 h-8 rounded-full bg-brand-600 flex-shrink-0" />
             <div>
-              <h1 className="text-[22px] font-bold text-slate-900 -tracking-[0.03em] leading-tight">
+              <h1 className="titulo-display text-[1.65rem]">
                 {pageTitle}
               </h1>
               <p className="text-[12px] text-slate-400 mt-0.5 font-medium">
@@ -224,7 +224,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                 href="/catalogo"
                 className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl
                            bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold
-                           transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5"
+                           transicion-ui shadow-sm hover:shadow-md hover:-translate-y-0.5"
               >
                 Ver todos los productos
               </Link>
@@ -273,7 +273,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                         href={buildPageUrl(item as number)}
                         className={cn(
                           "min-w-[36px] h-9 flex items-center justify-center",
-                          "rounded-xl text-sm font-semibold transition-all",
+                          "rounded-xl text-sm font-semibold transicion-ui",
                           item === currentPage
                             ? "bg-brand-600 text-white shadow-sm shadow-brand-600/25"
                             : "bg-white text-slate-600 border border-slate-200 hover:border-brand-300 hover:text-brand-600"
@@ -336,7 +336,7 @@ function PaginationButton({ href, disabled, label, icon, iconPosition }: Paginat
                  bg-white border border-slate-200
                  text-slate-600 text-sm font-semibold
                  hover:border-brand-300 hover:text-brand-600
-                 transition-all"
+                 transicion-ui"
     >
       {iconPosition === "left" && icon}
       {label}

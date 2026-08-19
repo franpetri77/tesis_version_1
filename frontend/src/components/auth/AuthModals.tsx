@@ -111,7 +111,7 @@ function LoginSuccessModal({ isOpen, firstName, onClose }: LoginSuccessModalProp
         <button
           onClick={onClose}
           className="mt-6 w-full py-2.5 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700
-                     text-white text-sm font-semibold transition-all shadow-sm
+                     text-white text-sm font-semibold transicion-ui shadow-sm
                      hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
         >
           Continuar navegando
@@ -153,7 +153,7 @@ function LogoutConfirmModal({ isOpen, onClose, onConfirm }: LogoutConfirmModalPr
           <button
             onClick={onConfirm}
             className="w-full py-2.5 px-5 rounded-xl bg-slate-900 hover:bg-slate-800
-                       text-white text-sm font-semibold transition-all shadow-sm
+                       text-white text-sm font-semibold transicion-ui shadow-sm
                        hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
           >
             Sí, cerrar sesión
@@ -220,7 +220,7 @@ function RegisterSuccessModal({ isOpen, firstName, email, onClose }: RegisterSuc
           <button
             onClick={onClose}
             className="w-full py-2.5 px-5 rounded-xl bg-brand-600 hover:bg-brand-700
-                       text-white text-sm font-semibold transition-all shadow-sm
+                       text-white text-sm font-semibold transicion-ui shadow-sm
                        hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center gap-2"
           >
             Explorar el catálogo
@@ -273,7 +273,7 @@ function SessionExpiredModal({ isOpen, onClose }: SessionExpiredModalProps) {
             href="/login"
             onClick={onClose}
             className="w-full py-2.5 px-5 rounded-xl bg-brand-600 hover:bg-brand-700
-                       text-white text-sm font-semibold transition-all shadow-sm
+                       text-white text-sm font-semibold transicion-ui shadow-sm
                        hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center gap-2"
           >
             Ingresar de nuevo
@@ -325,7 +325,7 @@ function LogoutSuccessModal({ isOpen, firstName, onClose }: LogoutSuccessModalPr
         <button
           onClick={onClose}
           className="mt-6 w-full py-2.5 px-5 rounded-xl bg-slate-900 hover:bg-slate-800
-                     text-white text-sm font-semibold transition-all shadow-sm
+                     text-white text-sm font-semibold transicion-ui shadow-sm
                      hover:shadow-md hover:-translate-y-0.5 active:translate-y-0
                      flex items-center justify-center gap-2"
         >

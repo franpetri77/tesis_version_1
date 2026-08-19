@@ -97,13 +97,13 @@ export default function PresupuestoPage() {
   // -----------------------------------------------
   if (enviado) {
     return (
-      <div className="min-h-screen bg-[#F7F6F3] flex flex-col">
+      <div className="min-h-screen bg-paper-100 flex flex-col">
         <main className="flex-1 flex items-center justify-center px-4 py-24">
           <div className="max-w-md w-full text-center animate-[fade-in_.5s_cubic-bezier(.4,0,.2,1)]">
             <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-6">
               <CheckCircle2 className="w-8 h-8 text-emerald-600" strokeWidth={1.5} />
             </div>
-            <h1 className="font-display text-4xl text-slate-900 tracking-[-0.02em] mb-4">
+            <h1 className="titulo-display text-4xl mb-4">
               Solicitud recibida
             </h1>
             <p className="text-slate-600 leading-relaxed mb-8">
@@ -137,7 +137,7 @@ export default function PresupuestoPage() {
   // Formulario
   // -----------------------------------------------
   return (
-    <div className="min-h-screen bg-[#F7F6F3] flex flex-col">
+    <div className="min-h-screen bg-paper-100 flex flex-col">
       <main className="flex-1">
         {/* ── Encabezado ─────────────────────────── */}
         <section className="max-w-6xl mx-auto px-4 pt-10 pb-4">
@@ -155,10 +155,10 @@ export default function PresupuestoPage() {
 
             {/* ── Columna editorial ──────────────── */}
             <div className="lg:sticky lg:top-24 animate-[fade-in_.5s_cubic-bezier(.4,0,.2,1)]">
-              <span className="inline-block text-[11px] font-semibold tracking-[0.18em] uppercase text-brand-600 mb-5">
+              <span className="antetitulo mb-5">
                 Ventas mayoristas
               </span>
-              <h1 className="font-display text-[2.75rem] leading-[1.05] sm:text-5xl sm:leading-[1.05] text-slate-900 tracking-[-0.03em] mb-5">
+              <h1 className="titulo-display text-[2.75rem] sm:text-5xl mb-5">
                 Pedí un presupuesto para tu empresa
               </h1>
               <p className="text-[17px] text-slate-600 leading-[1.65] mb-10 max-w-md">

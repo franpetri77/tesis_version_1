@@ -113,8 +113,12 @@ export function HeroCarousel() {
 
             {/* Tratamiento de laterales: blur + viñeta progresiva para que el recorte se vea intencional */}
             <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute inset-y-0 left-0 w-14 sm:w-20 md:w-28 lg:w-32 bg-gradient-to-r from-slate-950/65 via-slate-950/20 to-transparent backdrop-blur-md" />
-              <div className="absolute inset-y-0 right-0 w-14 sm:w-20 md:w-28 lg:w-32 bg-gradient-to-l from-slate-950/65 via-slate-950/20 to-transparent backdrop-blur-md" />
+              {/* Degradados laterales sin backdrop-blur: cubrían una franja
+                  alta de la pantalla y el desenfoque de superficie grande es
+                  el efecto más costoso de componer. El degradado por sí solo
+                  ya resuelve el contraste con el texto. */}
+              <div className="absolute inset-y-0 left-0 w-14 sm:w-20 md:w-28 lg:w-32 bg-gradient-to-r from-slate-950/70 via-slate-950/25 to-transparent" />
+              <div className="absolute inset-y-0 right-0 w-14 sm:w-20 md:w-28 lg:w-32 bg-gradient-to-l from-slate-950/70 via-slate-950/25 to-transparent" />
             </div>
 
             {/* Capa extra: oscurece la franja inferior (dots/barra de progreso) */}
@@ -134,8 +138,8 @@ export function HeroCarousel() {
                 </div>
 
                 {/* Título */}
-                <h1 className="text-3xl sm:text-4xl md:text-[2.75rem] font-bold text-white
-                               leading-tight tracking-tight mb-3 drop-shadow-xl">
+                <h1 className="titulo-display text-white text-[2rem] sm:text-4xl md:text-[3rem]
+                               mb-3 drop-shadow-xl">
                   {s.title}
                 </h1>
 
@@ -171,7 +175,7 @@ export function HeroCarousel() {
                    w-9 h-9 md:w-10 md:h-10 rounded-full
                    bg-black/30 hover:bg-black/50 border border-white/20
                    backdrop-blur-sm flex items-center justify-center
-                   text-white transition-all hover:scale-105 shadow-card"
+                   text-white transicion-ui hover:scale-105 shadow-card"
       >
         <ChevronLeft className="w-4 h-4" />
       </button>
@@ -184,7 +188,7 @@ export function HeroCarousel() {
                    w-9 h-9 md:w-10 md:h-10 rounded-full
                    bg-black/30 hover:bg-black/50 border border-white/20
                    backdrop-blur-sm flex items-center justify-center
-                   text-white transition-all hover:scale-105 shadow-card"
+                   text-white transicion-ui hover:scale-105 shadow-card"
       >
         <ChevronRight className="w-4 h-4" />
       </button>
@@ -197,7 +201,7 @@ export function HeroCarousel() {
             key={i}
             onClick={() => goTo(i)}
             aria-label={`Ir al slide ${i + 1}`}
-            className={`rounded-full transition-all duration-300 ${
+            className={`rounded-full transicion-ui duration-300 ${
               i === current
                 ? "w-6 h-2 bg-white"
                 : "w-2 h-2 bg-white/40 hover:bg-white/70"

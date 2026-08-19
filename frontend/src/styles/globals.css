@@ -6,8 +6,10 @@
   :root {
     --color-brand: 37 99 235;
     --color-brand-light: 219 234 254;
-    /* Fondo Apple-style — gris levemente cálido */
-    --bg-page: #F5F5F7;
+    /* Fondo de página en neutro cálido. Un gris con punta de azul
+       da un aire clínico; este tono deja respirar las fotos de
+       producto y sostiene mejor las superficies blancas encima. */
+    --bg-page: #F7F6F3;
     /* Main header (64px) + nav strip (40px) = 104px sticky total */
     --header-h: 104px;
   }
@@ -26,6 +28,12 @@
 
   h1, h2, h3, h4, h5, h6 {
     @apply font-semibold tracking-tight;
+  }
+
+  /* Texto corrido con interlineado holgado: mejora la lectura en
+     descripciones largas de producto y en las piezas editoriales. */
+  p {
+    line-height: 1.65;
   }
 
   /* Scrollbar delgada y discreta */
@@ -48,7 +56,35 @@
     max-width: 1680px;
   }
 
-  .section-divider { @apply border-t border-slate-100; }
+  .section-divider { @apply border-t border-paper-300; }
+
+  /* ─── Títulos editoriales ───────────────────────────────────────
+     Serif de contraste con tracking negativo, reservada para los
+     títulos que encabezan una página o una sección. Deliberadamente
+     NO se aplica a nombres de producto ni a etiquetas de interfaz:
+     en una grilla de catálogo la serif compite con la lectura rápida,
+     que es lo que el usuario necesita ahí. */
+  .titulo-display {
+    @apply font-display font-normal tracking-display text-slate-900;
+    line-height: 1.08;
+  }
+
+  /* ─── Transición de interfaz ────────────────────────────────────
+     Enumera las propiedades que efectivamente cambian en los estados
+     de hover, foco y activo. Sustituye a transition-all, que obliga al
+     navegador a interpolar toda propiedad animable —incluidas las que
+     disparan recálculo de layout— aun cuando no cambien. */
+  .transicion-ui {
+    transition-property: color, background-color, border-color,
+                         fill, stroke, opacity, box-shadow, transform;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+
+  /* Antetítulo en versalitas sobre el título editorial. */
+  .antetitulo {
+    @apply inline-block text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-600;
+  }
 
   .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; }
 

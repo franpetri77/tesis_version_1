@@ -27,11 +27,30 @@ const config: Config = {
           900: "#1e3a8a",
           950: "#172554",
         },
+        // -----------------------------------------------
+        // NEUTROS CÁLIDOS — superficies de página
+        // Los grises de Tailwind (slate) tiran a azul. Estos neutros
+        // llevan una punta de amarillo: dan un blanco menos clínico y
+        // hacen que las fotos de producto se vean más cálidas.
+        // Se usan para fondos y separadores; el texto sigue en slate.
+        // -----------------------------------------------
+        paper: {
+          50:  "#FDFDFC",
+          100: "#F7F6F3",
+          200: "#F0EEE9",
+          300: "#E6E3DC",
+          400: "#D5D1C7",
+        },
       },
       fontFamily: {
         sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
         // Serif de contraste, reservada para títulos de piezas editoriales.
         display: ["var(--font-display)", "Georgia", "serif"],
+      },
+      // Tracking negativo para títulos editoriales: a cuerpos grandes,
+      // el espaciado normal deja los títulos sueltos y desarmados.
+      letterSpacing: {
+        "display": "-0.03em",
       },
       // -----------------------------------------------
       // SOMBRAS — más sutiles y controladas que las default
@@ -87,6 +106,10 @@ const config: Config = {
       // -----------------------------------------------
       transitionTimingFunction: {
         "smooth": "cubic-bezier(0.4, 0, 0.2, 1)",
+        // Curva de desaceleración pronunciada, para entradas de contenido:
+        // arranca rápido y frena suave, que es lo que da sensación de
+        // "asentarse" en lugar de simplemente aparecer.
+        "entrada": "cubic-bezier(0.16, 1, 0.3, 1)",
       },
     },
   },

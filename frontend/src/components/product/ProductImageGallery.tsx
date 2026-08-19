@@ -136,7 +136,7 @@ export function ProductImageGallery({
                   key={img.id ?? index}
                   onClick={() => setActiveIndex(index)}
                   className={cn(
-                    "relative w-[64px] h-[64px] flex-shrink-0 rounded-xl overflow-hidden border-2 transition-all",
+                    "relative w-[64px] h-[64px] flex-shrink-0 rounded-xl overflow-hidden border-2 transicion-ui",
                     isActive
                       ? "border-brand-400 shadow-sm"
                       : "border-slate-100 hover:border-brand-300",
@@ -242,7 +242,7 @@ export function ProductImageGallery({
                     key={i}
                     onClick={(e) => { e.stopPropagation(); setLightboxIdx(i); }}
                     className={cn(
-                      "w-1.5 h-1.5 rounded-full transition-all",
+                      "w-1.5 h-1.5 rounded-full transicion-ui",
                       i === lightboxIdx ? "bg-white w-4" : "bg-white/40 hover:bg-white/70"
                     )}
                     aria-label={`Ir a imagen ${i + 1}`}

@@ -416,7 +416,7 @@ function RegisterForm({ onSuccess, goLogin, setUser }: RegisterFormProps) {
             <div className="space-y-1">
               <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-300 ${strength.color}`}
+                  className={`h-full rounded-full transicion-ui duration-300 ${strength.color}`}
                   style={{ width: strength.width }}
                 />
               </div>

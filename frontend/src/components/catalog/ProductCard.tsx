@@ -135,7 +135,9 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
           )}>
             <span className={cn(
               "inline-flex items-center gap-1.5",
-              "bg-white/95 backdrop-blur-sm",
+              // Sin backdrop-blur: a 95% de opacidad el desenfoque es
+              // imperceptible, y esta píldora se repite en cada tarjeta.
+              "bg-white/95",
               "text-slate-700 text-[11px] font-semibold",
               "px-3 py-1.5 rounded-full",
               "shadow-sm border border-slate-200/70"

@@ -229,7 +229,7 @@ export function PromoBanner() {
                     "hidden sm:inline-flex flex-shrink-0 items-center gap-1.5",
                     "text-[11.5px] font-semibold text-white/90 hover:text-white",
                     "bg-white/10 hover:bg-white/18 border border-white/15",
-                    "px-3.5 py-2 rounded-xl transition-all duration-200",
+                    "px-3.5 py-2 rounded-xl transicion-ui duration-200",
                     "backdrop-blur-sm whitespace-nowrap",
                   ].join(" ")}
                 >
@@ -245,7 +245,7 @@ export function PromoBanner() {
                       onClick={() => goTo(di)}
                       aria-label={`Slide ${di + 1}`}
                       className={[
-                        "rounded-full transition-all duration-300",
+                        "rounded-full transicion-ui duration-300",
                         di === current
                           ? `w-1.5 h-4 ${c.dot}`
                           : "w-1.5 h-1.5 bg-white/25 hover:bg-white/50",

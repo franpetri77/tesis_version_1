@@ -121,7 +121,7 @@ export default function RegisterPage() {
     <div className="w-full max-w-sm animate-fade-in">
       {/* Encabezado */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+        <h1 className="titulo-display text-[1.75rem]">
           Creá tu cuenta
         </h1>
         <p className="text-sm text-slate-500 mt-1.5">
@@ -205,7 +205,7 @@ export default function RegisterPage() {
               <div className="space-y-1">
                 <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-300 ${strength.color}`}
+                    className={`h-full rounded-full transicion-ui duration-300 ${strength.color}`}
                     style={{ width: strength.width }}
                   />
                 </div>

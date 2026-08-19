@@ -260,7 +260,7 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
                     onChange={(e) => setFormTitle(e.target.value)}
                     placeholder="Resumen breve de tu opinión..."
                     maxLength={255}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition-all"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transicion-ui"
                   />
                 </div>
 
@@ -273,7 +273,7 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
                     onChange={(e) => setFormBody(e.target.value)}
                     placeholder="Contá tu experiencia con el producto..."
                     rows={4}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition-all resize-none"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transicion-ui resize-none"
                     required
                   />
                 </div>

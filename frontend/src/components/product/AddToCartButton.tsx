@@ -86,7 +86,7 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
         disabled={justAdded}
         className={cn(
           "w-full py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2",
-          "transition-all duration-200 active:scale-[0.98]",
+          "transicion-ui duration-200 active:scale-[0.98]",
           "focus:outline-none focus:ring-2 focus:ring-offset-2",
           justAdded
             ? "bg-emerald-500 text-white focus:ring-emerald-400 cursor-default"

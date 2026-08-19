@@ -147,7 +147,7 @@ export default async function HomePage() {
         <div className="container-main">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="text-xl font-bold text-white tracking-tight">
+              <h2 className="titulo-display text-white text-[1.6rem]">
                 Explorá por departamento
               </h2>
               <p className="text-sm text-slate-400 mt-0.5">
@@ -173,7 +173,7 @@ export default async function HomePage() {
                   bg-gradient-to-br ${section.from} ${section.to}
                   ring-1 ${section.ring}
                   hover:scale-[1.02] hover:shadow-2xl
-                  transition-all duration-300 ease-out
+                  transicion-ui duration-300 ease-out
                 `}
               >
                 {/* Destello de fondo */}
@@ -203,7 +203,7 @@ export default async function HomePage() {
           <div className="container-main">
             <div className="flex items-center justify-between mb-7">
               <div>
-                <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                <h2 className="titulo-display text-[1.6rem]">
                   {isFeatured ? "Productos destacados" : "Productos disponibles"}
                 </h2>
                 <p className="text-sm text-slate-500 mt-0.5">
@@ -233,7 +233,7 @@ export default async function HomePage() {
                 href="/catalogo"
                 className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700
                            text-white font-semibold px-7 py-3 rounded-xl
-                           transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
+                           transicion-ui shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
               >
                 Ver catálogo completo
                 <ArrowRight className="w-4 h-4" />

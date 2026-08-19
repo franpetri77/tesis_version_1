@@ -322,7 +322,7 @@ export default function AddressesPage() {
                 value={form.province}
                 onChange={handleChange}
                 required
-                className="w-full text-sm bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
+                className="w-full text-sm bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transicion-ui"
               >
                 <option value="" disabled>Seleccioná una provincia</option>
                 {ARGENTINIAN_PROVINCES.map((prov) => (
@@ -398,7 +398,7 @@ export default function AddressesPage() {
             return (
               <div
                 key={address.id}
-                className={`bg-white rounded-xl border shadow-card p-4 transition-all ${
+                className={`bg-white rounded-xl border shadow-card p-4 transicion-ui ${
                   isDefault ? "border-brand-300" : "border-slate-200"
                 }`}
               >

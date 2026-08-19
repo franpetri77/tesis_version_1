@@ -5,21 +5,12 @@
 // =============================================
 
 import "dotenv/config";
-import mysql from "mysql2/promise";
+import type mysql from "mysql2/promise";
 import bcrypt from "bcryptjs";
 import { initSchema } from "./schema";
-
-// Conexión directa para el seed (sin usar el pool del servidor)
-const pool = mysql.createPool({
-  host:     process.env.DB_HOST     ?? "localhost",
-  port:     parseInt(process.env.DB_PORT ?? "3306"),
-  user:     process.env.DB_USER     ?? "root",
-  password: process.env.DB_PASSWORD ?? "",
-  database: process.env.DB_NAME     ?? "tele_import",
-  dateStrings: true,
-  charset: "utf8mb4",
-  connectionLimit: 3,
-});
+// Se reutiliza el pool del servidor para no duplicar la configuración de
+// conexión: así el seed hereda el SSL condicional y cualquier ajuste futuro.
+import pool from "./database";
 
 async function runSeed() {
   // Asegurar que el esquema existe antes de insertar datos

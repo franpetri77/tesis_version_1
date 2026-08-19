@@ -26,13 +26,34 @@ const PORT = process.env.PORT ?? 4000;
 // Middleware global
 // -----------------------------------------------
 // CORS_ORIGINS acepta una lista separada por comas para soportar múltiples dominios.
-// Ejemplo en Render: CORS_ORIGINS=https://sctechnology.vercel.app,https://otro-dominio.com
+// Cada entrada puede incluir "*" como comodín, lo que resuelve las URLs
+// cambiantes que Vercel genera en cada despliegue de vista previa.
+//
+// Ejemplo en Render:
+//   CORS_ORIGINS=https://sctechnology.vercel.app,https://*-franpetri7s-projects.vercel.app
+//
+// Conviene acotar el comodín al sufijo propio de la cuenta: un patrón
+// amplio como https://*.vercel.app habilitaría a cualquier sitio alojado
+// en esa plataforma a consumir la API con las credenciales del usuario.
 const ALLOWED_ORIGINS: string[] = (
   process.env.CORS_ORIGINS ?? process.env.FRONTEND_URL ?? "http://localhost:3000"
 )
   .split(",")
   .map((o) => o.trim())
   .filter(Boolean);
+
+// Convierte cada entrada en una expresión regular anclada, escapando todo
+// salvo el comodín para evitar que un punto actúe como "cualquier carácter".
+const ORIGIN_MATCHERS: RegExp[] = ALLOWED_ORIGINS.map((patron) => {
+  const escapado = patron
+    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&") // escapa metacaracteres, incluido *
+    .replace(/\\\*/g, "[^.]*");             // reactiva * como comodín de un segmento
+  return new RegExp(`^${escapado}$`);
+});
+
+function origenPermitido(origin: string): boolean {
+  return ORIGIN_MATCHERS.some((re) => re.test(origin));
+}
 
 app.use(
   cors({
@@ -42,9 +63,12 @@ app.use(
       if (!origin || /^http:\/\/localhost:\d+$/.test(origin)) {
         return callback(null, true);
       }
-      if (ALLOWED_ORIGINS.includes(origin)) {
+      if (origenPermitido(origin)) {
         return callback(null, true);
       }
+      // Se registra el rechazo: sin esta traza, el navegador sólo informa
+      // la ausencia del encabezado y la causa real queda oculta.
+      console.warn(`[CORS] Origen rechazado: ${origin}`);
       callback(new Error(`CORS: origen no permitido — ${origin}`));
     },
     credentials: true,

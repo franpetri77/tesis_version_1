@@ -1,0 +1,56 @@
+# =============================================
+# MANTENER ACTIVOS LOS SERVICIOS GRATUITOS
+#
+# Los planes gratuitos suspenden por inactividad:
+#   - Aiven apaga la base de datos sin actividad continua.
+#   - Render suspende el backend, y la primera petición
+#     posterior puede demorar 50 s o más.
+#
+# Este workflow consulta /health cada 6 horas. Ese endpoint
+# ejecuta "SELECT 1" contra MySQL, de modo que una sola
+# petición genera actividad en ambos servicios a la vez.
+# =============================================
+name: Keep alive
+
+on:
+  schedule:
+    # Cada 6 horas (UTC). GitHub puede demorar la ejecución si hay carga.
+    - cron: "0 */6 * * *"
+  # Permite ejecutarlo a mano desde la pestaña Actions.
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Consultar healthcheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      # URL pública del backend. Si cambia el dominio, actualizar acá.
+      HEALTH_URL: https://tesis-version-1.onrender.com/health
+
+    steps:
+      - name: Consultar /health con reintentos
+        run: |
+          # El backend puede estar suspendido: el primer intento suele
+          # agotar el tiempo mientras el servicio vuelve a iniciarse.
+          for intento in 1 2 3 4 5; do
+            echo "Intento $intento de 5..."
+
+            respuesta=$(curl -sS --max-time 120 "$HEALTH_URL" || true)
+            echo "Respuesta: ${respuesta:-(vacía)}"
+
+            if echo "$respuesta" | grep -q '"status":"ok"'; then
+              echo "Servicio operativo y base de datos alcanzable."
+              exit 0
+            fi
+
+            if [ "$intento" -lt 5 ]; then
+              echo "Sin respuesta saludable. Reintentando en 30 s..."
+              sleep 30
+            fi
+          done
+
+          echo "::error::El healthcheck no respondió correctamente tras 5 intentos."
+          echo "Verificar el estado del backend en Render y de la base en Aiven."
+          exit 1

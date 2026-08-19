@@ -66,7 +66,7 @@ export default function AuthLayout({
 
           {/* Footer del panel */}
           <p className="text-xs text-slate-600 mt-auto">
-            © {new Date().getFullYear()} Tele Import S.A. · Buenos Aires, Argentina
+            © {new Date().getFullYear()} Tele Import S.A. · Córdoba, Argentina
           </p>
         </div>
       </div>

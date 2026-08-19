@@ -310,9 +310,9 @@ export default function CheckoutPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <Input label="Ciudad *" name="city" value={form.city}
-                        onChange={handleChange} placeholder="Buenos Aires" required />
+                        onChange={handleChange} placeholder="Córdoba" required />
                       <Input label="Cód. postal *" name="postal_code" value={form.postal_code}
-                        onChange={handleChange} placeholder="1043" required />
+                        onChange={handleChange} placeholder="5000" required />
                     </div>
                     <div>
                       <label className="text-sm font-medium text-slate-700">Provincia *</label>

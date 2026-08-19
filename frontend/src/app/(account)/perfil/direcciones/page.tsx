@@ -300,7 +300,7 @@ export default function AddressesPage() {
                 value={form.city}
                 onChange={handleChange}
                 required
-                placeholder="Buenos Aires"
+                placeholder="Córdoba"
               />
               <Input
                 label="Código postal"

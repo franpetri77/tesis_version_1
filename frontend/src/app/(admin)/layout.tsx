@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Zap, LayoutDashboard, Package, ShoppingBag, Warehouse, BarChart3, Users, Tag, MessageSquare, ClipboardList, ArrowLeft, ShieldAlert } from "lucide-react";
+import { Zap, LayoutDashboard, Package, ShoppingBag, Warehouse, BarChart3, Users, Tag, MessageSquare, ClipboardList, FileText, ArrowLeft, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { getMe } from "@/lib/api/auth";
 import { useAuthStore } from "@/stores/authStore";
@@ -23,6 +23,7 @@ const adminNavLinks = [
   { href: "/admin/usuarios",     label: "Usuarios",    icon: Users },
   { href: "/admin/promociones",  label: "Promociones", icon: Tag },
   { href: "/admin/resenas",      label: "Reseñas",     icon: MessageSquare },
+  { href: "/admin/presupuestos", label: "Presupuestos", icon: FileText },
   { href: "/admin/auditoria",    label: "Auditoría",   icon: ClipboardList },
 ];
 

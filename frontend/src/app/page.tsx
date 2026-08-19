@@ -255,20 +255,30 @@ export default async function HomePage() {
           <div className="bg-slate-900 rounded-2xl px-8 md:px-12 py-10 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
             <div className="absolute -right-16 -top-16 w-64 h-64 rounded-full bg-brand-600/10 blur-3xl pointer-events-none" />
             <div className="relative">
-              <h3 className="text-xl md:text-2xl font-bold text-white mb-2">
+              <h3 className="font-display text-2xl md:text-[1.75rem] leading-tight text-white tracking-[-0.02em] mb-2">
                 ¿Necesitás una cotización para tu empresa?
               </h3>
-              <p className="text-slate-400 text-sm">
+              <p className="text-slate-400 text-sm leading-relaxed">
                 Precios especiales por volumen para revendedores y empresas.
               </p>
             </div>
-            <Link
-              href="/catalogo"
-              className="relative flex-shrink-0 inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-500 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
-            >
-              Ver catálogo completo
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+            {/* Acción principal: la consulta mayorista. El acceso al catálogo
+                queda como alternativa secundaria para no competir con ella. */}
+            <div className="relative flex-shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <Link
+                href="/presupuesto"
+                className="group inline-flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-500 text-white font-semibold px-6 py-3 rounded-xl transition-[background-color,transform] duration-150 active:scale-[0.99]"
+              >
+                Solicitar presupuesto
+                <ArrowRight className="w-4 h-4 transition-transform duration-150 group-hover:translate-x-0.5" />
+              </Link>
+              <Link
+                href="/catalogo"
+                className="inline-flex items-center justify-center gap-2 text-slate-300 hover:text-white font-medium px-4 py-3 rounded-xl transition-colors duration-150"
+              >
+                Ver catálogo
+              </Link>
+            </div>
           </div>
         </div>
       </section>

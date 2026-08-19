@@ -18,6 +18,7 @@ import { reportsRouter } from "./routes/reports";
 import { catalogRouter } from "./routes/catalog";
 import { authRouter } from "./routes/auth";
 import { adminRouter } from "./routes/admin";
+import { quotesRouter } from "./routes/quotes";
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -100,6 +101,9 @@ app.use("/webhooks", webhooksRouter);
 
 // Reportes administrativos
 app.use("/reports", reportsRouter);
+
+// Solicitudes de presupuesto (alta pública; listado y gestión sólo admin)
+app.use("/quotes", quotesRouter);
 
 // Rutas de administración (requieren rol admin)
 app.use("/admin", adminRouter);

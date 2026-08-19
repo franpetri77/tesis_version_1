@@ -67,3 +67,10 @@ export const apiPost = <T>(path: string, body: unknown, token?: string) =>
     body: JSON.stringify(body),
     token,
   });
+
+export const apiPatch = <T>(path: string, body: unknown, token?: string) =>
+  apiFetch<T>(path, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+    token,
+  });

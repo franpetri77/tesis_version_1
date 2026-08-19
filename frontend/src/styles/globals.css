@@ -66,10 +66,18 @@
   /* ─── Product card — reservado para compatibilidad ─── */
   /* Las cards de catálogo usan clases inline en ProductCard.tsx */
   .product-card {
+    /* Se animan solo las propiedades que efectivamente cambian en :hover.
+       Con transition-all el navegador interpola todas las propiedades
+       animables, incluidas las que disparan recalculo de layout. */
     @apply relative flex flex-col bg-white rounded-2xl overflow-hidden
            border border-slate-100
-           transition-all duration-300 ease-out cursor-pointer;
+           duration-300 ease-out cursor-pointer;
+    transition-property: transform, box-shadow, border-color;
     box-shadow: 0 1px 3px rgb(0 0 0 / 0.04), 0 1px 2px rgb(0 0 0 / 0.03);
+    /* will-change se activa recien al acercar el puntero: mantenerlo fijo
+       obliga al navegador a sostener una capa de composicion por tarjeta. */
+  }
+  .product-card:hover {
     will-change: transform, box-shadow;
   }
   .product-card:hover {

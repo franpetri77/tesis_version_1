@@ -56,8 +56,10 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
         // Sombra multi-capa — se profundiza en hover
         "shadow-[0_1px_3px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.03)]",
         "hover:shadow-[0_10px_28px_rgba(0,0,0,0.09),0_4px_10px_rgba(0,0,0,0.05)]",
-        // Elevación en hover
-        "transition-all duration-300 ease-out hover:-translate-y-1",
+        // Elevación en hover. Se enumeran las propiedades animadas en lugar
+        // de usar transition-all: la tarjeta se repite decenas de veces en la
+        // grilla y animar todo obliga a recalcular layout en cada frame.
+        "transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1",
         isOutOfStock && "opacity-70"
       )}
       aria-label={product.name}
@@ -110,7 +112,10 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
 
         {/* ── OVERLAY SIN STOCK ── */}
         {isOutOfStock && (
-          <div className="absolute inset-0 bg-white/55 backdrop-blur-[1.5px] flex items-center justify-center z-20">
+          // Se evita backdrop-blur: es de los efectos mas costosos y aqui se
+          // repetiria por cada tarjeta sin stock de la grilla. Un velo opaco
+          // logra el mismo objetivo de atenuar la imagen.
+          <div className="absolute inset-0 bg-white/70 flex items-center justify-center z-20">
             <span className={cn(
               "bg-slate-900/80 text-white",
               "text-[11px] font-semibold tracking-widest uppercase",
@@ -126,7 +131,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
           <div className={cn(
             "absolute inset-x-0 bottom-0 flex items-end justify-center pb-2.5",
             "opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0",
-            "transition-all duration-200 ease-out z-10"
+            "transition-[opacity,transform] duration-200 ease-out z-10"
           )}>
             <span className={cn(
               "inline-flex items-center gap-1.5",
@@ -192,7 +197,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
           className={cn(
             "flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl",
             "text-[12px] font-semibold tracking-wide",
-            "transition-all duration-200 active:scale-[0.97]",
+            "transition-[background-color,color,transform,box-shadow] duration-200 active:scale-[0.97]",
             "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1",
             added
               ? "bg-emerald-500 text-white shadow-sm"

@@ -30,6 +30,8 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
+        // Serif de contraste, reservada para títulos de piezas editoriales.
+        display: ["var(--font-display)", "Georgia", "serif"],
       },
       // -----------------------------------------------
       // SOMBRAS — más sutiles y controladas que las default

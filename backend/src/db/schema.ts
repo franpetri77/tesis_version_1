@@ -381,6 +381,34 @@ export async function initSchema(pool: Pool): Promise<void> {
     // -----------------------------------------------
     // Columna email_verified en users (idempotente).
     // MySQL no soporta "ADD COLUMN IF NOT EXISTS", así que
+    // -----------------------------------------------
+    // TABLA: quote_requests (solicitudes de presupuesto)
+    // Consultas de empresas y revendedores por compras al por mayor.
+    // user_id es opcional: el formulario es público y no exige cuenta.
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS quote_requests (
+        id             VARCHAR(50)   NOT NULL,
+        company        VARCHAR(255)  NULL,
+        contact_name   VARCHAR(150)  NOT NULL,
+        email          VARCHAR(255)  NOT NULL,
+        phone          VARCHAR(50)   NULL,
+        tax_id         VARCHAR(50)   NULL,
+        products       TEXT          NOT NULL,
+        estimated_qty  INT           NULL,
+        message        TEXT          NULL,
+        status         ENUM('pending','in_review','quoted','closed') NOT NULL DEFAULT 'pending',
+        user_id        VARCHAR(50)   NULL,
+        created_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_quote_requests_status  (status),
+        KEY idx_quote_requests_created (created_at),
+        CONSTRAINT fk_quote_requests_user
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
     // consultamos information_schema antes de alterar.
     // -----------------------------------------------
     const [cols] = await conn.query(

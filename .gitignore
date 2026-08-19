@@ -34,3 +34,9 @@ Thumbs.db
 
 # Directus snapshots (optional local state)
 directus/snapshots/*.tmp
+
+# Excepcion: el script de optimizacion si forma parte del proyecto
+!frontend/scripts/*.mjs
+
+# Originales de imagenes: respaldo local para regenerar, no se versionan
+frontend/public/img/originales/

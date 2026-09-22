@@ -1,70 +1,139 @@
-# Deploy guia rapida
+# Guía de Deploy — Tele Import S.A.
 
-Este proyecto se puede desplegar de forma simple con:
-- Frontend Next.js en Vercel
-- Backend Express + SQLite en Render (con disco persistente)
-- Directus en Directus Cloud o Render/Railway (si todavia no esta online)
+Stack actual: **Next.js 14 (frontend) + Express + TypeScript (backend) + MySQL 8**
 
-## 1) Backend en Render
+---
 
-### Opcion A (recomendada): Blueprint con render.yaml
-1. En Render, crear un Blueprint y conectar este repo.
-2. Render detecta `render.yaml` en la raiz y crea el servicio `tele-import-backend`.
-3. Completar variables `sync: false` en el panel.
-4. Deploy.
+## Opción recomendada: Railway (backend + MySQL) + Vercel (frontend)
 
-### Variables obligatorias (backend)
-- `PORT=4000`
-- `FRONTEND_URL=https://tu-frontend.vercel.app`
-- `BACKEND_URL=https://tu-backend.onrender.com`
-- `DB_PATH=/var/data/tele_import.db`
-- `JWT_SECRET=<valor-largo-y-seguro>`
-- `MP_ACCESS_TOKEN=<token-mercadopago>`
-- `MP_WEBHOOK_SECRET=<secret-webhook-mercadopago>`
-- `DIRECTUS_URL=https://tu-directus`
-- `DIRECTUS_SERVICE_TOKEN=<token-de-servicio>`
+Railway tiene MySQL como addon nativo. No necesitás configurar nada externo.
 
-### Healthcheck
-- Endpoint: `/health`
+### 1. Backend en Railway
 
-## 2) Frontend en Vercel
+1. Entrá a [railway.app](https://railway.app) y creá un nuevo proyecto.
+2. **Add Service → GitHub Repo** → seleccioná este repo.
+3. En la configuración del servicio:
+   - **Root Directory**: `backend`
+   - El `backend/railway.toml` ya está configurado — Railway lo detecta automático.
+4. **Add Service → Database → MySQL** → Railway levanta MySQL y te da las variables.
+5. En el servicio del backend, cargá las siguientes variables de entorno:
 
-1. En Vercel, importar este repo.
-2. Configurar Root Directory: `frontend`.
-3. Framework: Next.js (auto-detectado).
-4. Cargar variables de entorno.
-5. Deploy.
+```env
+# Railway las genera automáticamente si usás el addon MySQL:
+DB_HOST=${{MySQL.MYSQLHOST}}
+DB_PORT=${{MySQL.MYSQLPORT}}
+DB_USER=${{MySQL.MYSQLUSER}}
+DB_PASSWORD=${{MySQL.MYSQLPASSWORD}}
+DB_NAME=${{MySQL.MYSQLDATABASE}}
 
-### Variables obligatorias (frontend)
-- `NEXT_PUBLIC_APP_URL=https://tu-frontend.vercel.app`
-- `NEXT_PUBLIC_API_URL=https://tu-backend.onrender.com`
-- `NEXT_PUBLIC_DIRECTUS_URL=https://tu-directus`
-- `DIRECTUS_SERVICE_TOKEN=<token-de-servicio>`
-- `NEXT_PUBLIC_MP_PUBLIC_KEY=<public-key-mp>`
-- `MP_ACCESS_TOKEN=<token-mercadopago>`
-- `BACKEND_SERVICE_URL=https://tu-backend.onrender.com`
+# Generá uno: openssl rand -hex 32
+JWT_SECRET=<cadena-aleatoria-larga>
 
-## 3) Mercado Pago Webhook
+# URLs (completar después de que Vercel te dé la URL del frontend)
+FRONTEND_URL=https://tu-frontend.vercel.app
+BACKEND_URL=https://tu-backend.up.railway.app
+CORS_ORIGINS=https://tu-frontend.vercel.app
 
-Configurar webhook en Mercado Pago apuntando a:
-- `https://tu-backend.onrender.com/webhooks/mercadopago`
+# Mercado Pago
+MP_ACCESS_TOKEN=<tu-access-token>
+MP_WEBHOOK_SECRET=<secret-opcional>
 
-Verificar que `MP_WEBHOOK_SECRET` coincida entre Mercado Pago y backend.
-
-## 4) Checklist post deploy
-
-- `GET https://tu-backend.onrender.com/health` responde `status: ok`.
-- Frontend puede listar catalogo sin CORS.
-- Login funciona.
-- Flujo de checkout crea preferencia.
-- Webhook cambia estado de pedido despues del pago.
-
-## 5) Comandos utiles para actualizar cambios
-
-```bash
-git add .
-git commit -m "feat: ..."
-git push
+# SMTP (opcional — si no está, los emails se imprimen en consola)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=tucuenta@gmail.com
+SMTP_PASS=xxxx xxxx xxxx xxxx
+SMTP_FROM=Tele Import <tucuenta@gmail.com>
 ```
 
-Con GitHub conectado, Vercel y Render redeployan automaticamente con cada push a `main` (si asi lo configuraste).
+6. Deploy. El healthcheck está en `/health`.
+
+### 2. Frontend en Vercel
+
+1. Entrá a [vercel.com](https://vercel.com) y creá un nuevo proyecto desde este repo.
+2. En la configuración:
+   - **Root Directory**: `frontend`
+   - Framework: Next.js (auto-detectado)
+3. Cargá las variables de entorno:
+
+```env
+NEXT_PUBLIC_APP_URL=https://tu-frontend.vercel.app
+NEXT_PUBLIC_API_URL=https://tu-backend.up.railway.app
+BACKEND_SERVICE_URL=https://tu-backend.up.railway.app
+NEXT_PUBLIC_MP_MODE=sandbox
+```
+
+4. Deploy.
+
+### 3. Conectar ambos servicios
+
+Una vez que tenés las URLs definitivas de Railway y Vercel:
+- Actualizá `FRONTEND_URL`, `BACKEND_URL`, `CORS_ORIGINS` en Railway con las URLs reales.
+- Actualizá `NEXT_PUBLIC_API_URL` y `BACKEND_SERVICE_URL` en Vercel.
+- Redesplegá ambos servicios.
+
+---
+
+## Opción alternativa: Render (backend) + MySQL externo + Vercel (frontend)
+
+El `render.yaml` ya está configurado en la raíz del repo. Render detecta el blueprint automáticamente.
+
+**Render no tiene MySQL nativo** — necesitás un proveedor externo gratuito:
+- [Aiven](https://aiven.io) — MySQL gratis, 1 instancia
+- [PlanetScale](https://planetscale.com) — MySQL compatible, plan free
+
+> **Advertencia**: Render en el plan gratuito **duerme el servicio tras 15 minutos de inactividad**. El primer request después de la pausa tarda ~30 segundos en responder. Para una presentación, esto puede ser problemático.
+
+Una vez que tengas el MySQL externo, configurá en el panel de Render las variables `sync: false`:
+
+```env
+DB_HOST=<host de Aiven/PlanetScale>
+DB_PORT=<puerto>
+DB_USER=<usuario>
+DB_PASSWORD=<contraseña>
+DB_NAME=tele_import
+DB_SSL=true          # Obligatorio con proveedores administrados
+
+FRONTEND_URL=https://tu-frontend.vercel.app
+CORS_ORIGINS=https://tu-frontend.vercel.app
+BACKEND_URL=https://tu-backend.onrender.com
+MP_ACCESS_TOKEN=<tu-access-token>
+MP_WEBHOOK_SECRET=<opcional>
+```
+
+El frontend en Vercel es el mismo proceso que en la opción Railway.
+
+---
+
+## Mercado Pago Webhook
+
+Configurá el webhook en el panel de Mercado Pago apuntando a:
+
+```
+https://tu-backend.up.railway.app/webhooks/mercadopago
+# o
+https://tu-backend.onrender.com/webhooks/mercadopago
+```
+
+---
+
+## Checklist post-deploy
+
+- [ ] `GET https://tu-backend/health` responde `{ "status": "ok" }`
+- [ ] El frontend carga el catálogo sin errores CORS
+- [ ] Login y registro funcionan
+- [ ] El checkout crea una preferencia de Mercado Pago
+- [ ] El webhook actualiza el estado del pedido tras el pago
+
+---
+
+## Redeploy manual
+
+Con GitHub conectado, cada push a `master` dispara un deploy automático en Railway/Render y Vercel.
+
+Para forzar un redeploy manual sin cambios:
+
+```bash
+git commit --allow-empty -m "chore: trigger redeploy"
+git push
+```

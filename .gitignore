@@ -40,3 +40,23 @@ directus/snapshots/*.tmp
 
 # Originales de imagenes: respaldo local para regenerar, no se versionan
 frontend/public/img/originales/
+
+# SQLite (legacy - proyecto migrado a MySQL)
+*.db
+*.db-shm
+*.db-wal
+
+# Archivos temporales y de desarrollo puntual
+tesis_text.txt
+tesis_unpacked/
+backend/check_sort.ts
+backend/sort_result.txt
+
+# Scripts locales de generación de documentos Word (no son código del proyecto)
+gen_cap*.js
+gen_diccionario.js
+gen_diagramas.js
+gen_matriz.js
+
+# Carpeta de archivos descartados / para revisar (no va al repo)
+_descartados/

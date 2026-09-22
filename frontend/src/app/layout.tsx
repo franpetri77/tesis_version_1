@@ -9,6 +9,7 @@ import { Inter, Fraunces } from "next/font/google";
 import "@/styles/globals.css";
 import { Providers } from "./providers";
 import { CartToast } from "@/components/ui/CartToast";
+import { StickyCartBar } from "@/components/ui/StickyCartBar";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 
 const inter = Inter({
@@ -55,6 +56,7 @@ export default function RootLayout({
           <SplashScreen />
           {children}
           <CartToast />
+          <StickyCartBar />
         </Providers>
       </body>
     </html>

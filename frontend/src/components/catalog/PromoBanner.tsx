@@ -95,36 +95,23 @@ const INTERVAL_MS = 4000;
 export function PromoBanner() {
   const [current, setCurrent]             = useState(0);
   const [isTransitioning, setTransition]  = useState(false);
-  const [progress, setProgress]           = useState(0);
-  const progressRef                       = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoRef                           = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Animar la barra de progreso
-  const startProgress = useCallback(() => {
-    setProgress(0);
-    const step   = 100 / (INTERVAL_MS / 50);
-    progressRef.current = setInterval(() => {
-      setProgress((p) => Math.min(p + step, 100));
-    }, 50);
-  }, []);
-
-  const stopProgress = useCallback(() => {
-    if (progressRef.current) clearInterval(progressRef.current);
-  }, []);
-
+  // La barra de progreso es una animación CSS (ver .animate-promo-progress),
+  // reiniciada con key={current}. Antes se actualizaba con un setInterval
+  // cada 50 ms: re-renderizaba el banner 20 veces por segundo y, como goTo y
+  // el efecto de auto-avance arrancaban cada uno su propio intervalo, en cada
+  // rotación quedaba uno huérfano. Se acumulaban y la página entera (inputs
+  // incluidos) se volvía cada vez más lenta.
   const goTo = useCallback(
     (index: number) => {
       if (isTransitioning) return;
-      stopProgress();
       if (autoRef.current) clearTimeout(autoRef.current);
       setTransition(true);
       setCurrent(index);
-      setTimeout(() => {
-        setTransition(false);
-        startProgress();
-      }, 420);
+      setTimeout(() => setTransition(false), 420);
     },
-    [isTransitioning, startProgress, stopProgress],
+    [isTransitioning],
   );
 
   const next = useCallback(
@@ -134,10 +121,8 @@ export function PromoBanner() {
 
   // Auto-advance
   useEffect(() => {
-    startProgress();
     autoRef.current = setTimeout(next, INTERVAL_MS);
     return () => {
-      stopProgress();
       if (autoRef.current) clearTimeout(autoRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -263,8 +248,9 @@ export function PromoBanner() {
       {/* ── Barra de progreso ── */}
       <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/8 z-20">
         <div
-          className={`h-full transition-none ${colors.bar}`}
-          style={{ width: `${progress}%` }}
+          key={current}
+          className={`h-full origin-left animate-promo-progress ${colors.bar}`}
+          style={{ animationDuration: `${INTERVAL_MS}ms` }}
         />
       </div>
     </div>

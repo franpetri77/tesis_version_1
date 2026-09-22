@@ -66,9 +66,11 @@ export function Modal({
       role="dialog"
       aria-modal="true"
     >
-      {/* Backdrop */}
+      {/* Backdrop — sin backdrop-blur: desenfocar toda la pantalla se
+          recalcula cada vez que algo se mueve detrás (carruseles, barras
+          de progreso) y en celulares hace que escribir en el modal se trabe. */}
       <div
-        className="absolute inset-0 bg-slate-900/50 backdrop-blur-[3px]"
+        className="absolute inset-0 bg-slate-900/60"
         onClick={disableBackdropClose ? undefined : onClose}
         aria-hidden="true"
       />

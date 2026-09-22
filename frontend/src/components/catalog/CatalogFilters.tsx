@@ -300,7 +300,7 @@ export function CatalogFilters({
       {mobileOpen && (
         <>
           <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-40 animate-fade-in"
+            className="fixed inset-0 bg-slate-900/50 z-40 animate-fade-in"
             onClick={() => setMobileOpen(false)}
           />
           <div className="fixed inset-y-0 left-0 w-[85vw] max-w-xs bg-white z-50

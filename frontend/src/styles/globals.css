@@ -174,4 +174,14 @@
     from { opacity: 0; transform: scale(0.93) translateY(12px); }
     to   { opacity: 1; transform: scale(1)    translateY(0);    }
   }
+
+  /* Barra de progreso del PromoBanner: se anima con transform (lo resuelve
+     el compositor) en lugar de actualizar el ancho desde React. */
+  .animate-promo-progress {
+    animation: promoProgress linear both;
+  }
+  @keyframes promoProgress {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
 }

@@ -112,15 +112,15 @@ export function NotificationBell() {
         onClick={() => setOpen((v) => !v)}
         aria-label={`Notificaciones${unreadCount > 0 ? ` — ${unreadCount} sin leer` : ""}`}
         className={cn(
-          "relative p-2 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
-          open ? "bg-slate-100 text-slate-700" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+          "relative rounded-lg p-2 motion-safe:transition-colors motion-safe:duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-50",
+          open ? "bg-paper-200 text-slate-900" : "text-slate-600 hover:bg-paper-100 hover:text-slate-900"
         )}
       >
-        <Bell className="w-5 h-5" strokeWidth={1.75} />
+        <Bell className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 rounded-full
-                           bg-red-500 text-white text-[9px] font-extrabold
-                           flex items-center justify-center animate-pop-in">
+          <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center rounded
+                           bg-slate-900 px-1 text-[10px] font-bold tabular-nums text-paper-50
+                           motion-safe:animate-pop-in">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}

@@ -92,7 +92,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
               La línea queda en el margen de papel que deja p-6 en la imagen. */}
           <div className="absolute left-5 right-5 top-3 flex flex-col items-start gap-2">
             {discount > 0 && !isOutOfStock && (
-              <span className="text-xs font-medium leading-none tracking-wide text-slate-600 tabular-nums">
+              <span className="text-xs font-semibold leading-none tracking-wide text-slate-900 tabular-nums">
                 −{discount}%
               </span>
             )}
@@ -169,6 +169,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
         type="button"
         onClick={handleAdd}
         disabled={isOutOfStock}
+        aria-live="polite"
         className={cn(
           "relative z-10 mx-5 mb-5 flex h-12 shrink-0 items-center justify-center gap-1.5 rounded-xl px-2 py-1.5",
           "text-xs font-semibold leading-tight sm:text-sm sm:leading-tight",

@@ -2,24 +2,22 @@
 
 // =============================================
 // COMPONENTE: HERO CAROUSEL
-// Banners con imágenes reales, overlay oscuro para legibilidad,
-// texto a la izquierda estilo e-commerce profesional.
-// Auto-avance cada 5s. Navegación con flechas y dots.
+// Portada editorial: fotografía enmarcada, titular en papel y folio.
+// Un único reloj sincroniza autoavance y progreso, incluso al pausar.
 // =============================================
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowRight, Pause, Play } from "lucide-react";
+import { cn } from "@/lib/utils/cn";
 
 // Las imágenes viven en /public/img/ y se sirven como assets estáticos
 interface Slide {
   id:        number;
   image:     string;
   imagePos:  string;           // object-position CSS (e.g. "50% 40%")
-  overlay:   string;           // clases del degradado de superposición
   tag:       string;
-  pillClass: string;
   title:     string;
   subtitle:  string;
   cta:       string;
@@ -31,9 +29,7 @@ const slides: Slide[] = [
     id:       1,
     image:    "/img/banner.jpg",
     imagePos: "50% 50%",
-    overlay:  "bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-transparent",
     tag:       "Bienvenido a Tele Import",
-    pillClass: "bg-brand-500/25 border border-brand-400/40 text-brand-200",
     title:     "Tecnología para tu hogar y oficina",
     subtitle:  "TV, laptops, smartphones y más. Envío a todo el país con garantía oficial.",
     cta:       "Ver catálogo",
@@ -43,9 +39,7 @@ const slides: Slide[] = [
     id:       2,
     image:    "/img/banner-smartphones.jpg",
     imagePos: "50% 50%",
-    overlay:  "bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-transparent",
     tag:       "Top ventas",
-    pillClass: "bg-blue-500/25 border border-blue-400/40 text-blue-200",
     title:     "Smartphones y Celulares",
     subtitle:  "Samsung, Motorola, Apple y más. Las últimas novedades con envío a todo el país.",
     cta:       "Ver smartphones",
@@ -55,9 +49,7 @@ const slides: Slide[] = [
     id:       3,
     image:    "/img/banner-destacados.jpg",
     imagePos: "50% 50%",
-    overlay:  "bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-transparent",
     tag:       "Destacados",
-    pillClass: "bg-amber-500/25 border border-amber-400/40 text-amber-200",
     title:     "Productos Seleccionados",
     subtitle:  "Nuestra selección curada del mejor stock disponible con los mejores precios.",
     cta:       "Ver destacados",
@@ -65,155 +57,200 @@ const slides: Slide[] = [
   },
 ];
 
+const AUTOPLAY_MS = 6000;
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-50";
+const CONTROL_STYLE = "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-paper-300 bg-paper-50 text-slate-700 hover:bg-paper-100 hover:text-slate-900 motion-safe:transition-colors motion-safe:duration-200";
+
 export function HeroCarousel() {
-  const [current,        setCurrent]        = useState(0);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [current, setCurrent] = useState(0);
+  // Un único estado de pausa conserva la decisión del usuario al salir del
+  // hover/foco. Iniciar pausado evita autoplay antes de leer matchMedia.
+  const [pauseReasons, setPauseReasons] = useState({
+    user: true,
+    pointer: false,
+    focus: false,
+  });
+  const isPaused = pauseReasons.user || pauseReasons.pointer || pauseReasons.focus;
+  const clock = useRef({ slide: 0, remaining: AUTOPLAY_MS });
 
-  const goTo = useCallback((index: number) => {
-    if (isTransitioning) return;
-    setIsTransitioning(true);
-    setCurrent(index);
-    setTimeout(() => setIsTransitioning(false), 400);
-  }, [isTransitioning]);
-
-  const prev = useCallback(() => goTo((current - 1 + slides.length) % slides.length), [current, goTo]);
-  const next = useCallback(() => goTo((current + 1) % slides.length),                 [current, goTo]);
-
-  // Auto-avance
   useEffect(() => {
-    const timer = setTimeout(next, 5000);
-    return () => clearTimeout(timer);
-  }, [current, next]);
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPauseReasons((reasons) => ({ ...reasons, user: preference.matches }));
+
+    function onMotionPreferenceChange(event: MediaQueryListEvent) {
+      // Reducir movimiento siempre pausa; volver a habilitarlo no revoca
+      // una pausa que el usuario haya elegido explícitamente.
+      if (event.matches) {
+        setPauseReasons((reasons) => ({ ...reasons, user: true }));
+      }
+    }
+
+    preference.addEventListener("change", onMotionPreferenceChange);
+    return () => preference.removeEventListener("change", onMotionPreferenceChange);
+  }, []);
+
+  useEffect(() => {
+    if (clock.current.slide !== current) {
+      clock.current = { slide: current, remaining: AUTOPLAY_MS };
+    }
+    if (isPaused) return;
+
+    const startedAt = performance.now();
+    const timer = window.setTimeout(() => {
+      setCurrent((index) => (index + 1) % slides.length);
+    }, clock.current.remaining);
+
+    return () => {
+      window.clearTimeout(timer);
+      clock.current.remaining = Math.max(
+        0,
+        clock.current.remaining - (performance.now() - startedAt)
+      );
+    };
+  }, [current, isPaused]);
+
+  function prev() {
+    setCurrent((index) => (index - 1 + slides.length) % slides.length);
+  }
+
+  function next() {
+    setCurrent((index) => (index + 1) % slides.length);
+  }
 
   return (
-    <section className="relative overflow-hidden select-none">
+    <section
+      aria-roledescription="carrusel"
+      aria-label="Destacados de Tele Import"
+      className="border-b border-paper-300 bg-paper-50"
+      onMouseEnter={() => setPauseReasons((reasons) => ({ ...reasons, pointer: true }))}
+      onMouseLeave={() => setPauseReasons((reasons) => ({ ...reasons, pointer: false }))}
+      onFocusCapture={() => setPauseReasons((reasons) => ({ ...reasons, focus: true }))}
+      onBlurCapture={(event) => {
+        const nextFocus = event.relatedTarget;
+        if (!(nextFocus instanceof Node) || !event.currentTarget.contains(nextFocus)) {
+          setPauseReasons((reasons) => ({ ...reasons, focus: false }));
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        const backwards = event.key === "ArrowLeft";
+        // Si el CTA va a quedar inert, mantener el foco en un control estable
+        // del hero en vez de dejarlo caer al body al cambiar de slide.
+        if (event.target instanceof Element && event.target.closest("a")) {
+          event.currentTarget.querySelector<HTMLButtonElement>(
+            `button[aria-label="${backwards ? "Anterior" : "Siguiente"}"]`
+          )?.focus();
+        }
+        if (backwards) prev();
+        else next();
+      }}
+    >
+      <div className="container-main py-6 md:py-8 xl:py-10">
+        {/* Las slides comparten una celda: la más alta reserva el espacio y
+            evita saltos de layout. Solo se interpola la opacidad. */}
+        <div className="grid">
+          {slides.map((s, i) => {
+            const isActive = i === current;
+            const Heading = isActive ? "h1" : "h2";
+            // React 18 necesita serializar inert como atributo HTML vacío.
+            const inactiveAttributes: Record<string, string> = isActive ? {} : { inert: "" };
 
-      {/* ── Slides ── */}
-      <div className="relative h-[360px] sm:h-[440px] md:h-[500px] lg:h-[560px]">
-        {slides.map((s, i) => (
-          <div
-            key={s.id}
-            className={`absolute inset-0 transition-opacity duration-500 ease-in-out
-              ${i === current ? "opacity-100 z-10" : "opacity-0 z-0"}`}
-          >
-            {/* Imagen de fondo */}
-            <Image
-              src={s.image}
-              alt={s.title}
-              fill
-              className="object-cover"
-              style={{ objectPosition: s.imagePos }}
-              priority={i === 0}
-              sizes="100vw"
-              quality={90}
-            />
-
-            {/* Overlay: degradado izquierda → derecha para legibilidad del texto */}
-            <div className={`absolute inset-0 ${s.overlay}`} />
-
-            {/* Tratamiento de laterales: blur + viñeta progresiva para que el recorte se vea intencional */}
-            <div className="absolute inset-0 pointer-events-none">
-              {/* Degradados laterales sin backdrop-blur: cubrían una franja
-                  alta de la pantalla y el desenfoque de superficie grande es
-                  el efecto más costoso de componer. El degradado por sí solo
-                  ya resuelve el contraste con el texto. */}
-              <div className="absolute inset-y-0 left-0 w-14 sm:w-20 md:w-28 lg:w-32 bg-gradient-to-r from-slate-950/70 via-slate-950/25 to-transparent" />
-              <div className="absolute inset-y-0 right-0 w-14 sm:w-20 md:w-28 lg:w-32 bg-gradient-to-l from-slate-950/70 via-slate-950/25 to-transparent" />
-            </div>
-
-            {/* Capa extra: oscurece la franja inferior (dots/barra de progreso) */}
-            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/70 to-transparent" />
-
-            {/* Contenido */}
-            <div className="relative z-10 container-main h-full flex items-center">
-              <div className="max-w-md sm:max-w-lg">
-                {/* Placa glass para separar texto de fondo y evitar solapamientos visuales */}
-                <div className="inline-block rounded-2xl border border-white/10 bg-slate-950/25 backdrop-blur-md shadow-card-xl px-5 py-6 sm:px-7 sm:py-7 md:px-8 md:py-8">
-
-                {/* Pill tag */}
-                <div className={`inline-flex items-center gap-2 ${s.pillClass}
-                                 text-[11px] font-semibold px-3 py-1.5 rounded-full mb-4 backdrop-blur-sm shadow-card`}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-                  {s.tag}
+            return (
+              <div
+                key={s.id}
+                role="group"
+                aria-roledescription="slide"
+                aria-label={`${i + 1} de ${slides.length}`}
+                aria-hidden={!isActive}
+                {...inactiveAttributes}
+                className={cn(
+                  "col-start-1 row-start-1 grid min-w-0 items-center gap-6 md:grid-cols-2 md:gap-8 lg:gap-12 xl:gap-16",
+                  "motion-safe:transition-opacity motion-safe:duration-500 motion-safe:ease-out",
+                  isActive ? "relative z-10 opacity-100" : "pointer-events-none opacity-0"
+                )}
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase leading-normal tracking-wider text-slate-500">
+                    {s.tag}
+                  </p>
+                  <Heading className="titulo-display mt-3 max-w-lg text-balance text-4xl sm:text-5xl lg:text-6xl">
+                    {s.title}
+                  </Heading>
+                  <p className="mt-4 max-w-md text-base leading-relaxed text-slate-600 lg:text-lg">
+                    {s.subtitle}
+                  </p>
+                  <Link
+                    href={s.href}
+                    className={cn(
+                      "group mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-paper-50 hover:bg-brand-700",
+                      "motion-safe:transition-colors motion-safe:duration-200",
+                      FOCUS_RING
+                    )}
+                  >
+                    {s.cta}
+                    <ArrowRight className="h-4 w-4 motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:translate-x-0.5" aria-hidden="true" />
+                  </Link>
                 </div>
 
-                {/* Título */}
-                <h1 className="titulo-display text-white text-[2rem] sm:text-4xl md:text-[3rem]
-                               mb-3 drop-shadow-xl">
-                  {s.title}
-                </h1>
-
-                {/* Subtítulo */}
-                <p className="text-sm sm:text-base text-slate-200 leading-relaxed mb-6
-                              max-w-sm drop-shadow">
-                  {s.subtitle}
-                </p>
-
-                {/* CTA */}
-                <Link
-                  href={s.href}
-                  className="inline-flex items-center gap-2 bg-white/95 text-slate-900
-                             font-bold px-5 py-2.5 rounded-xl
-                             hover:bg-white transition-colors shadow-card-hover text-sm
-                             ring-1 ring-white/20"
-                >
-                  {s.cta}
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
+                <div className="relative order-first aspect-[16/10] min-w-0 overflow-hidden rounded-2xl border border-paper-300 bg-paper-100 shadow-card md:order-last md:aspect-[5/4]">
+                  <Image
+                    src={s.image}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    style={{ objectPosition: s.imagePos }}
+                    priority={i === 0}
+                    sizes="(min-width: 768px) 50vw, 100vw"
+                    quality={80}
+                  />
                 </div>
               </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Flecha izquierda ── */}
-      <button
-        onClick={prev}
-        aria-label="Anterior"
-        className="absolute left-3 md:left-5 top-1/2 -translate-y-1/2 z-20
-                   w-9 h-9 md:w-10 md:h-10 rounded-full
-                   bg-black/30 hover:bg-black/50 border border-white/20
-                   backdrop-blur-sm flex items-center justify-center
-                   text-white transicion-ui hover:scale-105 shadow-card"
-      >
-        <ChevronLeft className="w-4 h-4" />
-      </button>
-
-      {/* ── Flecha derecha ── */}
-      <button
-        onClick={next}
-        aria-label="Siguiente"
-        className="absolute right-3 md:right-5 top-1/2 -translate-y-1/2 z-20
-                   w-9 h-9 md:w-10 md:h-10 rounded-full
-                   bg-black/30 hover:bg-black/50 border border-white/20
-                   backdrop-blur-sm flex items-center justify-center
-                   text-white transicion-ui hover:scale-105 shadow-card"
-      >
-        <ChevronRight className="w-4 h-4" />
-      </button>
-
-      {/* ── Dots de navegación ── */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
-        <div className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/35 backdrop-blur-sm px-3 py-2 shadow-card">
-        {slides.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => goTo(i)}
-            aria-label={`Ir al slide ${i + 1}`}
-            className={`rounded-full transicion-ui duration-300 ${
-              i === current
-                ? "w-6 h-2 bg-white"
-                : "w-2 h-2 bg-white/40 hover:bg-white/70"
-            }`}
-          />
-        ))}
+            );
+          })}
         </div>
-      </div>
 
-      {/* ── Barra de progreso ── */}
-      <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/10 z-20">
-        <div key={current} className="h-full bg-white/50 animate-shrink" />
+        {/* Sin anuncios durante autoplay; hover/foco o pausa explícita
+            permiten anunciar los cambios solicitados por el usuario. */}
+        <p className="sr-only" aria-live={isPaused ? "polite" : "off"} aria-atomic="true">
+          {current + 1} de {slides.length}: {slides[current].title}
+        </p>
+
+        <div className="mt-6 flex items-center gap-4 border-t border-paper-300 pt-4 md:gap-6">
+          <p className="shrink-0 text-xs font-medium uppercase tracking-wider text-slate-600 tabular-nums">
+            {String(current + 1).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
+          </p>
+
+          {/* CSS y timeout usan el mismo período y conservan su posición al
+              pausar. Sin width animado ni actualizaciones de React por frame. */}
+          <div className="h-px min-w-12 flex-1 overflow-hidden bg-paper-300" aria-hidden="true">
+            <div
+              key={current}
+              className="animate-promo-progress h-full origin-left bg-slate-900"
+              style={{
+                animationDuration: `${AUTOPLAY_MS}ms`,
+                animationPlayState: isPaused ? "paused" : "running",
+              }}
+            />
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <button type="button" onClick={prev} aria-label="Anterior" className={cn(CONTROL_STYLE, FOCUS_RING)}>
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setPauseReasons((reasons) => ({ ...reasons, user: !reasons.user }))}
+              aria-label={pauseReasons.user ? "Reanudar carrusel" : "Pausar carrusel"}
+              className={cn(CONTROL_STYLE, FOCUS_RING)}
+            >
+              {pauseReasons.user ? <Play className="h-4 w-4" aria-hidden="true" /> : <Pause className="h-4 w-4" aria-hidden="true" />}
+            </button>
+            <button type="button" onClick={next} aria-label="Siguiente" className={cn(CONTROL_STYLE, FOCUS_RING)}>
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   );

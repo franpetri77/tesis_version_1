@@ -115,13 +115,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
           )}
 
           {/* Precio */}
-          <div className="flex items-baseline gap-3 py-2">
-            <span className="text-3xl font-bold text-slate-900">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 py-2">
+            <span className="min-w-0 text-3xl font-bold text-slate-900 tabular-nums">
               {formatPrice(product.price)}
             </span>
             {product.compare_price && product.compare_price > product.price && (
               <>
-                <span className="text-lg text-slate-400 line-through font-normal">
+                <span className="min-w-0 text-lg text-slate-400 line-through font-normal tabular-nums">
                   {formatPrice(product.compare_price)}
                 </span>
                 <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">

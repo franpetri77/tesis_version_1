@@ -5,28 +5,11 @@
 // =============================================
 
 import type { Metadata } from "next";
-import { Inter, Fraunces } from "next/font/google";
 import "@/styles/globals.css";
 import { Providers } from "./providers";
 import { CartToast } from "@/components/ui/CartToast";
 import { StickyCartBar } from "@/components/ui/StickyCartBar";
 import { SplashScreen } from "@/components/ui/SplashScreen";
-
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-inter",
-});
-
-// Serif de contraste para títulos de piezas editoriales (presupuestos,
-// secciones destacadas). Aporta un registro más cálido frente a la
-// neutralidad de Inter, que se conserva para todo el texto corrido.
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-display",
-  axes: ["SOFT", "WONK"],
-});
 
 // Metadata base del sitio (puede ser sobreescrita por cada página)
 export const metadata: Metadata = {
@@ -50,7 +33,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={`${inter.variable} ${fraunces.variable}`}>
+    <html lang="es">
+      <head>
+        <link
+          rel="preload"
+          href="/fonts/inter-latin-variable.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body>
         <Providers>
           <SplashScreen />

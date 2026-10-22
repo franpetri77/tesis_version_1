@@ -46,9 +46,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
-        // Serif de contraste, reservada para títulos de piezas editoriales.
-        display: ["var(--font-display)", "Georgia", "serif"],
+        sans: ["var(--font-inter, Inter)", "system-ui", "sans-serif"],
+        // Misma familia en títulos y texto; la jerarquía cambia por escala y peso.
+        display: ["var(--font-inter, Inter)", "system-ui", "sans-serif"],
       },
       // Tracking negativo para títulos editoriales: a cuerpos grandes,
       // el espaciado normal deja los títulos sueltos y desarmados.

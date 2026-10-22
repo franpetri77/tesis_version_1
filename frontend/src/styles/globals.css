@@ -47,7 +47,8 @@
 
 @layer components {
   .container-main {
-    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-14
+           2xl:max-w-[1440px] 3xl:max-w-[1680px];
   }
 
   /* Contenedor más ancho para el catálogo — optimizado para 1440p / 2K */

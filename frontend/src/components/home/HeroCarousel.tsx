@@ -121,7 +121,7 @@ export function HeroCarousel() {
     <section
       aria-roledescription="carrusel"
       aria-label="Destacados de Tele Import"
-      className="border-b border-paper-300 bg-paper-50"
+      className="border-b border-paper-300 bg-paper-50 lg:flex lg:min-h-[min(calc(100svh-6.125rem),56rem)] lg:items-center"
       onMouseEnter={() => setPauseReasons((reasons) => ({ ...reasons, pointer: true }))}
       onMouseLeave={() => setPauseReasons((reasons) => ({ ...reasons, pointer: false }))}
       onFocusCapture={() => setPauseReasons((reasons) => ({ ...reasons, focus: true }))}
@@ -146,7 +146,7 @@ export function HeroCarousel() {
         else next();
       }}
     >
-      <div className="container-main py-6 md:py-8 xl:py-10">
+      <div className="container-main py-6 md:py-8 lg:w-full xl:py-10">
         {/* Las slides comparten una celda: la más alta reserva el espacio y
             evita saltos de layout. Solo se interpola la opacidad. */}
         <div className="grid">
@@ -165,7 +165,7 @@ export function HeroCarousel() {
                 aria-hidden={!isActive}
                 {...inactiveAttributes}
                 className={cn(
-                  "col-start-1 row-start-1 grid min-w-0 items-center gap-6 md:grid-cols-2 md:gap-8 lg:gap-12 xl:gap-16",
+                  "col-start-1 row-start-1 grid min-w-0 items-center gap-6 md:grid-cols-2 md:gap-8 lg:gap-12 xl:gap-16 2xl:grid-cols-[5fr_7fr]",
                   "motion-safe:transition-opacity motion-safe:duration-500 motion-safe:ease-out",
                   isActive ? "relative z-10 opacity-100" : "pointer-events-none opacity-0"
                 )}
@@ -174,10 +174,10 @@ export function HeroCarousel() {
                   <p className="text-xs font-semibold uppercase leading-normal tracking-wider text-slate-500">
                     {s.tag}
                   </p>
-                  <Heading className="titulo-display mt-3 max-w-lg text-balance text-4xl sm:text-5xl lg:text-6xl">
+                  <Heading className="titulo-display mt-3 max-w-lg text-balance text-4xl sm:text-5xl lg:max-w-[14ch] lg:text-6xl 2xl:text-7xl 3xl:text-8xl">
                     {s.title}
                   </Heading>
-                  <p className="mt-4 max-w-md text-base leading-relaxed text-slate-600 lg:text-lg">
+                  <p className="mt-4 max-w-md text-base leading-relaxed text-slate-600 lg:text-lg 2xl:max-w-lg 2xl:text-xl">
                     {s.subtitle}
                   </p>
                   <Link
@@ -216,7 +216,7 @@ export function HeroCarousel() {
           {current + 1} de {slides.length}: {slides[current].title}
         </p>
 
-        <div className="mt-6 flex items-center gap-4 border-t border-paper-300 pt-4 md:gap-6">
+        <div className="mt-6 flex items-center gap-4 border-t border-paper-300 pt-4 md:gap-6 lg:w-[calc((100%_-_3rem)/2)] xl:w-[calc((100%_-_4rem)/2)] 2xl:w-[calc((100%_-_4rem)*5/12)]">
           <p className="shrink-0 text-xs font-medium uppercase tracking-wider text-slate-600 tabular-nums">
             {String(current + 1).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
           </p>

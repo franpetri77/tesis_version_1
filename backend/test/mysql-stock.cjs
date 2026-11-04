@@ -44,6 +44,7 @@ async function main() {
     // Esquema anterior: agregar las tres columnas y el índice en una BD con datos.
     await initSchema(pool);
     await pool.query('ALTER TABLE orders DROP INDEX idx_orders_expiry, DROP COLUMN stock_reserved_at, DROP COLUMN stock_released_at, DROP COLUMN payment_expires_at, DROP COLUMN promotion_id, DROP COLUMN promotion_released_at');
+    await pool.query('ALTER TABLE payments MODIFY COLUMN amount DECIMAL(15,2) NOT NULL');
     const [existing] = await readonly.query("SELECT id, user_id FROM orders WHERE status = 'pending' AND EXISTS (SELECT 1 FROM order_items WHERE order_id = orders.id) LIMIT 1");
     assert.ok(existing[0], 'Se requiere un pedido local preexistente con ítems; no se genera uno');
     const orderId = existing[0].id, userId = existing[0].user_id;
@@ -61,6 +62,8 @@ async function main() {
     await initSchema(pool);
     const [migrated] = await pool.query('SELECT stock_reserved_at, stock_released_at, payment_expires_at, promotion_id, promotion_released_at FROM orders');
     assert.deepEqual(migrated[0], { stock_reserved_at: null, stock_released_at: null, payment_expires_at: null, promotion_id: null, promotion_released_at: null });
+    const [amountColumn] = await pool.query("SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payments' AND COLUMN_NAME = 'amount'");
+    assert.equal(amountColumn[0].IS_NULLABLE, 'YES');
     observations.push({ case: 'Migración sobre esquema anterior con datos, ejecutada dos veces', result: 'OK; registros históricos sin reserva' });
 
     const [originalItems] = await pool.query('SELECT product_id, quantity FROM order_items WHERE order_id = ?', [orderId]);
@@ -194,7 +197,13 @@ async function main() {
     } finally { writer.release(); }
     observations.push({ case: 'Pago pendiente se confirma mientras la cancelación espera el bloqueo', result: 'Lectura actual bajo bloqueo ve el pago nuevo y no libera stock' });
 
-    await recordOrderPayment(orderId, { mp_payment_id: 'p2-race-payment', mp_status: 'approved', amount: 0, raw_response: { test: 'aprobacion-posterior' } });
+    // P3b: sólo un cobro por exactamente orders.total confirma; los pagos técnicos
+    // aprobados usan el total del pedido copiado (los rechazos conservan 0).
+    const orderTotal = async () => {
+      const [rows] = await pool.query('SELECT total FROM orders WHERE id = ?', [orderId]);
+      return Number(rows[0].total);
+    };
+    await recordOrderPayment(orderId, { mp_payment_id: 'p2-race-payment', mp_status: 'approved', amount: await orderTotal(), raw_response: { test: 'aprobacion-posterior' } });
     const [approved] = await pool.query('SELECT status FROM orders WHERE id = ?', [orderId]);
     assert.equal(approved[0].status, 'paid'); await checkStock(0);
     assert.equal(await stock.expirePendingOrders(), 0);
@@ -202,7 +211,7 @@ async function main() {
 
     // Se reutiliza siempre el único pedido copiado; sólo se agregan pagos
     // técnicos en el esquema descartable, sin nuevas ventas ni clientes.
-    const technicalPayment = (id, status) => ({ mp_payment_id: id, mp_status: status, amount: 0, raw_response: { test: 'reintento-checkout', status } });
+    const technicalPayment = (id, status, amount = 0) => ({ mp_payment_id: id, mp_status: status, amount, raw_response: { test: 'reintento-checkout', status } });
     const adjustmentCount = async () => {
       const [rows] = await pool.query("SELECT COUNT(*) AS n FROM stock_movements WHERE type = 'ajuste'");
       return rows[0].n;
@@ -216,7 +225,7 @@ async function main() {
     const beforeRetry = await adjustmentCount();
     await recordOrderPayment(orderId, technicalPayment('p2-retry-a', 'rejected'));
     assert.equal(await orderStatus(), 'pending'); await checkStock(0);
-    await recordOrderPayment(orderId, technicalPayment('p2-retry-b', 'approved'));
+    await recordOrderPayment(orderId, technicalPayment('p2-retry-b', 'approved', await orderTotal()));
     assert.equal(await orderStatus(), 'paid'); await checkStock(0);
     assert.equal(await adjustmentCount(), beforeRetry);
     observations.push({ case: 'Rechazo A seguido de aprobación B dentro del plazo', result: 'Pedido pagado y stock descontado una vez; sin reposición intermedia' });
@@ -248,9 +257,25 @@ async function main() {
     await recordOrderPayment(orderId, technicalPayment('p2-other-failed', 'rejected'));
     assert.equal(await orderStatus(), 'pending'); await checkStock(0);
     assert.equal(await stock.expirePendingOrders(), 0);
-    await recordOrderPayment(orderId, technicalPayment('p2-open-attempt', 'approved'));
+    await recordOrderPayment(orderId, technicalPayment('p2-open-attempt', 'approved', await orderTotal()));
     assert.equal(await orderStatus(), 'paid'); await checkStock(0);
     observations.push({ case: 'Rechazo vencido de un intento mientras otro sigue en revisión', result: 'Conserva el pedido y el stock hasta la aprobación del otro intento' });
+
+    await recordOrderPayment(orderId, technicalPayment('p2-open-attempt', 'refunded', await orderTotal()));
+    await reserveAgain(true);
+    await recordOrderPayment(orderId, technicalPayment('p3b-short', 'approved', 1));
+    assert.equal(await orderStatus(), 'pending'); await checkStock(0);
+    const [shortRow] = await pool.query("SELECT status, amount FROM payments WHERE mp_payment_id = 'p3b-short'");
+    assert.deepEqual([shortRow[0].status, Number(shortRow[0].amount)], ['approved', 1]);
+    assert.equal(await stock.expirePendingOrders(), 0);
+    assert.equal(await stock.cancelPendingOrder(orderId, true), false);
+    await recordOrderPayment(orderId, technicalPayment('p3b-other-failed', 'rejected'));
+    assert.equal(await orderStatus(), 'pending'); await checkStock(0);
+    await recordOrderPayment(orderId, technicalPayment('p3b-missing', 'approved', null));
+    const [missingRow] = await pool.query("SELECT amount FROM payments WHERE mp_payment_id = 'p3b-missing'");
+    assert.equal(missingRow[0].amount, null);
+    assert.equal(await orderStatus(), 'pending');
+    observations.push({ case: 'P3b: cobro aprobado por importe distinto o ausente', result: 'Se guarda el importe recibido (NULL si falta), el pedido no se confirma y la reserva se conserva ante barrido y rechazos' });
   } finally {
     if (pool) await pool.end();
     // El nombre proviene exclusivamente del prefijo fijo y números de este proceso.

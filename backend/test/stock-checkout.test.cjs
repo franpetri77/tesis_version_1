@@ -86,7 +86,7 @@ function query(rawSql, a) {
   if (sql.startsWith('UPDATE orders SET status = ?')) { state.orders.get(a[1]).status = a[0]; return result([]); }
   if (sql.startsWith('SELECT id, status FROM payments')) return result(state.payments.filter(p => p.order_id === a[0] && p.mp_payment_id === a[1]));
   if (sql.startsWith('SELECT id FROM payments')) {
-    if (sql.includes("status = 'pending'")) return result(state.payments.filter(p => p.order_id === a[0] && p.status === 'pending'));
+    if (sql.includes("status IN ('pending', 'approved')")) return result(state.payments.filter(p => p.order_id === a[0] && (p.status === 'pending' || p.status === 'approved')));
     return result(state.payments.filter(p => p.order_id === a[0] && p.mp_payment_id !== a[1] && p.status === 'approved'));
   }
   if (sql.startsWith('INSERT INTO payments')) {
@@ -96,7 +96,7 @@ function query(rawSql, a) {
   if (sql.startsWith('SELECT id FROM orders WHERE status')) {
     const grace = sql.includes('DATE_SUB') ? 600 : 0;
     return result([...state.orders.values()].filter(o => o.status === 'pending' && o.stock_reserved_at && !o.stock_released_at && o.expires_at <= Date.now() / 1000 - grace &&
-      (!sql.includes('NOT EXISTS') || !state.payments.some(p => p.order_id === o.id && p.status === 'pending'))));
+      (!sql.includes('NOT EXISTS') || !state.payments.some(p => p.order_id === o.id && (sql.includes("IN ('pending', 'approved')") ? ['pending', 'approved'].includes(p.status) : p.status === 'pending')))));
   }
   if (sql.includes('FROM orders o JOIN users u')) {
     const o = state.orders.get(a[0]);
@@ -675,4 +675,95 @@ test('P3b: un pago aprobado por un importe distinto de orders.total queda regist
   const quiet = []; console.error = (...args) => { quiet.push(args.join(' ')); };
   try { await recordOrderPayment(second.body.order_id, { ...payment('approved', 'p2'), amount: 100 }); } finally { console.error = original; }
   assert.equal(quiet.length, 0);
+});
+
+// ── P3b, corrección 1 (hallazgos 1 y 2 de Codex): validar el importe cobrado ──
+async function quietly(fn) {
+  const logs = []; const original = console.error;
+  console.error = (...args) => { logs.push(args.join(' ')); };
+  try { await fn(); } finally { console.error = original; }
+  return logs;
+}
+test('P3b-c1: un cobro aprobado por exactamente orders.total confirma el pedido', async () => {
+  promo('REVISION', 'percentage', 10);
+  const { body: { order_id } } = await order({ coupon: 'REVISION', shipping: true });
+  const o = state.orders.get(order_id);
+  assert.equal(o.total, 3590);
+  const logs = await quietly(() => recordOrderPayment(order_id, { ...payment('approved'), amount: 3590 }));
+  assert.equal(o.status, 'paid');
+  assert.equal(state.payments[0].amount, 3590);
+  assert.equal(logs.length, 0);
+});
+test('P3b-c1: un cobro menor o mayor al total no confirma el pedido y conserva el importe recibido', async () => {
+  promo('REVISION', 'percentage', 10);
+  for (const amount of [1, 3589.99, 3590.01, 5000]) {
+    const { body: { order_id } } = await order({ coupon: 'REVISION', shipping: true });
+    const logs = await quietly(() => recordOrderPayment(order_id, { ...payment('approved', 'p-' + amount), amount }));
+    const o = state.orders.get(order_id);
+    const p = state.payments.find(x => x.mp_payment_id === 'p-' + amount);
+    assert.equal(o.status, 'pending', `importe ${amount}`);
+    assert.equal(p.status, 'approved');
+    assert.equal(p.amount, amount);
+    assert.ok(logs.some(l => l.includes('Conciliación requerida') && l.includes('no se confirmó')));
+    assert.equal(o.stock_released_at, null);
+  }
+  assert.equal(state.promotions.get('REVISION').current_uses, 4);
+});
+test('P3b-c1: importe cero se guarda como 0; ausente o no finito se guarda NULL; ninguno confirma', async () => {
+  for (const [id, amount, stored] of [['cero', 0, 0], ['nulo', null, null], ['nan', NaN, null], ['inf', Infinity, null], ['negativo', -100, -100]]) {
+    const { body: { order_id } } = await order();
+    await quietly(() => recordOrderPayment(order_id, { ...payment('approved', id), amount }));
+    const p = state.payments.find(x => x.mp_payment_id === id);
+    assert.equal(p.amount, stored, id);
+    assert.equal(state.orders.get(order_id).status, 'pending', id);
+  }
+});
+test('P3b-c1: el webhook sin transaction_amount guarda NULL y no confirma', async () => {
+  const { body: { order_id } } = await order();
+  const original = mp.Payment.prototype.get;
+  mp.Payment.prototype.get = async ({ id }) => ({ id, external_reference: order_id, status: 'approved' });
+  try {
+    const logs = await quietly(async () => assert.equal(await notify(), 200));
+    assert.ok(logs.some(l => l.includes('importe ausente')));
+  } finally { mp.Payment.prototype.get = original; }
+  assert.equal(state.payments[0].amount, null);
+  assert.equal(state.orders.get(order_id).status, 'pending');
+});
+test('P3b-c1: un cobro discrepante retiene stock y cupón ante el barrido, la cancelación por vencimiento y otro rechazo', async () => {
+  promo('REVISION', 'percentage', 10);
+  const { body: { order_id } } = await order({ coupon: 'REVISION' });
+  await quietly(() => recordOrderPayment(order_id, { ...payment('approved', 'corto'), amount: 1 }));
+  state.orders.get(order_id).expires_at = 1;
+  assert.equal(await stock.expirePendingOrders(), 0);
+  assert.equal(await stock.cancelPendingOrder(order_id, true), false);
+  await recordOrderPayment(order_id, payment('rejected', 'otro-intento'));
+  const o = state.orders.get(order_id);
+  assert.equal(o.status, 'pending');
+  assert.equal(o.stock_released_at, null);
+  assert.equal(state.products.get('a').stock_quantity, 4);
+  assert.equal(state.promotions.get('REVISION').current_uses, 1);
+  assert.equal(state.promotionReleases, 0);
+});
+test('P3b-c1: duplicados del cobro discrepante no lo confirman; un intento correcto posterior sí', async () => {
+  const { body: { order_id } } = await order();
+  await quietly(async () => {
+    await recordOrderPayment(order_id, { ...payment('approved', 'corto'), amount: 1 });
+    await Promise.all([1, 100, 100].map(amount => recordOrderPayment(order_id, { ...payment('approved', 'corto'), amount })));
+  });
+  assert.equal(state.orders.get(order_id).status, 'pending');
+  assert.equal(state.payments.find(p => p.mp_payment_id === 'corto').amount, 1);
+  await recordOrderPayment(order_id, { ...payment('approved', 'correcto'), amount: 100 });
+  assert.equal(state.orders.get(order_id).status, 'paid');
+  assert.equal(state.movements.length, 1);
+});
+test('P3b-c1: el reembolso del cobro discrepante cierra el pedido y repone una vez, sin devolver el cupón', async () => {
+  promo('REVISION', 'percentage', 10);
+  const { body: { order_id } } = await order({ coupon: 'REVISION' });
+  await quietly(() => recordOrderPayment(order_id, { ...payment('approved', 'corto'), amount: 1 }));
+  await recordOrderPayment(order_id, { ...payment('refunded', 'corto'), amount: 1 });
+  await recordOrderPayment(order_id, { ...payment('refunded', 'corto'), amount: 1 });
+  assert.equal(state.orders.get(order_id).status, 'refunded');
+  assert.equal(state.products.get('a').stock_quantity, 5);
+  assert.equal(state.movements.filter(m => m.type === 'ajuste').length, 1);
+  assert.equal(state.promotions.get('REVISION').current_uses, 1);
 });

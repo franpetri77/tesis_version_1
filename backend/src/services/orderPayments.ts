@@ -6,7 +6,8 @@ import { lockStockOrder, releaseOrderPromotion, restoreLockedOrderStock } from "
 interface OrderPayment {
   mp_payment_id: string;
   mp_status: string | null;
-  amount: number;
+  // Importe informado por MP (transaction_amount). null = ausente o inválido.
+  amount: number | null;
   raw_response: unknown;
 }
 
@@ -40,7 +41,14 @@ export async function recordOrderPayment(orderId: string, payment: OrderPayment)
       await conn.rollback();
       return;
     }
-    const values = [incoming, payment.amount || order.total, JSON.stringify(payment.raw_response)];
+    // Se guarda el importe tal como lo informó MP, incluido 0; si falta o no es
+    // un número finito queda NULL. Nunca se completa con orders.total.
+    const receivedAmount = typeof payment.amount === "number" && Number.isFinite(payment.amount)
+      ? payment.amount : null;
+    // Sólo un cobro positivo por exactamente orders.total confirma el pedido.
+    const amountMatches = receivedAmount !== null && receivedAmount > 0 &&
+      Math.round(receivedAmount * 100) === Math.round(Number(order.total) * 100);
+    const values = [incoming, receivedAmount, JSON.stringify(payment.raw_response)];
     if (previous[0]) {
       await conn.query("UPDATE payments SET status = ?, amount = ?, raw_response = ? WHERE id = ?",
         [...values, previous[0].id]);
@@ -53,12 +61,16 @@ export async function recordOrderPayment(orderId: string, payment: OrderPayment)
     }
 
     let nextStatus = order.status;
-    if (incoming === "approved" && order.status === "pending") nextStatus = "paid";
+    // Un aprobado con importe distinto (o sin importe) queda registrado como
+    // approved en payments, pero el pedido sigue pending: no es una venta para
+    // los reportes. Ese cobro retiene la reserva (ver las consultas de pagos
+    // "abiertos" abajo y en orderStock) hasta que se concilie.
+    if (incoming === "approved" && order.status === "pending" && amountMatches) nextStatus = "paid";
     if ((incoming === "rejected" || incoming === "cancelled") && order.status === "pending" && order.expired) {
       // Un intento fallido no termina el checkout: conservar la reserva durante
       // el plazo de pago y su margen. Después, tampoco cerrar otro pago en revisión.
       const [pendingPayments] = await conn.query<RowDataPacket[]>(
-        "SELECT id FROM payments WHERE order_id = ? AND status = 'pending' LIMIT 1 FOR UPDATE", [orderId]
+        `SELECT id FROM payments WHERE order_id = ? AND status IN ('pending', 'approved') LIMIT 1 FOR UPDATE`, [orderId]
       );
       if (pendingPayments.length === 0) nextStatus = "cancelled";
     }
@@ -84,10 +96,10 @@ export async function recordOrderPayment(orderId: string, payment: OrderPayment)
 
     // Un cobro que llega después de liberar la reserva necesita conciliación;
     // nunca reabrir automáticamente un pedido cuyo stock ya quedó disponible.
-    // P3b: MP debe cobrar exactamente orders.total. Una diferencia no se corrige
-    // sola: se registra para conciliar.
-    if (incoming === "approved" && Math.round(Number(payment.amount) * 100) !== Math.round(Number(order.total) * 100)) {
-      console.error(`[Payments] Conciliación requerida: pago ${payment.mp_payment_id} por ${payment.amount} y pedido ${orderId} por ${order.total}`);
+    // P3b: MP debe cobrar exactamente orders.total. El pedido ya quedó sin
+    // confirmar (arriba); el log identifica el cobro a conciliar.
+    if (incoming === "approved" && !amountMatches) {
+      console.error(`[Payments] Conciliación requerida: pago ${payment.mp_payment_id} por ${receivedAmount ?? "importe ausente"} y pedido ${orderId} por ${order.total}; el pedido no se confirmó`);
     }
     if (incoming === "approved" && (order.status === "cancelled" || order.status === "refunded")) {
       console.error(`[Payments] Conciliación requerida: pago ${payment.mp_payment_id} aprobado para pedido ${orderId} ${order.status}`);

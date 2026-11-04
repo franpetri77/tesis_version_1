@@ -152,7 +152,7 @@ export async function cancelPendingOrder(orderId: string, onlyExpired = false): 
       // Revalidar después de bloquear el pedido: un webhook pudo registrar el
       // pago mientras el barrido esperaba. La lectura bloqueante ve su commit.
       const [pendingPayments] = await conn.query<RowDataPacket[]>(
-        "SELECT id FROM payments WHERE order_id = ? AND status = 'pending' LIMIT 1 FOR UPDATE", [order.id]
+        `SELECT id FROM payments WHERE order_id = ? AND status IN ('pending', 'approved') LIMIT 1 FOR UPDATE`, [order.id]
       );
       if (pendingPayments.length > 0) {
         await conn.rollback();
@@ -177,7 +177,7 @@ export async function expirePendingOrders(): Promise<number> {
     `SELECT id FROM orders WHERE status = 'pending' AND stock_reserved_at IS NOT NULL
      AND stock_released_at IS NULL
      AND payment_expires_at <= DATE_SUB(NOW(), INTERVAL ${RESERVATION_GRACE_MINUTES} MINUTE)
-     AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.order_id = orders.id AND p.status = 'pending')
+     AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.order_id = orders.id AND p.status IN ('pending', 'approved'))
      ORDER BY payment_expires_at LIMIT 100`
   );
   let cancelled = 0;

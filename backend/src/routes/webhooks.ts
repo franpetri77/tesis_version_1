@@ -75,7 +75,7 @@ webhooksRouter.post("/mercadopago", async (req: Request, res) => {
     await recordOrderPayment(orderId, {
       mp_payment_id: String(paymentId),
       mp_status: paymentStatus ?? null,
-      amount: paymentData.transaction_amount ?? 0,
+      amount: paymentData.transaction_amount ?? null,
       raw_response: paymentData,
     });
 

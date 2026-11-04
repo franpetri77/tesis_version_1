@@ -16,6 +16,12 @@ export function getAdminToken(): string {
   return localStorage.getItem("tele_import_token") ?? "";
 }
 
+// Encabezado Authorization para las rutas /reports, que exigen rol admin.
+function authHeaders(): HeadersInit {
+  const token = getAdminToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 // -----------------------------------------------
 // Tipos de respuesta específicos de admin
 // -----------------------------------------------
@@ -210,7 +216,8 @@ export async function getSalesReport(from: string, to: string): Promise<SalesMet
  */
 export async function getTopProducts(limit = 10): Promise<TopProduct[]> {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/reports/top-products?limit=${limit}`
+    `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/reports/top-products?limit=${limit}`,
+    { headers: authHeaders() }
   );
   if (!res.ok) throw new Error("Error al obtener top productos");
   const data = await res.json() as { top_products: TopProduct[] };
@@ -222,7 +229,8 @@ export async function getTopProducts(limit = 10): Promise<TopProduct[]> {
  */
 export async function getWorstProducts(limit = 10): Promise<TopProduct[]> {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/reports/worst-products?limit=${limit}`
+    `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/reports/worst-products?limit=${limit}`,
+    { headers: authHeaders() }
   );
   if (!res.ok) throw new Error("Error al obtener worst productos");
   const data = await res.json() as { worst_products: TopProduct[] };
@@ -234,7 +242,8 @@ export async function getWorstProducts(limit = 10): Promise<TopProduct[]> {
  */
 export async function getMetrics(): Promise<AdminMetrics> {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/reports/metrics`
+    `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/reports/metrics`,
+    { headers: authHeaders() }
   );
   if (!res.ok) throw new Error("Error al obtener métricas");
   const data = await res.json() as { data: AdminMetrics };
@@ -267,7 +276,8 @@ export async function getMostVisitedProducts(
  */
 export async function getOrders(limit = 50): Promise<OrderReport[]> {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/reports/orders?limit=${limit}`
+    `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/reports/orders?limit=${limit}`,
+    { headers: authHeaders() }
   );
   if (!res.ok) throw new Error("Error al obtener pedidos");
   const data = await res.json() as { data: OrderReport[] };

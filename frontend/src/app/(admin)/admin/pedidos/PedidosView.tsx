@@ -1,0 +1,150 @@
+"use client";
+
+// =============================================
+// PÁGINA ADMIN: GESTIÓN DE PEDIDOS
+// Lista de pedidos con filtro por estado.
+// El admin puede cambiar el estado de cada pedido.
+// =============================================
+
+import Link from "next/link";
+import { Badge, ORDER_STATUS_VARIANT, ORDER_STATUS_LABEL } from "@/components/ui/Badge";
+import { formatPrice, formatDateTime } from "@/lib/utils/format";
+import type { OrderStatus } from "@/types";
+import { useAdminData } from "@/lib/api/useAdminData";
+
+// Tipo que refleja el shape real devuelto por GET /reports/orders
+interface PedidoRow {
+  id: string;
+  order_number: string;
+  status: string;
+  total: number;
+  delivery_method: string;
+  created_at: string;
+  user_email: string;
+  user_first_name: string;
+  user_last_name: string;
+}
+
+export function PedidosView({ statusFilter }: { statusFilter?: string }) {
+  const qs = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : "";
+  const { data: orders, loading, error } = useAdminData<PedidoRow[]>(`/reports/orders${qs}`, []);
+
+  const statusTabs = [
+    { label: "Todos",         value: "" },
+    { label: "Pendientes",    value: "pending" },
+    { label: "Pagados",       value: "paid" },
+    { label: "En preparación",value: "processing" },
+    { label: "Enviados",      value: "shipped" },
+    { label: "Entregados",    value: "delivered" },
+    { label: "Cancelados",    value: "cancelled" },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-xl font-bold text-slate-900">Pedidos</h1>
+        <p className="text-sm text-slate-500 mt-0.5">
+          {orders.length} pedido{orders.length !== 1 ? "s" : ""} encontrado{orders.length !== 1 ? "s" : ""}
+          {statusFilter ? ` con estado "${ORDER_STATUS_LABEL[statusFilter as keyof typeof ORDER_STATUS_LABEL] ?? statusFilter}"` : ""}
+        </p>
+      </div>
+
+      {/* Tabs de filtro por estado */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {statusTabs.map((tab) => (
+          <Link
+            key={tab.value}
+            href={tab.value ? `/admin/pedidos?estado=${tab.value}` : "/admin/pedidos"}
+            className={`flex-shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              (statusFilter ?? "") === tab.value
+                ? "bg-brand-600 text-white shadow-sm"
+                : "bg-white border border-slate-200 text-slate-600 hover:border-brand-300 hover:text-brand-700"
+            }`}
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </div>
+
+      {/* Tabla de pedidos */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-card">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Número
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Cliente
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Fecha
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Estado
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Entrega
+                </th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Total
+                </th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {orders.map((order) => (
+                  <tr key={order.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-900">
+                      {order.order_number}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div>
+                        <p className="font-medium text-slate-800 text-xs">
+                          {order.user_first_name} {order.user_last_name}
+                        </p>
+                        <p className="text-[11px] text-slate-400">{order.user_email}</p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-400 text-xs">
+                      {order.created_at ? formatDateTime(order.created_at) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Badge variant={ORDER_STATUS_VARIANT[order.status as OrderStatus]}>
+                        {ORDER_STATUS_LABEL[order.status as OrderStatus]}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-slate-500 text-xs">
+                      {order.delivery_method === "pickup" ? "🏪 Retiro" : "🚚 Envío"}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                      {formatPrice(order.total)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link
+                        href={`/admin/pedidos/${order.id}`}
+                        className="text-brand-600 hover:text-brand-700 text-xs font-semibold transition-colors"
+                      >
+                        Ver / Gestionar
+                      </Link>
+                    </td>
+                  </tr>
+                )
+              )}
+              {orders.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-14 text-center text-slate-400 text-sm">
+                    {loading ? "Cargando pedidos…" : error ?? "No hay pedidos con este filtro."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

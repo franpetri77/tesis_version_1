@@ -415,3 +415,98 @@ test('el legado exige autenticación, propiedad y reserva vigente; conserva prec
   state.orders.get(order_id).user_id = 'memory-user'; state.orders.get(order_id).expires_at = 1;
   assert.equal((await post('/payments/create-preference', legacy)).status, 409);
 });
+
+// ── P3: firma del webhook ────────────────────────────────────────────────
+const crypto = require('node:crypto');
+const { buildSignatureManifest, verifyWebhookSignature } = require('../dist/routes/webhooks');
+const SECRET = 'p3-local-signature-secret';
+function sign({ id = '123456', requestId = 'req-1', ts = '1762270000', secret = SECRET, manifest } = {}) {
+  const text = manifest ?? `id:${id};request-id:${requestId};ts:${ts};`;
+  return `ts=${ts},v1=${crypto.createHmac('sha256', secret).update(text).digest('hex')}`;
+}
+async function notify({ query = 'data.id=123456&type=payment', headers = {}, payload = { type: 'payment', data: { id: '123456' } } } = {}) {
+  const response = await fetch(`${base}/webhooks/mercadopago?${query}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(payload),
+  });
+  return response.status;
+}
+async function withEnv(vars, fn) {
+  const saved = Object.fromEntries(Object.keys(vars).map(k => [k, process.env[k]]));
+  for (const [k, v] of Object.entries(vars)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  try { return await fn(); } finally {
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+}
+
+test('P3: firma válida sobre el data.id de la URL procesa el pago', async () => {
+  await create();
+  const status = await withEnv({ MP_WEBHOOK_SECRET: SECRET }, () =>
+    notify({ headers: { 'x-signature': sign(), 'x-request-id': 'req-1' } }));
+  assert.equal(status, 200);
+  assert.equal(state.payments.length, 1);
+  assert.equal(state.payments[0].mp_payment_id, '123456');
+});
+test('P3: la plantilla anterior (request-id en lugar de data.id) se rechaza', async () => {
+  await create();
+  const old = sign({ manifest: 'id:req-1;request-id:req-1;ts:1762270000;' });
+  const status = await withEnv({ MP_WEBHOOK_SECRET: SECRET }, () =>
+    notify({ headers: { 'x-signature': old, 'x-request-id': 'req-1' } }));
+  assert.equal(status, 401);
+  assert.equal(state.payments.length, 0);
+});
+test('P3: ts, request-id, data.id o secreto alterados invalidan la firma', async () => {
+  await create();
+  await withEnv({ MP_WEBHOOK_SECRET: SECRET }, async () => {
+    const good = sign();
+    assert.equal(await notify({ headers: { 'x-signature': good.replace('ts=1762270000', 'ts=1762270001'), 'x-request-id': 'req-1' } }), 401);
+    assert.equal(await notify({ headers: { 'x-signature': good, 'x-request-id': 'req-2' } }), 401);
+    assert.equal(await notify({ query: 'data.id=999&type=payment', payload: { type: 'payment', data: { id: '999' } }, headers: { 'x-signature': good, 'x-request-id': 'req-1' } }), 401);
+    assert.equal(await notify({ headers: { 'x-signature': sign({ secret: 'otro' }), 'x-request-id': 'req-1' } }), 401);
+  });
+  assert.equal(state.payments.length, 0);
+});
+test('P3: sin encabezado o con encabezado malformado responde 401, no 500', async () => {
+  await create();
+  await withEnv({ MP_WEBHOOK_SECRET: SECRET }, async () => {
+    assert.equal(await notify(), 401);
+    assert.equal(await notify({ headers: { 'x-signature': 'basura', 'x-request-id': 'req-1' } }), 401);
+    assert.equal(await notify({ headers: { 'x-signature': 'ts=1,v1=zz', 'x-request-id': 'req-1' } }), 401);
+  });
+  assert.equal(state.payments.length, 0);
+});
+test('P3: data.id distinto entre URL y cuerpo, o sólo en el cuerpo con firma activa, se rechaza', async () => {
+  await create();
+  await withEnv({ MP_WEBHOOK_SECRET: SECRET }, async () => {
+    const headers = { 'x-signature': sign(), 'x-request-id': 'req-1' };
+    assert.equal(await notify({ headers, payload: { type: 'payment', data: { id: '777' } } }), 401);
+    const bodyOnly = { 'x-signature': sign({ manifest: 'request-id:req-1;ts:1762270000;' }), 'x-request-id': 'req-1' };
+    assert.equal(await notify({ query: 'type=payment', headers: bodyOnly }), 401);
+  });
+  assert.equal(state.payments.length, 0);
+});
+test('P3: sin secreto se rechaza en producción y se omite sólo en desarrollo', async () => {
+  await create();
+  assert.equal(await withEnv({ MP_WEBHOOK_SECRET: undefined, NODE_ENV: 'production' }, () => notify()), 401);
+  assert.equal(state.payments.length, 0);
+  assert.equal(await withEnv({ MP_WEBHOOK_SECRET: undefined, NODE_ENV: 'development' }, () => notify()), 200);
+  assert.equal(state.payments.length, 1);
+});
+test('P3: notificaciones que no son de pago se confirman sin consultar MP', async () => {
+  await create();
+  const original = mp.Payment.prototype.get; let called = false;
+  mp.Payment.prototype.get = async (...args) => { called = true; return original(...args); };
+  try {
+    const status = await withEnv({ MP_WEBHOOK_SECRET: SECRET, NODE_ENV: 'production' }, () =>
+      notify({ query: 'topic=merchant_order&id=1', payload: { resource: 'x', topic: 'merchant_order' } }));
+    assert.equal(status, 200);
+  } finally { mp.Payment.prototype.get = original; }
+  assert.equal(called, false);
+  assert.equal(state.payments.length, 0);
+});
+test('P3: la plantilla pasa a minúsculas los id alfanuméricos y omite valores ausentes', () => {
+  assert.equal(buildSignatureManifest('ABC123', 'r', '9'), 'id:abc123;request-id:r;ts:9;');
+  assert.equal(buildSignatureManifest(undefined, undefined, '9'), 'ts:9;');
+  const xSignature = sign({ manifest: 'id:abc123;request-id:r;ts:9;', ts: '9' });
+  assert.equal(verifyWebhookSignature({ dataId: 'ABC123', xRequestId: 'r', xSignature, secret: SECRET }), 'valid');
+  assert.equal(verifyWebhookSignature({ dataId: 'abc124', xRequestId: 'r', xSignature, secret: SECRET }), 'mismatch');
+});

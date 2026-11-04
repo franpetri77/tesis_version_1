@@ -22,28 +22,44 @@ const mpClient = new MercadoPagoConfig({
  */
 webhooksRouter.post("/mercadopago", async (req: Request, res) => {
   try {
-    // Verificar la firma del webhook para evitar notificaciones falsas
-    const xSignature = req.headers["x-signature"] as string;
-    const xRequestId = req.headers["x-request-id"] as string;
+    const rawBody = req.body as Buffer;
+    let body: { type?: string; data?: { id?: string | number } };
+    try {
+      body = JSON.parse(rawBody.toString()) as typeof body;
+    } catch {
+      return res.status(400).json({ error: "Cuerpo inválido" });
+    }
 
-    if (!verifyWebhookSignature(req.body as Buffer, xSignature, xRequestId)) {
-      console.warn("[Webhook] Firma inválida, ignorando notificación");
+    // MP firma el data.id que viaja en la URL de la notificación (?data.id=…).
+    const queryId = readQueryDataId(req.query);
+    const bodyId = body.data?.id !== undefined ? String(body.data.id) : undefined;
+    if (queryId && bodyId && queryId.toLowerCase() !== bodyId.toLowerCase()) {
+      console.warn("[Webhook] data.id de la URL y del cuerpo no coinciden, ignorando notificación");
       return res.status(401).json({ error: "Firma inválida" });
     }
 
-    const body = JSON.parse((req.body as Buffer).toString()) as {
-      type: string;
-      data?: { id?: string };
-    };
-
-    // Solo procesar notificaciones de tipo "payment"
-    if (body.type !== "payment" || !body.data?.id) {
+    // Solo se procesan notificaciones de tipo "payment". Las demás (merchant_order,
+    // formato IPN) se confirman sin efecto para que MP no las reintente.
+    const paymentId = queryId ?? bodyId;
+    if (body.type !== "payment" || !paymentId) {
       return res.status(200).json({ received: true });
     }
 
-    const paymentId = body.data.id;
+    // Verificar la firma del webhook para evitar notificaciones falsas
+    const signature = verifyWebhookSignature({
+      dataId: queryId,
+      xSignature: headerValue(req.headers["x-signature"]),
+      xRequestId: headerValue(req.headers["x-request-id"]),
+    });
+    // Con firma activa, el id a consultar tiene que ser el firmado (el de la URL).
+    const rejection = signature === "valid" && !queryId ? "missing-signed-id" : signature;
+    if (rejection !== "valid" && rejection !== "skipped") {
+      console.warn(`[Webhook] Notificación rechazada: ${rejection}`);
+      return res.status(401).json({ error: "Firma inválida" });
+    }
 
-    // Obtener el detalle completo del pago desde la API de MP
+    // Obtener el detalle completo del pago desde la API de MP: el estado y el
+    // importe nunca se toman del cuerpo de la notificación.
     const paymentClient = new Payment(mpClient);
     const paymentData = await paymentClient.get({ id: paymentId });
 
@@ -79,25 +95,64 @@ webhooksRouter.post("/mercadopago", async (req: Request, res) => {
 // Funciones auxiliares (no exportadas)
 // -----------------------------------------------
 
+function headerValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+// Express deja "data.id" como clave literal; se acepta también la forma anidada.
+function readQueryDataId(query: Request["query"]): string | undefined {
+  const flat = query["data.id"];
+  const nested = (query.data as { id?: unknown } | undefined)?.id;
+  const value = typeof flat === "string" ? flat : typeof nested === "string" ? nested : undefined;
+  return value && value.length > 0 ? value : undefined;
+}
+
+export type SignatureCheck = "valid" | "skipped" | "missing-secret" | "missing-header" | "malformed" | "mismatch";
+
 /**
  * Verifica la firma HMAC SHA-256 del webhook de Mercado Pago.
+ *
+ * Plantilla oficial ("Validar origen de la notificación"):
+ *   id:[data.id_url];request-id:[x-request-id_header];ts:[ts_header];
+ * - data.id es el de la URL de la notificación; si es alfanumérico va en minúsculas.
+ * - Si un valor no está presente, su par se omite de la plantilla.
+ *
+ * Sin MP_WEBHOOK_SECRET sólo se omite la verificación fuera de producción.
  */
-function verifyWebhookSignature(
-  rawBody: Buffer,
-  xSignature: string,
-  xRequestId: string
-): boolean {
-  if (!process.env.MP_WEBHOOK_SECRET) return true; // Omitir en desarrollo local
+export function verifyWebhookSignature(params: {
+  dataId?: string;
+  xSignature?: string;
+  xRequestId?: string;
+  secret?: string;
+  production?: boolean;
+}): SignatureCheck {
+  const secret = params.secret ?? process.env.MP_WEBHOOK_SECRET;
+  const production = params.production ?? process.env.NODE_ENV === "production";
+  if (!secret) return production ? "missing-secret" : "skipped";
+  if (!params.xSignature) return "missing-header";
 
-  const parts = xSignature.split(",");
-  const tsValue = parts.find((p) => p.startsWith("ts="))?.split("=")[1] ?? "";
-  const v1Value = parts.find((p) => p.startsWith("v1="))?.split("=")[1] ?? "";
+  let ts = "";
+  let v1 = "";
+  for (const part of params.xSignature.split(",")) {
+    const [key, ...rest] = part.split("=");
+    const value = rest.join("=").trim();
+    if (key?.trim() === "ts") ts = value;
+    if (key?.trim() === "v1") v1 = value;
+  }
+  if (!ts || !/^[0-9a-f]{64}$/i.test(v1)) return "malformed";
 
-  const manifest = `id:${xRequestId};request-id:${xRequestId};ts:${tsValue};`;
-  const expectedHash = crypto
-    .createHmac("sha256", process.env.MP_WEBHOOK_SECRET)
-    .update(manifest)
-    .digest("hex");
+  const manifest = buildSignatureManifest(params.dataId, params.xRequestId, ts);
+  const expected = crypto.createHmac("sha256", secret).update(manifest).digest();
+  const received = Buffer.from(v1, "hex");
+  return received.length === expected.length && crypto.timingSafeEqual(received, expected)
+    ? "valid"
+    : "mismatch";
+}
 
-  return expectedHash === v1Value;
+export function buildSignatureManifest(dataId: string | undefined, requestId: string | undefined, ts: string): string {
+  let manifest = "";
+  if (dataId) manifest += `id:${/^[a-z0-9]+$/i.test(dataId) ? dataId.toLowerCase() : dataId};`;
+  if (requestId) manifest += `request-id:${requestId};`;
+  manifest += `ts:${ts};`;
+  return manifest;
 }

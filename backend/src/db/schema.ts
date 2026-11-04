@@ -431,6 +431,19 @@ export async function initSchema(pool: Pool): Promise<void> {
         await conn.query(`ALTER TABLE orders ADD COLUMN ${column} DATETIME NULL DEFAULT NULL`);
       }
     }
+    // P3b: qué cupón usó el pedido y si su uso ya se devolvió (cancelación).
+    for (const [column, definition] of [
+      ["promotion_id", "VARCHAR(50) NULL DEFAULT NULL"],
+      ["promotion_released_at", "DATETIME NULL DEFAULT NULL"],
+    ] as const) {
+      const [existing] = await conn.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = ?`, [column]
+      );
+      if ((existing as unknown[]).length === 0) {
+        await conn.query(`ALTER TABLE orders ADD COLUMN ${column} ${definition}`);
+      }
+    }
     const [expiryIndex] = await conn.query(
       `SELECT INDEX_NAME FROM information_schema.STATISTICS
        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND INDEX_NAME = 'idx_orders_expiry'`

@@ -43,7 +43,7 @@ async function main() {
 
     // Esquema anterior: agregar las tres columnas y el índice en una BD con datos.
     await initSchema(pool);
-    await pool.query('ALTER TABLE orders DROP INDEX idx_orders_expiry, DROP COLUMN stock_reserved_at, DROP COLUMN stock_released_at, DROP COLUMN payment_expires_at');
+    await pool.query('ALTER TABLE orders DROP INDEX idx_orders_expiry, DROP COLUMN stock_reserved_at, DROP COLUMN stock_released_at, DROP COLUMN payment_expires_at, DROP COLUMN promotion_id, DROP COLUMN promotion_released_at');
     const [existing] = await readonly.query("SELECT id, user_id FROM orders WHERE status = 'pending' AND EXISTS (SELECT 1 FROM order_items WHERE order_id = orders.id) LIMIT 1");
     assert.ok(existing[0], 'Se requiere un pedido local preexistente con ítems; no se genera uno');
     const orderId = existing[0].id, userId = existing[0].user_id;
@@ -59,8 +59,8 @@ async function main() {
     }
     await initSchema(pool);
     await initSchema(pool);
-    const [migrated] = await pool.query('SELECT stock_reserved_at, stock_released_at, payment_expires_at FROM orders');
-    assert.deepEqual(migrated[0], { stock_reserved_at: null, stock_released_at: null, payment_expires_at: null });
+    const [migrated] = await pool.query('SELECT stock_reserved_at, stock_released_at, payment_expires_at, promotion_id, promotion_released_at FROM orders');
+    assert.deepEqual(migrated[0], { stock_reserved_at: null, stock_released_at: null, payment_expires_at: null, promotion_id: null, promotion_released_at: null });
     observations.push({ case: 'Migración sobre esquema anterior con datos, ejecutada dos veces', result: 'OK; registros históricos sin reserva' });
 
     const [originalItems] = await pool.query('SELECT product_id, quantity FROM order_items WHERE order_id = ?', [orderId]);

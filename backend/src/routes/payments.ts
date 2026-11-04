@@ -9,7 +9,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import type { RowDataPacket } from "mysql2";
+import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
 import {
@@ -79,6 +79,42 @@ function generateOrderNumber(): string {
   const date = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
   const suffix = randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
   return `TI-${date}-${suffix}`;
+}
+
+// -----------------------------------------------
+// P3b: ítems de la preferencia que suman exactamente orders.total.
+// MP no admite precios negativos, así que un descuento no puede ir como
+// renglón propio. Sin descuento se detallan los productos (y el envío como
+// renglón); con descuento, o si el detalle no cuadra al centavo, se cobra un
+// único renglón "Pedido N°" por el total del pedido.
+// -----------------------------------------------
+export interface PaymentItem { id: string; title: string; quantity: number; unit_price: number }
+
+export function buildPaymentItems(params: {
+  orderNumber: string;
+  lines: PaymentItem[];
+  discount: number;
+  shipping: number;
+  total: number;
+}): PaymentItem[] {
+  const cents = (value: number) => Math.round(Number(value) * 100);
+  const totalCents = cents(params.total);
+  if (totalCents <= 0) throw new CheckoutConflict("El total del pedido debe ser mayor a cero para pagar con Mercado Pago");
+
+  if (cents(params.discount) === 0) {
+    const detailed = params.lines.map((line) => ({ ...line, unit_price: cents(line.unit_price) / 100 }));
+    if (cents(params.shipping) > 0) {
+      detailed.push({ id: "envio", title: "Envío", quantity: 1, unit_price: cents(params.shipping) / 100 });
+    }
+    const sum = detailed.reduce((acc, line) => acc + cents(line.unit_price) * line.quantity, 0);
+    if (sum === totalCents) return detailed;
+  }
+  return [{
+    id: params.orderNumber,
+    title: `Pedido ${params.orderNumber} · Tele Import`,
+    quantity: 1,
+    unit_price: totalCents / 100,
+  }];
 }
 
 // -----------------------------------------------
@@ -348,6 +384,9 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
       ? SHIPPING_FLAT
       : 0;
     const serverTotal = Math.round((serverSubtotal - serverDiscountAmount + serverShippingCost) * 100) / 100;
+    if (serverTotal <= 0) {
+      return res.status(400).json({ error: "El total del pedido debe ser mayor a cero para pagar con Mercado Pago" });
+    }
 
     // ── 5. Crear order + order_items en transacción ───────────────────────
     const orderId     = randomUUID();
@@ -365,9 +404,9 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
         `INSERT INTO orders
            (id, order_number, user_id, status, subtotal, discount_amount,
             shipping_cost, total, delivery_method, shipping_address, notes,
-            created_at, updated_at, stock_reserved_at, payment_expires_at)
+            created_at, updated_at, stock_reserved_at, payment_expires_at, promotion_id)
          VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW(),
-                 DATE_ADD(NOW(), INTERVAL ${RESERVATION_MINUTES} MINUTE))`,
+                 DATE_ADD(NOW(), INTERVAL ${RESERVATION_MINUTES} MINUTE), ?)`,
         [
           orderId,
           orderNumber,
@@ -379,6 +418,7 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
           body.delivery_method,
           body.shipping_address ? JSON.stringify(body.shipping_address) : null,
           body.notes ?? null,
+          promotionId,
         ]
       );
 
@@ -404,11 +444,15 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
       expiresAt = new Date(Number(expiry[0]!.expires_at) * 1000).toISOString();
 
       // Incrementar current_uses del cupón si se usó uno
+      // P3b: el límite se vuelve a comprobar dentro de la transacción, para que
+      // dos compras simultáneas no superen max_uses.
       if (promotionId) {
-        await conn.query(
-          "UPDATE promotions SET current_uses = current_uses + 1 WHERE id = ?",
+        const [usage] = await conn.query<ResultSetHeader>(
+          `UPDATE promotions SET current_uses = current_uses + 1
+           WHERE id = ? AND is_active = 1 AND (max_uses IS NULL OR current_uses < max_uses)`,
           [promotionId]
         );
+        if (usage.affectedRows !== 1) throw new CheckoutConflict("El cupón alcanzó el límite de usos");
       }
 
       await conn.commit();
@@ -420,14 +464,15 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
     }
 
     // ── 6. Crear preferencia en Mercado Pago ──────────────────────────────
-    const mpItems = items.map((item) => {
-      const product = productMap.get(item.product_id)!;
-      return {
-        id:         item.product_id,
-        title:      product.name,
-        quantity:   item.quantity,
-        unit_price: product.price,
-      };
+    const mpItems = buildPaymentItems({
+      orderNumber,
+      lines: items.map((item) => {
+        const product = productMap.get(item.product_id)!;
+        return { id: product.id, title: product.name, quantity: item.quantity, unit_price: product.price };
+      }),
+      discount: serverDiscountAmount,
+      shipping: serverShippingCost,
+      total: serverTotal,
     });
 
     let mpResult;
@@ -500,7 +545,8 @@ paymentsRouter.post("/create-preference", castAuth, async (req, res) => {
     // El legado tampoco puede pagar pedidos ajenos, sin reserva o vencidos,
     // ni extender los 60 minutos creando otra preferencia.
     const [orders] = await db.query<RowDataPacket[]>(
-      `SELECT o.order_number, UNIX_TIMESTAMP(o.payment_expires_at) AS expires_at,
+      `SELECT o.order_number, o.discount_amount, o.shipping_cost, o.total,
+              UNIX_TIMESTAMP(o.payment_expires_at) AS expires_at,
               u.email, u.first_name, u.last_name
        FROM orders o JOIN users u ON u.id = o.user_id
        WHERE o.id = ? AND o.user_id = ? AND o.status = 'pending'
@@ -517,7 +563,15 @@ paymentsRouter.post("/create-preference", castAuth, async (req, res) => {
     const mpResult = await buildMpPreference({
       orderId:     body.order_id,
       orderNumber: order.order_number as string,
-      items: storedItems as Array<RowDataPacket & { id: string; title: string; quantity: number; unit_price: number }>,
+      items: buildPaymentItems({
+        orderNumber: order.order_number as string,
+        lines: (storedItems as Array<RowDataPacket & PaymentItem>).map((i) => ({
+          id: i.id, title: i.title, quantity: Number(i.quantity), unit_price: Number(i.unit_price),
+        })),
+        discount: Number(order.discount_amount),
+        shipping: Number(order.shipping_cost),
+        total: Number(order.total),
+      }),
       payer: { email: order.email as string, name: order.first_name as string, surname: order.last_name as string },
       expiresAt: new Date(Number(order.expires_at) * 1000).toISOString(),
     });
@@ -530,6 +584,9 @@ paymentsRouter.post("/create-preference", castAuth, async (req, res) => {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: "Datos inválidos", details: error.errors });
+    }
+    if (error instanceof CheckoutConflict) {
+      return res.status(error.status).json({ error: error.message });
     }
     console.error("[Payments] Error al crear preferencia:", error);
     return res.status(500).json({ error: "Error al crear la preferencia de pago" });

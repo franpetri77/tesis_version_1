@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
-import { lockStockOrder, restoreLockedOrderStock } from "./orderStock";
+import { lockStockOrder, releaseOrderPromotion, restoreLockedOrderStock } from "./orderStock";
 
 interface OrderPayment {
   mp_payment_id: string;
@@ -73,6 +73,10 @@ export async function recordOrderPayment(orderId: string, payment: OrderPayment)
     if (nextStatus === "cancelled" || nextStatus === "refunded") {
       await restoreLockedOrderStock(conn, order);
     }
+    // El cupón se devuelve sólo al cancelar; un reembolso no lo reutiliza.
+    if (nextStatus === "cancelled") {
+      await releaseOrderPromotion(conn, order);
+    }
     if (nextStatus !== order.status) {
       await conn.query("UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?", [nextStatus, orderId]);
     }
@@ -80,6 +84,11 @@ export async function recordOrderPayment(orderId: string, payment: OrderPayment)
 
     // Un cobro que llega después de liberar la reserva necesita conciliación;
     // nunca reabrir automáticamente un pedido cuyo stock ya quedó disponible.
+    // P3b: MP debe cobrar exactamente orders.total. Una diferencia no se corrige
+    // sola: se registra para conciliar.
+    if (incoming === "approved" && Math.round(Number(payment.amount) * 100) !== Math.round(Number(order.total) * 100)) {
+      console.error(`[Payments] Conciliación requerida: pago ${payment.mp_payment_id} por ${payment.amount} y pedido ${orderId} por ${order.total}`);
+    }
     if (incoming === "approved" && (order.status === "cancelled" || order.status === "refunded")) {
       console.error(`[Payments] Conciliación requerida: pago ${payment.mp_payment_id} aprobado para pedido ${orderId} ${order.status}`);
     }

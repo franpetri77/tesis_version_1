@@ -34,8 +34,14 @@ export function PromocionesView() {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Promociones</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            {promotions.length} código{promotions.length !== 1 ? "s" : ""} ·{" "}
-            <span className="text-emerald-600 font-medium">{activeCount} activos</span>
+            {loading ? (
+              "Cargando promociones…"
+            ) : (
+              <>
+                {promotions.length} código{promotions.length !== 1 ? "s" : ""} ·{" "}
+                <span className="text-emerald-600 font-medium">{activeCount} activos</span>
+              </>
+            )}
           </p>
         </div>
         <button

@@ -15,7 +15,9 @@ import { useAdminData } from "@/lib/api/useAdminData";
 
 export function DashboardView() {
   const { data: allOrders, loading, error } = useAdminData<Order[]>("/reports/orders?limit=100", []);
-  const { data: allProducts } = useAdminData<Product[]>("/catalog/products?limit=1000", []);
+  const { data: allProducts, loading: productsLoading } = useAdminData<Product[]>("/catalog/products?limit=1000", []);
+  // Mientras falte cualquiera de las dos fuentes, las métricas no se muestran como cero.
+  const metricsLoading = loading || productsLoading;
 
   // Calcular métricas
   const today = new Date();
@@ -101,7 +103,7 @@ export function DashboardView() {
             </div>
             <div>
               <p className="text-xs text-slate-500 font-medium">{label}</p>
-              <p className={`text-2xl font-bold mt-0.5 ${color}`}>{value}</p>
+              <p className={`text-2xl font-bold mt-0.5 ${color}`}>{metricsLoading ? "—" : value}</p>
               <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>
             </div>
           </div>

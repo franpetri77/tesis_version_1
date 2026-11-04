@@ -44,7 +44,9 @@ export function PedidosView({ statusFilter }: { statusFilter?: string }) {
       <div>
         <h1 className="text-xl font-bold text-slate-900">Pedidos</h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          {orders.length} pedido{orders.length !== 1 ? "s" : ""} encontrado{orders.length !== 1 ? "s" : ""}
+          {loading
+            ? "Cargando pedidos…"
+            : `${orders.length} pedido${orders.length !== 1 ? "s" : ""} encontrado${orders.length !== 1 ? "s" : ""}`}
           {statusFilter ? ` con estado "${ORDER_STATUS_LABEL[statusFilter as keyof typeof ORDER_STATUS_LABEL] ?? statusFilter}"` : ""}
         </p>
       </div>

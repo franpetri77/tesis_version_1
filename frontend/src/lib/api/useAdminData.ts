@@ -19,17 +19,22 @@ interface AdminDataState<T> {
   error: string | null;
 }
 
+// Resultado guardado junto con la consulta que lo produjo. Si la consulta
+// cambia (por ejemplo, otro filtro de estado), los datos anteriores dejan de
+// ser válidos: no se muestran bajo el filtro nuevo mientras llega la respuesta.
+interface StoredResult<T> {
+  path: string;
+  data: T;
+  error: string | null;
+}
+
 export function useAdminData<T>(path: string, fallback: T): AdminDataState<T> {
   const fallbackRef = useRef(fallback);
-  const [state, setState] = useState<AdminDataState<T>>({
-    data: fallback,
-    loading: true,
-    error: null,
-  });
+  const [result, setResult] = useState<StoredResult<T> | null>(null);
 
   useEffect(() => {
+    // `active` descarta respuestas de una consulta anterior que lleguen tarde.
     let active = true;
-    setState((prev) => ({ ...prev, loading: true, error: null }));
 
     const token = getAdminToken();
     fetch(`${API_URL}${path}`, {
@@ -45,13 +50,13 @@ export function useAdminData<T>(path: string, fallback: T): AdminDataState<T> {
           );
         }
         const body = (await res.json()) as { data: T };
-        if (active) setState({ data: body.data, loading: false, error: null });
+        if (active) setResult({ path, data: body.data, error: null });
       })
       .catch((err: unknown) => {
         if (!active) return;
-        setState({
+        setResult({
+          path,
           data: fallbackRef.current,
-          loading: false,
           error: err instanceof Error ? err.message : "No se pudieron cargar los datos.",
         });
       });
@@ -61,5 +66,9 @@ export function useAdminData<T>(path: string, fallback: T): AdminDataState<T> {
     };
   }, [path]);
 
-  return state;
+  // Solo vale el resultado de la consulta actual; cualquier otro es de un filtro anterior.
+  if (!result || result.path !== path) {
+    return { data: fallbackRef.current, loading: true, error: null };
+  }
+  return { data: result.data, loading: false, error: result.error };
 }

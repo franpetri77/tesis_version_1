@@ -28,6 +28,12 @@ const castAuth = requireAuth as unknown as (req: Request, res: Response, next: N
 
 export const reportsRouter = Router();
 
+// Todo el módulo de reportes es administrativo: cada ruta exige un JWT válido
+// con rol "admin". Antes, siete endpoints (sales, top-products, worst-products,
+// orders, users, metrics, promotions) respondían sin autenticación y exponían
+// datos comerciales y personales (emails y teléfonos de clientes).
+reportsRouter.use(castAuth, requireAdmin);
+
 // -----------------------------------------------
 // Tipos internos para las consultas
 // -----------------------------------------------

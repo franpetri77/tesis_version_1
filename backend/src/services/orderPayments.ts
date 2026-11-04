@@ -54,7 +54,14 @@ export async function recordOrderPayment(orderId: string, payment: OrderPayment)
 
     let nextStatus = order.status;
     if (incoming === "approved" && order.status === "pending") nextStatus = "paid";
-    if ((incoming === "rejected" || incoming === "cancelled") && order.status === "pending") nextStatus = "cancelled";
+    if ((incoming === "rejected" || incoming === "cancelled") && order.status === "pending" && order.expired) {
+      // Un intento fallido no termina el checkout: conservar la reserva durante
+      // el plazo de pago y su margen. Después, tampoco cerrar otro pago en revisión.
+      const [pendingPayments] = await conn.query<RowDataPacket[]>(
+        "SELECT id FROM payments WHERE order_id = ? AND status = 'pending' LIMIT 1 FOR UPDATE", [orderId]
+      );
+      if (pendingPayments.length === 0) nextStatus = "cancelled";
+    }
     if (incoming === "refunded") {
       const [otherApproved] = await conn.query<RowDataPacket[]>(
         "SELECT id FROM payments WHERE order_id = ? AND mp_payment_id <> ? AND status = 'approved' LIMIT 1",

@@ -182,8 +182,9 @@ test('si falla MP después del commit, cancela y repone inmediatamente', async (
   assert.equal(state.products.get('a').stock_quantity, 5);
   assert.deepEqual(state.movements.map(m => m.type), ['venta', 'ajuste']);
 });
-test('rechazo concurrente repetido repone una vez y registra un solo pago', async () => {
+test('rechazo concurrente repetido con reserva vencida repone una vez y registra un solo pago', async () => {
   const { body: { order_id } } = await create();
+  state.orders.get(order_id).expires_at = 1;
   await Promise.all(Array.from({ length: 8 }, () => recordOrderPayment(order_id, payment('rejected'))));
   assert.equal(state.products.get('a').stock_quantity, 5); assert.equal(state.movements.length, 2);
   assert.equal(state.orders.get(order_id).status, 'cancelled');
@@ -219,6 +220,7 @@ test('reembolso repetido restaura una sola vez y un aviso viejo no lo deshace', 
 });
 test('un error durante la reposición revierte el pago y permite reintentar', async () => {
   const { body: { order_id } } = await create();
+  state.orders.get(order_id).expires_at = 1;
   failSql = 'UPDATE orders SET stock_released_at';
   await assert.rejects(recordOrderPayment(order_id, payment('rejected')));
   assert.equal(state.orders.get(order_id).status, 'pending'); assert.equal(state.products.get('a').stock_quantity, 4);
@@ -234,11 +236,12 @@ test('reembolsar otro intento no repone una compra que conserva un pago aprobado
   await recordOrderPayment(order_id, payment('refunded', 'pago-a'));
   assert.equal(state.orders.get(order_id).status, 'refunded'); assert.equal(state.products.get('a').stock_quantity, 5);
 });
-test('un pedido histórico sin reserva puede cancelarse sin inventar stock', async () => {
+test('un rechazo de un pedido sin reserva no inventa stock', async () => {
   const { body: { order_id } } = await create();
   state.orders.get(order_id).stock_reserved_at = null;
   await recordOrderPayment(order_id, payment('rejected'));
   assert.equal(state.products.get('a').stock_quantity, 4); assert.equal(state.movements.length, 1);
+  assert.equal(state.orders.get(order_id).stock_released_at, null);
 });
 test('vencimiento: solo reserva pendiente vencida, una vez incluso con dos barridos', async () => {
   const { body: { order_id } } = await create();
@@ -325,10 +328,79 @@ test('una reserva con error no detiene el vencimiento de las demás y se recuper
 });
 test('webhook real repone y devuelve 500 si falla la transacción, luego acepta reintento', async () => {
   await create(); paymentStatus = 'rejected'; failSql = 'INSERT INTO stock_movements';
+  [...state.orders.values()][0].expires_at = 1;
   assert.equal((await post('/webhooks/mercadopago', { type: 'payment', data: { id: 'memory-payment' } }, false)).status, 500);
   assert.equal(state.products.get('a').stock_quantity, 4);
   assert.equal((await post('/webhooks/mercadopago', { type: 'payment', data: { id: 'memory-payment' } }, false)).status, 200);
   assert.equal(state.products.get('a').stock_quantity, 5);
+});
+test('intento rechazado o cancelado seguido de otra aprobación conserva el pedido y el stock, sin conciliación', async () => {
+  for (const status of ['rejected', 'cancelled']) {
+    const stockBefore = state.products.get('a').stock_quantity;
+    const { body: { order_id } } = await create();
+    const originalError = console.error;
+    const errors = [];
+    console.error = (...args) => errors.push(args.join(' '));
+    try {
+      await recordOrderPayment(order_id, payment(status, 'intento-a'));
+      assert.equal(state.orders.get(order_id).status, 'pending');
+      assert.equal(state.products.get('a').stock_quantity, stockBefore - 1);
+      await Promise.all([
+        recordOrderPayment(order_id, payment('approved', 'intento-b')),
+        recordOrderPayment(order_id, payment(status, 'intento-a')),
+      ]);
+    } finally { console.error = originalError; }
+    assert.equal(state.orders.get(order_id).status, 'paid');
+    assert.equal(state.products.get('a').stock_quantity, stockBefore - 1);
+    assert.equal(state.payments.filter(p => p.order_id === order_id).length, 2);
+    const movements = state.movements.filter(m => m.reference_id === order_id);
+    assert.deepEqual(movements.map(m => m.type), ['venta']);
+    assert.equal(errors.some(message => message.includes('Conciliación requerida')), false);
+  }
+});
+test('un rechazo solo conserva la reserva hasta el vencimiento con margen y el barrido repone una vez', async () => {
+  const realNow = Date.now;
+  try {
+    const { body: { order_id } } = await create();
+    const expiry = state.orders.get(order_id).expires_at;
+    await recordOrderPayment(order_id, payment('rejected'));
+    assert.equal(state.orders.get(order_id).status, 'pending');
+    assert.equal(state.products.get('a').stock_quantity, 4);
+    assert.equal(state.payments[0].status, 'rejected');
+    assert.equal(await stock.expirePendingOrders(), 0);
+    Date.now = () => (expiry + 599) * 1000;
+    assert.equal(await stock.expirePendingOrders(), 0);
+    assert.equal(state.products.get('a').stock_quantity, 4);
+    Date.now = () => (expiry + 600) * 1000;
+    assert.equal(await stock.expirePendingOrders(), 1);
+    assert.equal(await stock.expirePendingOrders(), 0);
+    assert.equal(state.orders.get(order_id).status, 'cancelled');
+    assert.equal(state.products.get('a').stock_quantity, 5);
+    assert.deepEqual(state.movements.map(m => m.type), ['venta', 'ajuste']);
+  } finally { Date.now = realNow; }
+});
+test('rechazo o cancelación después del margen cancela inmediatamente y repone una sola vez', async () => {
+  for (const status of ['rejected', 'cancelled']) {
+    const { body: { order_id } } = await create();
+    state.orders.get(order_id).expires_at = 1;
+    await Promise.all(Array.from({ length: 3 }, () => recordOrderPayment(order_id, payment(status))));
+    assert.equal(state.orders.get(order_id).status, 'cancelled');
+    assert.equal(state.products.get('a').stock_quantity, 5);
+    assert.deepEqual(state.movements.filter(m => m.reference_id === order_id).map(m => m.type), ['venta', 'ajuste']);
+    assert.equal(await stock.expirePendingOrders(), 0);
+  }
+});
+test('un rechazo vencido de otro intento no libera la reserva de un pago todavía en revisión', async () => {
+  const { body: { order_id } } = await create();
+  await recordOrderPayment(order_id, payment('in_process', 'intento-b'));
+  state.orders.get(order_id).expires_at = 1;
+  await recordOrderPayment(order_id, payment('rejected', 'intento-a'));
+  assert.equal(state.orders.get(order_id).status, 'pending');
+  assert.equal(state.products.get('a').stock_quantity, 4);
+  assert.equal(await stock.expirePendingOrders(), 0);
+  await recordOrderPayment(order_id, payment('approved', 'intento-b'));
+  assert.equal(state.orders.get(order_id).status, 'paid');
+  assert.equal(state.products.get('a').stock_quantity, 4);
 });
 test('el legado exige autenticación, propiedad y reserva vigente; conserva precios y plazo', async () => {
   const { body: { order_id } } = await create();

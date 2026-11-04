@@ -199,6 +199,58 @@ async function main() {
     assert.equal(approved[0].status, 'paid'); await checkStock(0);
     assert.equal(await stock.expirePendingOrders(), 0);
     observations.push({ case: 'Aprobación posterior al vencimiento de preferencia con pago ya pendiente', result: 'Pedido pagado y stock reservado conservado, sin conciliación tardía' });
+
+    // Se reutiliza siempre el único pedido copiado; sólo se agregan pagos
+    // técnicos en el esquema descartable, sin nuevas ventas ni clientes.
+    const technicalPayment = (id, status) => ({ mp_payment_id: id, mp_status: status, amount: 0, raw_response: { test: 'reintento-checkout', status } });
+    const adjustmentCount = async () => {
+      const [rows] = await pool.query("SELECT COUNT(*) AS n FROM stock_movements WHERE type = 'ajuste'");
+      return rows[0].n;
+    };
+    const orderStatus = async () => {
+      const [rows] = await pool.query('SELECT status FROM orders WHERE id = ?', [orderId]);
+      return rows[0].status;
+    };
+    await recordOrderPayment(orderId, technicalPayment('p2-race-payment', 'refunded'));
+    await reserveAgain(false);
+    const beforeRetry = await adjustmentCount();
+    await recordOrderPayment(orderId, technicalPayment('p2-retry-a', 'rejected'));
+    assert.equal(await orderStatus(), 'pending'); await checkStock(0);
+    await recordOrderPayment(orderId, technicalPayment('p2-retry-b', 'approved'));
+    assert.equal(await orderStatus(), 'paid'); await checkStock(0);
+    assert.equal(await adjustmentCount(), beforeRetry);
+    observations.push({ case: 'Rechazo A seguido de aprobación B dentro del plazo', result: 'Pedido pagado y stock descontado una vez; sin reposición intermedia' });
+
+    await recordOrderPayment(orderId, technicalPayment('p2-retry-b', 'refunded'));
+    await reserveAgain(false);
+    const beforeAbandonment = await adjustmentCount();
+    await recordOrderPayment(orderId, technicalPayment('p2-only-rejection', 'rejected'));
+    assert.equal(await orderStatus(), 'pending'); await checkStock(0);
+    assert.equal(await stock.expirePendingOrders(), 0);
+    await pool.query('UPDATE orders SET payment_expires_at = DATE_SUB(NOW(), INTERVAL 9 MINUTE) WHERE id = ?', [orderId]);
+    assert.equal(await stock.expirePendingOrders(), 0); await checkStock(0);
+    await pool.query('UPDATE orders SET payment_expires_at = DATE_SUB(NOW(), INTERVAL 11 MINUTE) WHERE id = ?', [orderId]);
+    const abandoned = await Promise.all([stock.expirePendingOrders(), stock.expirePendingOrders()]);
+    assert.equal(abandoned.reduce((a, b) => a + b), 1);
+    assert.equal(await orderStatus(), 'cancelled'); await checkStock(1);
+    assert.equal(await adjustmentCount() - beforeAbandonment, items.length);
+    observations.push({ case: 'Rechazo único y abandono del checkout', result: 'Mantiene reserva vigente y margen; luego dos barridos reponen una sola vez' });
+
+    await reserveAgain(true);
+    const beforeLateRejection = await adjustmentCount();
+    await Promise.all(Array.from({ length: 3 }, () => recordOrderPayment(orderId, technicalPayment('p2-late-rejection', 'rejected'))));
+    assert.equal(await orderStatus(), 'cancelled'); await checkStock(1);
+    assert.equal(await adjustmentCount() - beforeLateRejection, items.length);
+    observations.push({ case: 'Rechazo después de vencer reserva y margen, con avisos repetidos', result: 'Cancela inmediatamente y repone una vez por producto' });
+
+    await reserveAgain(true);
+    await recordOrderPayment(orderId, technicalPayment('p2-open-attempt', 'in_process'));
+    await recordOrderPayment(orderId, technicalPayment('p2-other-failed', 'rejected'));
+    assert.equal(await orderStatus(), 'pending'); await checkStock(0);
+    assert.equal(await stock.expirePendingOrders(), 0);
+    await recordOrderPayment(orderId, technicalPayment('p2-open-attempt', 'approved'));
+    assert.equal(await orderStatus(), 'paid'); await checkStock(0);
+    observations.push({ case: 'Rechazo vencido de un intento mientras otro sigue en revisión', result: 'Conserva el pedido y el stock hasta la aprobación del otro intento' });
   } finally {
     if (pool) await pool.end();
     // El nombre proviene exclusivamente del prefijo fijo y números de este proceso.

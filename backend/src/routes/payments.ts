@@ -12,6 +12,10 @@ import { z } from "zod";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
+import {
+  cancelPendingOrder, CheckoutConflict, consolidateStockItems, deductOrderStock,
+  lockStockProducts, RESERVATION_MINUTES,
+} from "../services/orderStock";
 
 export const paymentsRouter = Router();
 
@@ -87,6 +91,7 @@ async function buildMpPreference(params: {
   orderNumber: string;
   items: Array<{ id: string; title: string; quantity: number; unit_price: number }>;
   payer: { email: string; name: string; surname: string };
+  expiresAt: string;
 }): Promise<{
   preference_id: string | null;
   init_point: string | null;
@@ -104,6 +109,11 @@ async function buildMpPreference(params: {
       },
       auto_return: "approved",
       external_reference: params.orderId,
+      expires: true,
+      expiration_date_to: params.expiresAt,
+      payment_methods: {
+        excluded_payment_types: [{ id: "ticket" }, { id: "atm" }],
+      },
       notification_url: `${process.env.BACKEND_URL ?? "http://localhost:4000"}/webhooks/mercadopago`,
       statement_descriptor: "TELE IMPORT",
       metadata: { order_number: params.orderNumber },
@@ -198,8 +208,8 @@ const createOrderSchema = z.object({
   items: z
     .array(
       z.object({
-        product_id: z.string(),
-        quantity:   z.number().int().positive(),
+        product_id: z.string().min(1).max(50),
+        quantity:   z.number().int().positive().max(2147483647),
         unit_price: z.number().positive(),
         product: z.object({
           name: z.string(),
@@ -247,6 +257,7 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
 
   try {
     const body = createOrderSchema.parse(req.body);
+    const items = consolidateStockItems(body.items);
 
     // Validar: envío requiere dirección
     if (body.delivery_method === "shipping" && !body.shipping_address) {
@@ -264,7 +275,7 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
     }
 
     // ── 2. Verificar productos y calcular subtotal server-side ────────────
-    const productIds   = body.items.map((i) => i.product_id);
+    const productIds   = items.map((i) => i.product_id);
     const placeholders = productIds.map(() => "?").join(",");
 
     const [productRows] = await db.query<DbProduct[]>(
@@ -273,10 +284,10 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
        WHERE id IN (${placeholders})`,
       productIds
     );
-    const productMap = new Map(productRows.map((p) => [p.id, p]));
+    const productMap = new Map(productRows.map((p) => [p.id.toLowerCase(), p]));
 
     let serverSubtotal = 0;
-    for (const item of body.items) {
+    for (const item of items) {
       const product = productMap.get(item.product_id);
       if (!product) {
         return res.status(400).json({ error: `Producto no encontrado: ${item.product_id}` });
@@ -285,7 +296,7 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
         return res.status(400).json({ error: `El producto "${product.name}" ya no está disponible` });
       }
       if (product.stock_quantity < item.quantity) {
-        return res.status(400).json({
+        return res.status(409).json({
           error: `Stock insuficiente para "${product.name}". Disponible: ${product.stock_quantity}, solicitado: ${item.quantity}`,
         });
       }
@@ -341,32 +352,22 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
     // ── 5. Crear order + order_items en transacción ───────────────────────
     const orderId     = randomUUID();
     const orderNumber = generateOrderNumber();
+    let expiresAt: string;
 
     const conn = await db.getConnection();
     try {
       await conn.beginTransaction();
 
-      // Bloquear filas de productos para evitar sobreventas concurrentes
-      for (const item of body.items) {
-        const [locked] = await conn.query<DbProduct[]>(
-          "SELECT id, stock_quantity FROM products WHERE id = ? FOR UPDATE",
-          [item.product_id]
-        );
-        if (!locked[0] || locked[0].stock_quantity < item.quantity) {
-          await conn.rollback();
-          return res.status(409).json({
-            error: `Stock insuficiente (race condition) para el producto ${item.product_id}`,
-          });
-        }
-      }
+      const lockedProducts = await lockStockProducts(conn, items);
 
       // Insertar la orden principal
       await conn.query(
         `INSERT INTO orders
            (id, order_number, user_id, status, subtotal, discount_amount,
             shipping_cost, total, delivery_method, shipping_address, notes,
-            created_at, updated_at)
-         VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            created_at, updated_at, stock_reserved_at, payment_expires_at)
+         VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW(),
+                 DATE_ADD(NOW(), INTERVAL ${RESERVATION_MINUTES} MINUTE))`,
         [
           orderId,
           orderNumber,
@@ -382,7 +383,7 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
       );
 
       // Insertar cada ítem del pedido (precio tomado de la DB, no del cliente)
-      for (const item of body.items) {
+      for (const item of items) {
         const product    = productMap.get(item.product_id)!;
         const unitPrice  = product.price;
         const totalPrice = Math.round(unitPrice * item.quantity * 100) / 100;
@@ -391,9 +392,16 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
           `INSERT INTO order_items
              (id, order_id, product_id, quantity, unit_price, total_price)
            VALUES (?, ?, ?, ?, ?, ?)`,
-          [randomUUID(), orderId, item.product_id, item.quantity, unitPrice, totalPrice]
+          [randomUUID(), orderId, product.id, item.quantity, unitPrice, totalPrice]
         );
       }
+
+      await deductOrderStock(conn, orderId, authReq.user.userId, items, lockedProducts);
+      // La fecha de MP se deriva del mismo reloj de MySQL que vence la reserva.
+      const [expiry] = await conn.query<RowDataPacket[]>(
+        "SELECT UNIX_TIMESTAMP(payment_expires_at) AS expires_at FROM orders WHERE id = ?", [orderId]
+      );
+      expiresAt = new Date(Number(expiry[0]!.expires_at) * 1000).toISOString();
 
       // Incrementar current_uses del cupón si se usó uno
       if (promotionId) {
@@ -412,7 +420,7 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
     }
 
     // ── 6. Crear preferencia en Mercado Pago ──────────────────────────────
-    const mpItems = body.items.map((item) => {
+    const mpItems = items.map((item) => {
       const product = productMap.get(item.product_id)!;
       return {
         id:         item.product_id,
@@ -422,16 +430,20 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
       };
     });
 
-    const mpResult = await buildMpPreference({
-      orderId,
-      orderNumber,
-      items: mpItems,
-      payer: {
-        email:   user.email,
-        name:    user.first_name,
-        surname: user.last_name,
-      },
-    });
+    let mpResult;
+    try {
+      mpResult = await buildMpPreference({
+        orderId, orderNumber, items: mpItems, expiresAt,
+        payer: { email: user.email, name: user.first_name, surname: user.last_name },
+      });
+      if (!mpResult.preference_id || (!mpResult.init_point && !mpResult.sandbox_init_point)) {
+        throw new Error("Mercado Pago no devolvió una preferencia utilizable");
+      }
+    } catch (error) {
+      // Si falla MP, el cliente no puede pagar: liberar la reserva inmediatamente.
+      await cancelPendingOrder(orderId);
+      throw error;
+    }
 
     return res.status(201).json({
       order_id:            orderId,
@@ -443,6 +455,9 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: "Datos del pedido inválidos", details: error.errors });
+    }
+    if (error instanceof CheckoutConflict) {
+      return res.status(error.status).json({ error: error.message });
     }
     console.error("[Payments] Error creando pedido:", error);
     return res.status(500).json({ error: "Error al crear el pedido" });
@@ -478,15 +493,33 @@ const createPreferenceSchema = z.object({
 // POST /payments/create-preference
 // No crea pedido en DB. Llama directamente a MP.
 // -----------------------------------------------
-paymentsRouter.post("/create-preference", async (req, res) => {
+paymentsRouter.post("/create-preference", castAuth, async (req, res) => {
   try {
     const body = createPreferenceSchema.parse(req.body);
 
+    // El legado tampoco puede pagar pedidos ajenos, sin reserva o vencidos,
+    // ni extender los 60 minutos creando otra preferencia.
+    const [orders] = await db.query<RowDataPacket[]>(
+      `SELECT o.order_number, UNIX_TIMESTAMP(o.payment_expires_at) AS expires_at,
+              u.email, u.first_name, u.last_name
+       FROM orders o JOIN users u ON u.id = o.user_id
+       WHERE o.id = ? AND o.user_id = ? AND o.status = 'pending'
+         AND o.stock_reserved_at IS NOT NULL AND o.stock_released_at IS NULL
+         AND o.payment_expires_at > NOW()`, [body.order_id, (req as AuthRequest).user.userId]
+    );
+    const order = orders[0];
+    if (!order) return res.status(409).json({ error: "El pedido no tiene una reserva de stock vigente" });
+    const [storedItems] = await db.query<RowDataPacket[]>(
+      `SELECT oi.product_id AS id, p.name AS title, oi.quantity, oi.unit_price
+       FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ?`, [body.order_id]
+    );
+
     const mpResult = await buildMpPreference({
       orderId:     body.order_id,
-      orderNumber: body.order_number,
-      items:       body.items,
-      payer:       body.payer,
+      orderNumber: order.order_number as string,
+      items: storedItems as Array<RowDataPacket & { id: string; title: string; quantity: number; unit_price: number }>,
+      payer: { email: order.email as string, name: order.first_name as string, surname: order.last_name as string },
+      expiresAt: new Date(Number(order.expires_at) * 1000).toISOString(),
     });
 
     return res.json({

@@ -4,6 +4,7 @@ import type { PoolConnection } from "mysql2/promise";
 import db from "../db/database";
 
 export const RESERVATION_MINUTES = 60;
+export const RESERVATION_GRACE_MINUTES = 10;
 
 export class CheckoutConflict extends Error {
   readonly status = 409;
@@ -88,7 +89,7 @@ export async function deductOrderStock(
 export async function lockStockOrder(conn: PoolConnection, orderId: string): Promise<StockOrder | undefined> {
   const [rows] = await conn.query<StockOrder[]>(
     `SELECT id, status, total, stock_reserved_at, stock_released_at,
-            (payment_expires_at <= NOW()) AS expired
+            (payment_expires_at <= DATE_SUB(NOW(), INTERVAL ${RESERVATION_GRACE_MINUTES} MINUTE)) AS expired
      FROM orders WHERE id = ? FOR UPDATE`, [orderId]
   );
   return rows[0];
@@ -127,9 +128,21 @@ export async function cancelPendingOrder(orderId: string, onlyExpired = false): 
   try {
     await conn.beginTransaction();
     const order = await lockStockOrder(conn, orderId);
-    if (!order || order.status !== "pending" || (onlyExpired && !order.expired)) {
+    if (!order || order.status !== "pending" ||
+        (onlyExpired && (!order.expired || !order.stock_reserved_at || order.stock_released_at))) {
       await conn.rollback();
       return false;
+    }
+    if (onlyExpired) {
+      // Revalidar después de bloquear el pedido: un webhook pudo registrar el
+      // pago mientras el barrido esperaba. La lectura bloqueante ve su commit.
+      const [pendingPayments] = await conn.query<RowDataPacket[]>(
+        "SELECT id FROM payments WHERE order_id = ? AND status = 'pending' LIMIT 1 FOR UPDATE", [order.id]
+      );
+      if (pendingPayments.length > 0) {
+        await conn.rollback();
+        return false;
+      }
     }
     await restoreLockedOrderStock(conn, order);
     await conn.query("UPDATE orders SET status = 'cancelled', updated_at = NOW() WHERE id = ?", [order.id]);
@@ -146,7 +159,9 @@ export async function cancelPendingOrder(orderId: string, onlyExpired = false): 
 export async function expirePendingOrders(): Promise<number> {
   const [orders] = await db.query<RowDataPacket[]>(
     `SELECT id FROM orders WHERE status = 'pending' AND stock_reserved_at IS NOT NULL
-     AND stock_released_at IS NULL AND payment_expires_at <= NOW()
+     AND stock_released_at IS NULL
+     AND payment_expires_at <= DATE_SUB(NOW(), INTERVAL ${RESERVATION_GRACE_MINUTES} MINUTE)
+     AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.order_id = orders.id AND p.status = 'pending')
      ORDER BY payment_expires_at LIMIT 100`
   );
   let cancelled = 0;

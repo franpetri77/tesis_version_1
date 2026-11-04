@@ -38,6 +38,7 @@ async function main() {
     pool = mysql.createPool({ ...cfg, database: schema, connectionLimit: 6 });
     require.cache[require.resolve('../dist/db/database')] = { exports: { __esModule: true, default: pool } };
     const stock = require('../dist/services/orderStock');
+    const { recordOrderPayment } = require('../dist/services/orderPayments');
     const { initSchema } = require('../dist/db/schema');
 
     // Esquema anterior: agregar las tres columnas y el índice en una BD con datos.
@@ -124,7 +125,7 @@ async function main() {
         const products = await stock.lockStockProducts(conn, items);
         await stock.deductOrderStock(conn, orderId, userId, items, products);
         await conn.query(`UPDATE orders SET status = 'pending', stock_reserved_at = NOW(), stock_released_at = NULL,
-          payment_expires_at = DATE_ADD(NOW(), INTERVAL ${expired ? '-1' : '60'} MINUTE) WHERE id = ?`, [orderId]);
+          payment_expires_at = DATE_ADD(NOW(), INTERVAL ${expired ? '-11' : '60'} MINUTE) WHERE id = ?`, [orderId]);
         await conn.commit();
       } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
     }
@@ -146,6 +147,58 @@ async function main() {
     await pool.query("UPDATE orders SET status = 'paid', payment_expires_at = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE id = ?", [orderId]);
     assert.equal(await stock.expirePendingOrders(), 0); await checkStock(0);
     observations.push({ case: 'Reserva vigente y pedido pagado vencido', result: 'Ambos excluidos del barrido' });
+
+    await pool.query("UPDATE orders SET status = 'pending', payment_expires_at = DATE_SUB(NOW(), INTERVAL 9 MINUTE) WHERE id = ?", [orderId]);
+    assert.equal(await stock.expirePendingOrders(), 0);
+    assert.equal(await stock.cancelPendingOrder(orderId, true), false);
+    await checkStock(0);
+    await pool.query('UPDATE orders SET payment_expires_at = DATE_SUB(NOW(), INTERVAL 11 MINUTE) WHERE id = ?', [orderId]);
+    assert.equal(await stock.expirePendingOrders(), 1); await checkStock(1);
+    observations.push({ case: 'Margen de diez minutos sin pago registrado', result: 'A los nueve minutos no cancela; a los once cancela y repone' });
+
+    await reserveAgain(true);
+    const pending = { mp_payment_id: 'p2-local-pending', mp_status: 'in_process', amount: 0, raw_response: { test: 'revision-pago-en-proceso' } };
+    await recordOrderPayment(orderId, pending);
+    assert.equal(await stock.expirePendingOrders(), 0);
+    assert.equal(await stock.cancelPendingOrder(orderId, true), false);
+    await checkStock(0);
+    const [beforeRejection] = await pool.query("SELECT COUNT(*) AS n FROM stock_movements WHERE type = 'ajuste'");
+    await Promise.all([
+      recordOrderPayment(orderId, { ...pending, mp_status: 'rejected' }),
+      recordOrderPayment(orderId, { ...pending, mp_status: 'rejected' }),
+    ]);
+    const [afterRejection] = await pool.query("SELECT COUNT(*) AS n FROM stock_movements WHERE type = 'ajuste'");
+    assert.equal(afterRejection[0].n - beforeRejection[0].n, items.length); await checkStock(1);
+    observations.push({ case: 'Pago en revisión y rechazo repetido posterior', result: 'El vencimiento lo conserva; el rechazo cancela y repone una vez por producto' });
+
+    await reserveAgain(true);
+    const writer = await pool.getConnection();
+    let cancelSettled = false;
+    let cancellation;
+    try {
+      await writer.beginTransaction();
+      await writer.query('SELECT id FROM orders WHERE id = ? FOR UPDATE', [orderId]);
+      cancellation = stock.cancelPendingOrder(orderId, true).then(result => { cancelSettled = true; return result; });
+      await new Promise(resolve => setTimeout(resolve, 150));
+      assert.equal(cancelSettled, false, 'La cancelación debe esperar el bloqueo del pedido');
+      // Pago técnico sólo en la copia descartable; simula la escritura del
+      // webhook que obtuvo el bloqueo antes que el barrido.
+      await writer.query(`INSERT INTO payments (id, order_id, mp_payment_id, status, amount, currency)
+        VALUES ('p2-race-row', ?, 'p2-race-payment', 'pending', 0, 'ARS')`, [orderId]);
+      await writer.commit();
+      assert.equal(await cancellation, false); await checkStock(0);
+    } catch (error) {
+      await writer.rollback();
+      if (cancellation) await cancellation.catch(() => {});
+      throw error;
+    } finally { writer.release(); }
+    observations.push({ case: 'Pago pendiente se confirma mientras la cancelación espera el bloqueo', result: 'Lectura actual bajo bloqueo ve el pago nuevo y no libera stock' });
+
+    await recordOrderPayment(orderId, { mp_payment_id: 'p2-race-payment', mp_status: 'approved', amount: 0, raw_response: { test: 'aprobacion-posterior' } });
+    const [approved] = await pool.query('SELECT status FROM orders WHERE id = ?', [orderId]);
+    assert.equal(approved[0].status, 'paid'); await checkStock(0);
+    assert.equal(await stock.expirePendingOrders(), 0);
+    observations.push({ case: 'Aprobación posterior al vencimiento de preferencia con pago ya pendiente', result: 'Pedido pagado y stock reservado conservado, sin conciliación tardía' });
   } finally {
     if (pool) await pool.end();
     // El nombre proviene exclusivamente del prefijo fijo y números de este proceso.

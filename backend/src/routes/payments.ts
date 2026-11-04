@@ -111,6 +111,9 @@ async function buildMpPreference(params: {
       external_reference: params.orderId,
       expires: true,
       expiration_date_to: params.expiresAt,
+      payment_methods: {
+        excluded_payment_types: [{ id: "ticket" }, { id: "atm" }],
+      },
       notification_url: `${process.env.BACKEND_URL ?? "http://localhost:4000"}/webhooks/mercadopago`,
       statement_descriptor: "TELE IMPORT",
       metadata: { order_number: params.orderNumber },
@@ -389,7 +392,7 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
           `INSERT INTO order_items
              (id, order_id, product_id, quantity, unit_price, total_price)
            VALUES (?, ?, ?, ?, ?, ?)`,
-          [randomUUID(), orderId, item.product_id, item.quantity, unitPrice, totalPrice]
+          [randomUUID(), orderId, product.id, item.quantity, unitPrice, totalPrice]
         );
       }
 

@@ -47,7 +47,7 @@ function query(rawSql, a) {
   if (failSql && sql.startsWith(failSql)) { failSql = null; throw new Error('Fallo SQL controlado'); }
   const result = rows => [structuredClone(rows), []];
   if (sql.startsWith('SELECT id, email, first_name')) return result([{ id: 'memory-user', email: 'memory@example.invalid', first_name: 'Prueba', last_name: 'Local' }]);
-  if (sql.includes('FROM products WHERE id IN')) return result([...state.products.values()].filter(p => a.includes(p.id)));
+  if (sql.includes('FROM products WHERE id IN')) return result([...state.products.values()].filter(p => a.some(id => id.toLowerCase() === p.id.toLowerCase())));
   if (sql.includes('FROM products WHERE id = ? FOR UPDATE')) {
     state.locks.push(a[0]);
     return result(state.products.has(a[0]) ? [state.products.get(a[0])] : []);
@@ -60,7 +60,7 @@ function query(rawSql, a) {
     state.items.push({ id: a[0], order_id: a[1], product_id: a[2], quantity: a[3], unit_price: a[4] });
     return result([]);
   }
-  if (sql.startsWith('UPDATE products SET stock_quantity')) { state.products.get(a[1]).stock_quantity = a[0]; return result([]); }
+  if (sql.startsWith('UPDATE products SET stock_quantity')) { state.products.get(a[1].toLowerCase()).stock_quantity = a[0]; return result([]); }
   if (sql.startsWith('INSERT INTO stock_movements')) {
     state.movements.push({ product_id: a[1], type: sql.includes("'venta'") ? 'venta' : 'ajuste', quantity: a[2], previous_quantity: a[3], new_quantity: a[4], reference_id: a[5] });
     return result([]);
@@ -68,19 +68,27 @@ function query(rawSql, a) {
   if (sql.startsWith('SELECT UNIX_TIMESTAMP(payment_expires_at)')) return result([{ expires_at: state.orders.get(a[0]).expires_at }]);
   if (sql.includes('FROM orders WHERE id = ? FOR UPDATE')) {
     const order = state.orders.get(a[0]);
-    return result(order ? [{ ...order, expired: Number(order.expires_at <= Date.now() / 1000) }] : []);
+    const grace = sql.includes('DATE_SUB') ? 600 : 0;
+    return result(order ? [{ ...order, expired: Number(order.expires_at <= Date.now() / 1000 - grace) }] : []);
   }
   if (sql.startsWith('SELECT product_id, quantity FROM order_items')) return result(state.items.filter(i => i.order_id === a[0]));
   if (sql.startsWith('UPDATE orders SET stock_released_at')) { state.orders.get(a[0]).stock_released_at = 'released'; return result([]); }
   if (sql.startsWith("UPDATE orders SET status = 'cancelled'")) { state.orders.get(a[0]).status = 'cancelled'; return result([]); }
   if (sql.startsWith('UPDATE orders SET status = ?')) { state.orders.get(a[1]).status = a[0]; return result([]); }
   if (sql.startsWith('SELECT id, status FROM payments')) return result(state.payments.filter(p => p.order_id === a[0] && p.mp_payment_id === a[1]));
-  if (sql.startsWith('SELECT id FROM payments')) return result(state.payments.filter(p => p.order_id === a[0] && p.mp_payment_id !== a[1] && p.status === 'approved'));
+  if (sql.startsWith('SELECT id FROM payments')) {
+    if (sql.includes("status = 'pending'")) return result(state.payments.filter(p => p.order_id === a[0] && p.status === 'pending'));
+    return result(state.payments.filter(p => p.order_id === a[0] && p.mp_payment_id !== a[1] && p.status === 'approved'));
+  }
   if (sql.startsWith('INSERT INTO payments')) {
     state.payments.push({ id: a[0], order_id: a[1], mp_payment_id: a[2], status: a[3], amount: a[4] }); return result([]);
   }
   if (sql.startsWith('UPDATE payments SET')) { Object.assign(state.payments.find(p => p.id === a[3]), { status: a[0], amount: a[1] }); return result([]); }
-  if (sql.startsWith('SELECT id FROM orders WHERE status')) return result([...state.orders.values()].filter(o => o.status === 'pending' && o.stock_reserved_at && !o.stock_released_at && o.expires_at <= Date.now() / 1000));
+  if (sql.startsWith('SELECT id FROM orders WHERE status')) {
+    const grace = sql.includes('DATE_SUB') ? 600 : 0;
+    return result([...state.orders.values()].filter(o => o.status === 'pending' && o.stock_reserved_at && !o.stock_released_at && o.expires_at <= Date.now() / 1000 - grace &&
+      (!sql.includes('NOT EXISTS') || !state.payments.some(p => p.order_id === o.id && p.status === 'pending'))));
+  }
   if (sql.includes('FROM orders o JOIN users u')) {
     const o = state.orders.get(a[0]);
     return result(o && o.user_id === a[1] && o.status === 'pending' && o.stock_reserved_at && !o.stock_released_at && o.expires_at > Date.now() / 1000 ? [{ ...o, email: 'memory@example.invalid', first_name: 'Prueba', last_name: 'Local' }] : []);
@@ -122,6 +130,19 @@ test('descuenta al crear, guarda trazabilidad y usa precio del servidor y vencim
   assert.equal(preferenceBody.expires, true);
   assert.ok(Math.abs(new Date(preferenceBody.expiration_date_to) - Date.now() - 3600000) < 2000);
   assert.ok(preferenceBody.back_urls.pending.includes('/checkout/pendiente?order='));
+});
+test('la preferencia excluye efectivo y cajero en ambos endpoints', async () => {
+  const { body: { order_id } } = await create();
+  const expected = [{ id: 'ticket' }, { id: 'atm' }];
+  assert.deepEqual(preferenceBody.payment_methods?.excluded_payment_types, expected);
+  const legacy = { order_id, order_number: 'ignorado', items: [{ id: 'a', title: 'Producto', quantity: 1, unit_price: 100 }], payer: { email: 'memory@example.invalid', name: 'Prueba', surname: 'Local' } };
+  assert.equal((await post('/payments/create-preference', legacy)).status, 200);
+  assert.deepEqual(preferenceBody.payment_methods.excluded_payment_types, expected);
+});
+test('el ítem conserva el id canónico de la base aunque el cliente envíe otra capitalización', async () => {
+  state.products.get('a').id = 'A';
+  assert.equal((await create([{ product_id: 'a', quantity: 1 }])).status, 201);
+  assert.equal(state.items[0].product_id, 'A');
 });
 test('dos compras por el último stock: una 201 y otra 409, sin negativo', async () => {
   state.products.get('a').stock_quantity = 1;
@@ -235,6 +256,62 @@ test('el vencimiento no cancela pagos aprobados ni pedidos históricos', async (
   state.orders.get(order_id).status = 'pending'; state.orders.get(order_id).stock_reserved_at = null;
   assert.equal(await stock.expirePendingOrders(), 0);
   assert.equal(state.products.get('a').stock_quantity, 4);
+});
+test('pagos pending, in_process y authorized conservan la reserva y el rechazo posterior repone una vez', async () => {
+  for (const status of ['pending', 'in_process', 'authorized']) {
+    const { body: { order_id } } = await create();
+    await recordOrderPayment(order_id, payment(status));
+    state.orders.get(order_id).expires_at = 1;
+    assert.equal(await stock.expirePendingOrders(), 0);
+    assert.equal(await stock.cancelPendingOrder(order_id, true), false);
+    assert.equal(state.orders.get(order_id).status, 'pending');
+    assert.equal(state.products.get('a').stock_quantity, 4);
+    await Promise.all([recordOrderPayment(order_id, payment('rejected')), recordOrderPayment(order_id, payment('rejected'))]);
+    assert.equal(state.orders.get(order_id).status, 'cancelled');
+    assert.equal(state.products.get('a').stock_quantity, 5);
+    assert.equal(state.movements.filter(m => m.reference_id === order_id && m.type === 'ajuste').length, 1);
+  }
+});
+test('el pago en revisión puede aprobarse después de vencer la preferencia y mantiene el stock descontado', async () => {
+  const { body: { order_id } } = await create();
+  await recordOrderPayment(order_id, payment('in_process'));
+  state.orders.get(order_id).expires_at = 1;
+  assert.equal(await stock.expirePendingOrders(), 0);
+  await recordOrderPayment(order_id, payment('approved'));
+  assert.equal(state.orders.get(order_id).status, 'paid');
+  assert.equal(state.products.get('a').stock_quantity, 4);
+  assert.equal(await stock.expirePendingOrders(), 0);
+});
+test('si el pago pendiente llega después de seleccionar candidatos, se revalida bajo bloqueo', async () => {
+  const { body: { order_id } } = await create();
+  state.orders.get(order_id).expires_at = 1;
+  const originalQuery = pool.query;
+  pool.query = async (sql, args = []) => {
+    const candidates = query(sql, args);
+    if (sql.replace(/\s+/g, ' ').trim().startsWith('SELECT id FROM orders WHERE status')) {
+      await recordOrderPayment(order_id, payment('in_process'));
+    }
+    return candidates;
+  };
+  try { assert.equal(await stock.expirePendingOrders(), 0); }
+  finally { pool.query = originalQuery; }
+  assert.equal(state.orders.get(order_id).status, 'pending');
+  assert.equal(state.products.get('a').stock_quantity, 4);
+});
+test('sin pago, el vencimiento respeta el margen de diez minutos tanto en barrido como en cancelación directa', async () => {
+  const realNow = Date.now;
+  const fixedNow = realNow();
+  Date.now = () => fixedNow;
+  try {
+    const { body: { order_id } } = await create();
+    state.orders.get(order_id).expires_at = fixedNow / 1000 - 599;
+    assert.equal(await stock.expirePendingOrders(), 0);
+    assert.equal(await stock.cancelPendingOrder(order_id, true), false);
+    state.orders.get(order_id).expires_at = fixedNow / 1000 - 600;
+    assert.equal(await stock.expirePendingOrders(), 1);
+    assert.equal(state.products.get('a').stock_quantity, 5);
+    assert.equal(await stock.cancelPendingOrder(order_id, true), false);
+  } finally { Date.now = realNow; }
 });
 test('una reserva con error no detiene el vencimiento de las demás y se recupera en el barrido siguiente', async () => {
   const first = await create(), second = await create();

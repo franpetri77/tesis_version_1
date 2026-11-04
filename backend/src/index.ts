@@ -19,6 +19,7 @@ import { catalogRouter } from "./routes/catalog";
 import { authRouter } from "./routes/auth";
 import { adminRouter } from "./routes/admin";
 import { quotesRouter } from "./routes/quotes";
+import { startReservationExpiry } from "./services/orderStock";
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -126,6 +127,7 @@ app.get("/health", async (_req, res) => {
 async function main(): Promise<void> {
   try {
     await initSchema(pool);
+    startReservationExpiry();
     app.listen(PORT, () => {
       console.log(`[Backend] Servidor corriendo en http://localhost:${PORT}`);
       console.log(`[Backend] Base de datos: MySQL (${process.env.DB_HOST ?? "localhost"}:${process.env.DB_PORT ?? "3306"}/${process.env.DB_NAME ?? "tele_import"})`);

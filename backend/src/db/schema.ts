@@ -421,6 +421,24 @@ export async function initSchema(pool: Pool): Promise<void> {
       );
     }
 
+    // P2: NULL identifica pedidos históricos que nunca reservaron stock.
+    for (const column of ["stock_reserved_at", "stock_released_at", "payment_expires_at"]) {
+      const [existing] = await conn.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = ?`, [column]
+      );
+      if ((existing as unknown[]).length === 0) {
+        await conn.query(`ALTER TABLE orders ADD COLUMN ${column} DATETIME NULL DEFAULT NULL`);
+      }
+    }
+    const [expiryIndex] = await conn.query(
+      `SELECT INDEX_NAME FROM information_schema.STATISTICS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND INDEX_NAME = 'idx_orders_expiry'`
+    );
+    if ((expiryIndex as unknown[]).length === 0) {
+      await conn.query("ALTER TABLE orders ADD INDEX idx_orders_expiry (status, payment_expires_at)");
+    }
+
     // Restaurar verificación de claves foráneas
     await conn.query("SET FOREIGN_KEY_CHECKS = 1");
 

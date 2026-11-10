@@ -216,7 +216,7 @@ export async function initSchema(pool: Pool): Promise<void> {
         mp_preference_id  VARCHAR(100)   NULL,
         status            ENUM('pending','approved','rejected','cancelled','refunded')
                           NOT NULL DEFAULT 'pending',
-        amount            DECIMAL(15,2)  NOT NULL,
+        amount            DECIMAL(15,2)  NULL,
         currency          VARCHAR(10)    NOT NULL DEFAULT 'ARS',
         payment_method    VARCHAR(100)   NULL,
         raw_response      TEXT           NULL,
@@ -430,6 +430,27 @@ export async function initSchema(pool: Pool): Promise<void> {
       if ((existing as unknown[]).length === 0) {
         await conn.query(`ALTER TABLE orders ADD COLUMN ${column} DATETIME NULL DEFAULT NULL`);
       }
+    }
+    // P3b: qué cupón usó el pedido y si su uso ya se devolvió (cancelación).
+    for (const [column, definition] of [
+      ["promotion_id", "VARCHAR(50) NULL DEFAULT NULL"],
+      ["promotion_released_at", "DATETIME NULL DEFAULT NULL"],
+    ] as const) {
+      const [existing] = await conn.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = ?`, [column]
+      );
+      if ((existing as unknown[]).length === 0) {
+        await conn.query(`ALTER TABLE orders ADD COLUMN ${column} ${definition}`);
+      }
+    }
+    // P3b: payments.amount guarda el importe informado por MP; NULL si no vino.
+    const [amountColumn] = await conn.query(
+      `SELECT IS_NULLABLE FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payments' AND COLUMN_NAME = 'amount'`
+    );
+    if ((amountColumn as Array<{ IS_NULLABLE: string }>)[0]?.IS_NULLABLE === "NO") {
+      await conn.query("ALTER TABLE payments MODIFY COLUMN amount DECIMAL(15,2) NULL");
     }
     const [expiryIndex] = await conn.query(
       `SELECT INDEX_NAME FROM information_schema.STATISTICS

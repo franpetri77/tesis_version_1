@@ -29,6 +29,8 @@ export interface StockOrder extends RowDataPacket {
   total: number;
   stock_reserved_at: string | null;
   stock_released_at: string | null;
+  promotion_id: string | null;
+  promotion_released_at: string | null;
   expired: number;
 }
 
@@ -89,6 +91,7 @@ export async function deductOrderStock(
 export async function lockStockOrder(conn: PoolConnection, orderId: string): Promise<StockOrder | undefined> {
   const [rows] = await conn.query<StockOrder[]>(
     `SELECT id, status, total, stock_reserved_at, stock_released_at,
+            promotion_id, promotion_released_at,
             (payment_expires_at <= DATE_SUB(NOW(), INTERVAL ${RESERVATION_GRACE_MINUTES} MINUTE)) AS expired
      FROM orders WHERE id = ? FOR UPDATE`, [orderId]
   );
@@ -122,6 +125,18 @@ export async function restoreLockedOrderStock(conn: PoolConnection, order: Stock
   return true;
 }
 
+// P3b: devuelve el uso del cupón de un pedido cancelado. Requiere la fila del
+// pedido bloqueada; promotion_released_at evita devolverlo dos veces. Se llama
+// sólo al cancelar: un intento rechazado con la reserva vigente no lo libera.
+export async function releaseOrderPromotion(conn: PoolConnection, order: StockOrder): Promise<boolean> {
+  if (!order.promotion_id || order.promotion_released_at) return false;
+  await conn.query(
+    "UPDATE promotions SET current_uses = GREATEST(current_uses - 1, 0) WHERE id = ?", [order.promotion_id]
+  );
+  await conn.query("UPDATE orders SET promotion_released_at = NOW() WHERE id = ?", [order.id]);
+  return true;
+}
+
 // También disponible para la futura gestión de pedidos (P4b), sin exponer una ruta nueva.
 export async function cancelPendingOrder(orderId: string, onlyExpired = false): Promise<boolean> {
   const conn = await db.getConnection();
@@ -137,7 +152,7 @@ export async function cancelPendingOrder(orderId: string, onlyExpired = false): 
       // Revalidar después de bloquear el pedido: un webhook pudo registrar el
       // pago mientras el barrido esperaba. La lectura bloqueante ve su commit.
       const [pendingPayments] = await conn.query<RowDataPacket[]>(
-        "SELECT id FROM payments WHERE order_id = ? AND status = 'pending' LIMIT 1 FOR UPDATE", [order.id]
+        `SELECT id FROM payments WHERE order_id = ? AND status IN ('pending', 'approved') LIMIT 1 FOR UPDATE`, [order.id]
       );
       if (pendingPayments.length > 0) {
         await conn.rollback();
@@ -145,6 +160,7 @@ export async function cancelPendingOrder(orderId: string, onlyExpired = false): 
       }
     }
     await restoreLockedOrderStock(conn, order);
+    await releaseOrderPromotion(conn, order);
     await conn.query("UPDATE orders SET status = 'cancelled', updated_at = NOW() WHERE id = ?", [order.id]);
     await conn.commit();
     return true;
@@ -161,7 +177,7 @@ export async function expirePendingOrders(): Promise<number> {
     `SELECT id FROM orders WHERE status = 'pending' AND stock_reserved_at IS NOT NULL
      AND stock_released_at IS NULL
      AND payment_expires_at <= DATE_SUB(NOW(), INTERVAL ${RESERVATION_GRACE_MINUTES} MINUTE)
-     AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.order_id = orders.id AND p.status = 'pending')
+     AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.order_id = orders.id AND p.status IN ('pending', 'approved'))
      ORDER BY payment_expires_at LIMIT 100`
   );
   let cancelled = 0;

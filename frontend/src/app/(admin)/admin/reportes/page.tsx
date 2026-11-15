@@ -33,6 +33,7 @@ import {
   type MostVisitedProduct,
 } from "@/lib/api/admin";
 import type { Product } from "@/types";
+import { TendenciasCompra } from "./TendenciasCompra";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -325,6 +326,9 @@ export default function AdminReportsPage() {
           </div>
         ) : null}
       </section>
+
+      {/* R02 — Tendencias de compra */}
+      <TendenciasCompra />
 
       {/* ============================================
           SECCIÓN 3 Y 4: TOP / WORST PRODUCTOS

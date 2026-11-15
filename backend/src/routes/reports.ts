@@ -11,6 +11,10 @@ import { randomUUID } from "crypto";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
+import {
+  SALE_STATUSES_SQL, TrendInputError, computeTrend, nextDay, validateTrendInput,
+  type TrendRow,
+} from "../services/salesTrend";
 
 interface AuthRequest extends Request {
   user: { userId: string; role: string };
@@ -92,17 +96,17 @@ reportsRouter.get("/sales", async (req, res) => {
     const firstOfMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-01`;
     const dateFrom = from ?? firstOfMonth;
     const dateTo = to ?? today;
-
-    // Agregar T23:59:59 al final para incluir todo el día final
-    const dateToFull = `${dateTo}T23:59:59`;
+    // Fechas inclusivas para el usuario: desde el inicio del primer día hasta
+    // antes del día siguiente al último (RG02). Valida formato y orden.
+    validateTrendInput(dateFrom, dateTo, "month");
 
     const [rows] = await db.query<SalesRow[]>(
       `SELECT SUM(total) as revenue, COUNT(*) as count
        FROM orders
-       WHERE status IN ('paid','processing','shipped','delivered')
+       WHERE status IN (${SALE_STATUSES_SQL})
          AND created_at >= ?
-         AND created_at <= ?`,
-      [dateFrom, dateToFull]
+         AND created_at < ?`,
+      [dateFrom, nextDay(dateTo)]
     );
     const row = rows[0];
 
@@ -119,6 +123,10 @@ reportsRouter.get("/sales", async (req, res) => {
       },
     });
   } catch (error) {
+    if (error instanceof TrendInputError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     console.error("[Reports] Error en reporte de ventas:", error);
     res.status(500).json({ error: "Error al generar el reporte de ventas" });
   }
@@ -145,7 +153,7 @@ reportsRouter.get("/top-products", async (req, res) => {
        JOIN products p ON p.id = oi.product_id
        JOIN orders o ON o.id = oi.order_id
        LEFT JOIN categories c ON c.id = p.category_id
-       WHERE o.status IN ('paid','processing','shipped','delivered')
+       WHERE o.status IN (${SALE_STATUSES_SQL})
        GROUP BY p.id, p.name, p.sku, p.brand, c.name
        ORDER BY total_sold DESC
        LIMIT ?`,
@@ -173,14 +181,19 @@ reportsRouter.get("/worst-products", async (req, res) => {
          p.name,
          p.sku,
          p.brand,
-         COALESCE(SUM(oi.quantity), 0) AS total_sold,
-         COALESCE(SUM(oi.total_price), 0) AS total_revenue
+         COALESCE(s.total_sold, 0) AS total_sold,
+         COALESCE(s.total_revenue, 0) AS total_revenue
        FROM products p
-       LEFT JOIN order_items oi ON oi.product_id = p.id
-       LEFT JOIN orders o ON o.id = oi.order_id
-         AND o.status IN ('paid','processing','shipped','delivered')
+       -- Sólo se suman ítems de pedidos admitidos como venta. Antes el filtro
+       -- de estado estaba en el JOIN a orders y se sumaban ítems de cualquier pedido.
+       LEFT JOIN (
+         SELECT oi.product_id, SUM(oi.quantity) AS total_sold, SUM(oi.total_price) AS total_revenue
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+         WHERE o.status IN (${SALE_STATUSES_SQL})
+         GROUP BY oi.product_id
+       ) s ON s.product_id = p.id
        WHERE p.is_active = 1
-       GROUP BY p.id, p.name, p.sku, p.brand
        ORDER BY total_sold ASC
        LIMIT ?`,
       [limit]
@@ -276,7 +289,7 @@ reportsRouter.get("/metrics", async (_req, res) => {
     const [baseRows] = await db.query<MetricsRow[]>(
       `SELECT
          COUNT(*) AS total_orders,
-         SUM(CASE WHEN status IN ('paid','processing','shipped','delivered') THEN total ELSE 0 END) AS total_revenue,
+         SUM(CASE WHEN status IN (${SALE_STATUSES_SQL}) THEN total ELSE 0 END) AS total_revenue,
          (SELECT COUNT(*) FROM products) AS total_products,
          (SELECT COUNT(*) FROM users) AS total_users,
          SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS orders_today,
@@ -534,6 +547,68 @@ reportsRouter.post("/stock-movement", castAuth, requireAdmin, async (req, res) =
     res.status(500).json({ error: "Error al registrar el movimiento de stock" });
   } finally {
     conn.release();
+  }
+});
+
+// -----------------------------------------------
+// GET /reports/sales-trend?from=&to=&group=day|week|month&by=category|product
+//   &category_id=&product_id=
+// R02 Tendencias de compra: unidades vendidas por período, variación entre
+// períodos completos y desglose por categoría o producto.
+// -----------------------------------------------
+reportsRouter.get("/sales-trend", async (req, res) => {
+  const q = req.query as Record<string, string | undefined>;
+  const now = new Date();
+  const defaultTo = now.toISOString().slice(0, 10);
+  const defaultFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1)).toISOString().slice(0, 10);
+  const by = q.by === "product" ? "product" : "category";
+
+  try {
+    const { from, to, group } = validateTrendInput(q.from ?? defaultFrom, q.to ?? defaultTo, q.group ?? "month");
+    const fromStr = from.toISOString().slice(0, 10);
+    const toStr = to.toISOString().slice(0, 10);
+
+    const filters: string[] = [];
+    const params: string[] = [fromStr, nextDay(toStr)];
+    if (q.category_id) { filters.push("p.category_id = ?"); params.push(q.category_id); }
+    if (q.product_id) { filters.push("p.id = ?"); params.push(q.product_id); }
+
+    const itemId = by === "product" ? "p.id" : "COALESCE(c.id, 'sin-categoria')";
+    const itemName = by === "product" ? "p.name" : "COALESCE(c.name, 'Sin categoría')";
+    const [rows] = await db.query<(RowDataPacket & TrendRow)[]>(
+      `SELECT DATE_FORMAT(o.created_at, '%Y-%m-%d') AS day, o.status,
+              ${itemId} AS item_id, ${itemName} AS item_name,
+              SUM(oi.quantity) AS units
+       FROM order_items oi
+       JOIN orders o ON o.id = oi.order_id
+       JOIN products p ON p.id = oi.product_id
+       LEFT JOIN categories c ON c.id = p.category_id
+       WHERE o.created_at >= ? AND o.created_at < ?
+         AND o.status IN (${SALE_STATUSES_SQL}, 'refunded')
+         ${filters.map((f) => `AND ${f}`).join(" ")}
+       GROUP BY day, o.status, item_id, item_name`,
+      params
+    );
+
+    const result = computeTrend(rows, from, to, group);
+    res.json({
+      period: { from: fromStr, to: toStr, group },
+      breakdown_by: by,
+      filters: { category_id: q.category_id ?? null, product_id: q.product_id ?? null },
+      ...result,
+      notes: [
+        "Unidades de pedidos pagados o en circuito logístico (pagado, en preparación, listo para enviar, enviado, entregado).",
+        "Las unidades de pedidos reembolsados se informan aparte y no se descuentan.",
+        "La variación compara sólo períodos completos consecutivos con base positiva.",
+      ],
+    });
+  } catch (error) {
+    if (error instanceof TrendInputError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    console.error("[Reports] Error en tendencias de compra:", error);
+    res.status(500).json({ error: "Error al generar el reporte de tendencias" });
   }
 });
 

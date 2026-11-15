@@ -13,6 +13,7 @@ import jwt from "jsonwebtoken";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
+import { getRecommendedProducts, type RecommendationContext } from "../services/recommendations";
 
 // Mismo secreto que en auth.ts; se extrae para el endpoint de visitas (token opcional)
 const JWT_SECRET = process.env.JWT_SECRET ?? "tele-import-dev-secret-2024";
@@ -77,6 +78,54 @@ async function attachImages(productId: string): Promise<DbImage[]> {
   );
   return rows;
 }
+
+async function sendRecommendations(req: Request, res: Response, context: RecommendationContext) {
+  const rawLimit = req.query.limit ?? "4";
+  const limit = typeof rawLimit === "string" && /^\d{1,2}$/.test(rawLimit) ? Number(rawLimit) : 0;
+  if (limit < 1 || limit > 12) {
+    res.status(400).json({ error: "El límite debe ser un entero entre 1 y 12" });
+    return;
+  }
+
+  try {
+    const rows = await getRecommendedProducts(context, limit);
+    const matched = rows.some((row) => Boolean(row.matched_category));
+    const data = await Promise.all(rows.map(async ({ matched_category, ...product }) => ({
+      ...product,
+      images: await attachImages(product.id),
+    })));
+    res.json({ data, matched });
+  } catch (error) {
+    console.error("[Catalog] Error obteniendo recomendaciones:", error);
+    res.status(500).json({ error: "Error al obtener las recomendaciones" });
+  }
+}
+
+catalogRouter.get("/recommendations", async (req, res) => {
+  const productId = req.query.product_id;
+  if (productId !== undefined && (typeof productId !== "string" || !productId.trim() || productId.length > 50)) {
+    res.status(400).json({ error: "Producto inválido" });
+    return;
+  }
+  await sendRecommendations(req, res, productId
+    ? { kind: "product", productId }
+    : { kind: "catalog" });
+});
+
+catalogRouter.get("/recommendations/personal", (_req, res, next) => {
+  res.set("Cache-Control", "private, no-store");
+  next();
+}, castAuth, async (req, res) => {
+  const orderId = req.query.order_id;
+  if (orderId !== undefined && (typeof orderId !== "string" || !orderId.trim() || orderId.length > 50)) {
+    res.status(400).json({ error: "Pedido inválido" });
+    return;
+  }
+  const { userId } = (req as AuthRequest).user;
+  await sendRecommendations(req, res, orderId
+    ? { kind: "order", userId, orderId }
+    : { kind: "history", userId });
+});
 
 // -----------------------------------------------
 // GET /catalog/categories

@@ -15,6 +15,7 @@ import { AddToCartButton } from "@/components/product/AddToCartButton";
 import { ProductImageGallery } from "@/components/product/ProductImageGallery";
 import { ProductReviews } from "@/components/product/ProductReviews";
 import { ProductViewTracker } from "@/components/product/ProductViewTracker";
+import { RecommendationSection } from "@/components/catalog/RecommendationSection";
 
 interface ProductPageProps {
   params: { slug: string };
@@ -204,6 +205,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
       {/* ---- RESEÑAS ---- */}
       <ProductReviews productId={product.id} />
+      <RecommendationSection placement="product" productId={product.id} />
     </div>
   );
 }

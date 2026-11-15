@@ -10,12 +10,15 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle2, ArrowRight, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { RecommendationSection } from "@/components/catalog/RecommendationSection";
 
 export default function CheckoutSuccessPage() {
   const searchParams = useSearchParams();
   const paymentId    = searchParams.get("payment_id");
+  const orderId      = searchParams.get("order") ?? searchParams.get("external_reference");
 
   return (
+    <>
     <div className="container-main py-16 flex flex-col items-center text-center max-w-md mx-auto animate-fade-in">
       {/* Ícono con acento verde */}
       <div className="w-20 h-20 rounded-full bg-emerald-50 border-4 border-emerald-100 flex items-center justify-center mb-6">
@@ -67,5 +70,11 @@ export default function CheckoutSuccessPage() {
         </Link>
       </div>
     </div>
+    {orderId && (
+      <div className="container-main">
+        <RecommendationSection placement="checkout" orderId={orderId} />
+      </div>
+    )}
+    </>
   );
 }

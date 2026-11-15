@@ -10,6 +10,7 @@ import Link from "next/link";
 import { ArrowRight, Truck, Store, CreditCard, ShieldCheck } from "lucide-react";
 import { getFeaturedProducts, getPublicProducts } from "@/lib/api/catalog";
 import { ProductCard } from "@/components/catalog/ProductCard";
+import { RecommendationSection } from "@/components/catalog/RecommendationSection";
 import { HeroCarousel } from "@/components/home/HeroCarousel";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -194,6 +195,10 @@ export default async function HomePage() {
           </div>
         </section>
       )}
+
+      <div className="container-main">
+        <RecommendationSection placement="home" />
+      </div>
 
       {/* ---- BANNER CTA ---- */}
       <section className="bg-paper-50 py-16 lg:py-20 2xl:py-24" aria-labelledby="cotizacion-heading">

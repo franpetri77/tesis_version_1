@@ -250,6 +250,53 @@ export async function getMetrics(): Promise<AdminMetrics> {
   return data.data;
 }
 
+// -----------------------------------------------
+// T3 — Detalle y estados del pedido
+// -----------------------------------------------
+export interface AdminOrderDetail {
+  id: string;
+  order_number: string;
+  status: string;
+  status_label: string;
+  subtotal: number;
+  discount_amount: number;
+  shipping_cost: number;
+  total: number;
+  delivery_method: "pickup" | "shipping";
+  shipping_address: Record<string, string> | null;
+  notes: string | null;
+  created_at: string;
+  user_email: string;
+  user_first_name: string;
+  user_last_name: string;
+  user_phone: string | null;
+  items: Array<{ id: string; product_name: string | null; sku: string | null; quantity: number; unit_price: number; total_price: number }>;
+  payments: Array<{ id: string; mp_payment_id: string | null; status: string; amount: number | null; created_at: string }>;
+  history: Array<{ id: string; from: string | null; to: string | null; note: string | null; by: string | null; at: string }>;
+  allowed_transitions: Array<{ status: string; label: string }>;
+}
+
+export async function getAdminOrder(id: string): Promise<AdminOrderDetail> {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/admin/orders/${encodeURIComponent(id)}`, {
+    headers: authHeaders(), cache: "no-store",
+  });
+  const body = (await res.json().catch(() => ({}))) as { data?: AdminOrderDetail; error?: string };
+  if (!res.ok || !body.data) throw new Error(body.error ?? "No se pudo obtener el pedido");
+  return body.data;
+}
+
+export async function updateOrderStatus(id: string, status: string, note?: string): Promise<void> {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/admin/orders/${encodeURIComponent(id)}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ status, note: note?.trim() || null }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? "No se pudo cambiar el estado");
+  }
+}
+
 /**
  * Productos más visitados (por visitas al detalle de producto)
  */

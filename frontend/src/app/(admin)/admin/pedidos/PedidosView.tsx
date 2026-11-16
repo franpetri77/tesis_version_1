@@ -3,7 +3,7 @@
 // =============================================
 // PÁGINA ADMIN: GESTIÓN DE PEDIDOS
 // Lista de pedidos con filtro por estado.
-// El admin puede cambiar el estado de cada pedido.
+// Cada fila abre el detalle, donde el admin avanza el estado.
 // =============================================
 
 import Link from "next/link";
@@ -34,9 +34,11 @@ export function PedidosView({ statusFilter }: { statusFilter?: string }) {
     { label: "Pendientes",    value: "pending" },
     { label: "Pagados",       value: "paid" },
     { label: "En preparación",value: "processing" },
+    { label: "Listos",        value: "ready_to_ship" },
     { label: "Enviados",      value: "shipped" },
     { label: "Entregados",    value: "delivered" },
     { label: "Cancelados",    value: "cancelled" },
+    { label: "Reembolsados",  value: "refunded" },
   ];
 
   return (

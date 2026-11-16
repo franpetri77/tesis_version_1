@@ -12,6 +12,15 @@ export const SALE_STATUSES_SQL = SALE_STATUSES.map((s) => `'${s}'`).join(",");
 
 export type TrendGroup = "day" | "week" | "month";
 
+// Zona horaria del reporte: la fecha de corte ("hoy") se calcula en hora de
+// Córdoba. Un período que termina hoy o después todavía no cerró.
+export const REPORT_TIMEZONE = "America/Argentina/Cordoba";
+
+export function todayInReportZone(now: Date = new Date()): string {
+  // en-CA formatea como AAAA-MM-DD
+  return new Intl.DateTimeFormat("en-CA", { timeZone: REPORT_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
 export interface TrendRow {
   day: string;          // YYYY-MM-DD
   status: string;
@@ -25,6 +34,8 @@ export interface TrendPeriod {
   end: string;
   label: string;
   partial: boolean;
+  // true si el período no terminó al momento de la consulta (en curso o futuro)
+  open: boolean;
   units: number;
   refunded_units: number;
   variation_pct: number | null;
@@ -111,8 +122,11 @@ function variation(current: number, previous: number): number | null {
   return Math.round(((current - previous) / previous) * 1000) / 10;
 }
 
-export function computeTrend(rows: TrendRow[], from: Date, to: Date, group: TrendGroup): TrendResult {
-  const periods = buildPeriods(from, to, group);
+export function computeTrend(rows: TrendRow[], from: Date, to: Date, group: TrendGroup, asOf: string = todayInReportZone()): TrendResult {
+  // Un período cerrado es el que terminó antes de hoy: el de hoy sigue sumando
+  // ventas y compararlo daría una caída artificial.
+  const periods = buildPeriods(from, to, group).map((p) => ({ ...p, open: iso(p.end) >= asOf }));
+  const closed = (p: { partial: boolean; open: boolean }) => !p.partial && !p.open;
   const sale = new Set<string>(SALE_STATUSES);
   const indexOf = (day: string) => periods.findIndex((p) => day >= iso(p.start) && day <= iso(p.end));
 
@@ -133,18 +147,18 @@ export function computeTrend(rows: TrendRow[], from: Date, to: Date, group: Tren
 
   const series: TrendPeriod[] = periods.map((p, i) => {
     const prev = i > 0 ? periods[i - 1] : undefined;
-    const comparable = !!prev && !p.partial && !prev.partial;
+    const comparable = !!prev && closed(p) && closed(prev);
     return {
-      start: iso(p.start), end: iso(p.end), label: p.label, partial: p.partial,
+      start: iso(p.start), end: iso(p.end), label: p.label, partial: p.partial, open: p.open,
       units: units[i]!, refunded_units: refunded[i]!,
       variation_pct: comparable ? variation(units[i]!, units[i - 1]!) : null,
     };
   });
 
-  // Comparación del desglose: los dos últimos períodos completos y consecutivos.
+  // Comparación del desglose: los dos últimos períodos completos, cerrados y consecutivos.
   let cur = -1;
   for (let i = periods.length - 1; i > 0; i--) {
-    if (!periods[i]!.partial && !periods[i - 1]!.partial) { cur = i; break; }
+    if (closed(periods[i]!) && closed(periods[i - 1]!)) { cur = i; break; }
   }
   if (cur < 0) return { series, comparison: null, breakdown: [] };
 

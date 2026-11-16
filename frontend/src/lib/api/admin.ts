@@ -260,6 +260,7 @@ export interface TrendPeriod {
   end: string;
   label: string;
   partial: boolean;
+  open: boolean;
   units: number;
   refunded_units: number;
   variation_pct: number | null;
@@ -275,6 +276,7 @@ export interface TrendBreakdownItem {
 
 export interface SalesTrend {
   period: { from: string; to: string; group: TrendGroup };
+  as_of: { date: string; timezone: string };
   breakdown_by: "category" | "product";
   series: TrendPeriod[];
   comparison: { current: { start: string; end: string }; previous: { start: string; end: string } } | null;

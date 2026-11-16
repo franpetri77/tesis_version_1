@@ -132,7 +132,7 @@ export function TendenciasCompra() {
                   <span className="text-xs font-semibold tabular-nums text-slate-900">{s.units}</span>
                   <div className="flex h-36 w-full items-end">
                     <div
-                      className={`w-full rounded-t-sm ${s.partial ? "bg-paper-400" : "bg-slate-700"}`}
+                      className={`w-full rounded-t-sm ${s.partial || s.open ? "bg-paper-400" : "bg-slate-700"}`}
                       style={{ height: `${Math.max(2, (s.units / max) * 100)}%` }}
                     />
                   </div>
@@ -141,7 +141,7 @@ export function TendenciasCompra() {
               ))}
             </div>
             <p className="mt-2 text-xs text-slate-500">
-              Las barras grises son períodos parciales (recortados por el rango) y no se comparan.
+              Las barras claras son períodos parciales (recortados por el rango) o en curso al {shortDate(data.as_of.date)}, y no se comparan.
             </p>
           </div>
 
@@ -160,7 +160,11 @@ export function TendenciasCompra() {
                 <tr key={s.start} className="border-b border-paper-200">
                   <td className="py-2 text-slate-900">
                     {s.label}
-                    {s.partial && <span className="ml-2 text-xs text-slate-500">parcial</span>}
+                    {s.open ? (
+                      <span className="ml-2 text-xs text-slate-500">en curso</span>
+                    ) : s.partial ? (
+                      <span className="ml-2 text-xs text-slate-500">parcial</span>
+                    ) : null}
                   </td>
                   <td className="py-2 text-right text-slate-900">{s.units}</td>
                   <td className="py-2 text-right text-slate-500">{s.refunded_units}</td>
@@ -172,7 +176,7 @@ export function TendenciasCompra() {
 
           <div>
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              {data.breakdown_by === "product" ? "Productos" : "Categorías"} · último período completo frente al anterior
+              {data.breakdown_by === "product" ? "Productos" : "Categorías"} · último período cerrado frente al anterior
             </p>
             {data.comparison ? (
               <table className="w-full text-sm tabular-nums">
@@ -202,7 +206,7 @@ export function TendenciasCompra() {
               </table>
             ) : (
               <p className="border-y border-paper-300 py-3 text-sm text-slate-500">
-                El rango no incluye dos períodos completos consecutivos para comparar.
+                El rango no incluye dos períodos completos y cerrados consecutivos para comparar.
               </p>
             )}
           </div>

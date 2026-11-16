@@ -12,7 +12,7 @@ import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
 import {
-  SALE_STATUSES_SQL, TrendInputError, computeTrend, nextDay, validateTrendInput,
+  REPORT_TIMEZONE, SALE_STATUSES_SQL, TrendInputError, computeTrend, nextDay, todayInReportZone, validateTrendInput,
   type TrendRow,
 } from "../services/salesTrend";
 
@@ -558,9 +558,9 @@ reportsRouter.post("/stock-movement", castAuth, requireAdmin, async (req, res) =
 // -----------------------------------------------
 reportsRouter.get("/sales-trend", async (req, res) => {
   const q = req.query as Record<string, string | undefined>;
-  const now = new Date();
-  const defaultTo = now.toISOString().slice(0, 10);
-  const defaultFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1)).toISOString().slice(0, 10);
+  const defaultTo = todayInReportZone();
+  const [ty, tm] = defaultTo.split("-").map(Number);
+  const defaultFrom = new Date(Date.UTC(ty!, tm! - 1 - 5, 1)).toISOString().slice(0, 10);
   const by = q.by === "product" ? "product" : "category";
 
   try {
@@ -590,16 +590,18 @@ reportsRouter.get("/sales-trend", async (req, res) => {
       params
     );
 
-    const result = computeTrend(rows, from, to, group);
+    const asOf = todayInReportZone();
+    const result = computeTrend(rows, from, to, group, asOf);
     res.json({
       period: { from: fromStr, to: toStr, group },
+      as_of: { date: asOf, timezone: REPORT_TIMEZONE },
       breakdown_by: by,
       filters: { category_id: q.category_id ?? null, product_id: q.product_id ?? null },
       ...result,
       notes: [
         "Unidades de pedidos pagados o en circuito logístico (pagado, en preparación, listo para enviar, enviado, entregado).",
         "Las unidades de pedidos reembolsados se informan aparte y no se descuentan.",
-        "La variación compara sólo períodos completos consecutivos con base positiva.",
+        "La variación compara sólo períodos completos y cerrados consecutivos, con base positiva. El período de hoy o posterior está en curso y no se compara.",
       ],
     });
   } catch (error) {

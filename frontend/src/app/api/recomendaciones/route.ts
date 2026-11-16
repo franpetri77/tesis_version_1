@@ -1,32 +1,35 @@
-// =============================================
-// API ROUTE: RECOMENDACIONES DE PRODUCTOS
-// Delega al backend Node.js (Express + SQLite).
-//
-// GET /api/recomendaciones?product_id=xxx&limit=4
-// GET /api/recomendaciones?user_id=xxx&limit=4
-// =============================================
-
 import { type NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const headers = { "Cache-Control": "private, no-store" };
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const productId = searchParams.get("product_id");
-  const limit = Math.min(Number(searchParams.get("limit") ?? 4), 12);
+  const params = request.nextUrl.searchParams;
+  const personal = params.get("scope") === "personal" || params.has("order_id");
+  const authorization = request.headers.get("Authorization");
+  if (personal && !authorization) {
+    return NextResponse.json({ error: "Iniciá sesión para ver tus recomendaciones" }, { status: 401, headers });
+  }
+
+  const search = new URLSearchParams();
+  for (const key of ["limit", personal ? "order_id" : "product_id"]) {
+    for (const value of params.getAll(key)) search.append(key, value);
+  }
 
   try {
-    // Proxy al backend: productos destacados del catálogo como recomendaciones
-    const url = productId
-      ? `${BACKEND_URL}/catalog/products?limit=${limit}&sort=newest`
-      : `${BACKEND_URL}/catalog/products/featured?limit=${limit}`;
-
-    const res = await fetch(url, { next: { revalidate: 300 } });
-    if (!res.ok) return NextResponse.json({ products: [] });
-    const data = await res.json() as { data: unknown[] };
-    return NextResponse.json({ products: data.data ?? [] });
+    const endpoint = personal ? "/catalog/recommendations/personal" : "/catalog/recommendations";
+    const response = await fetch(`${BACKEND_URL}${endpoint}?${search}`, {
+      cache: "no-store",
+      headers: personal && authorization ? { Authorization: authorization } : undefined,
+      signal: request.signal,
+    });
+    if (!response.ok) {
+      return NextResponse.json({ error: "No se pudieron obtener las recomendaciones" }, { status: response.status, headers });
+    }
+    const result = await response.json() as { data: unknown[]; matched: boolean };
+    return NextResponse.json({ products: result.data, matched: result.matched }, { headers });
   } catch (error) {
-    console.error("[API/recomendaciones] Error:", error);
-    return NextResponse.json({ products: [] }, { status: 200 });
+    if (!request.signal.aborted) console.error("[API/recomendaciones] Error:", error);
+    return NextResponse.json({ error: "Las recomendaciones no están disponibles" }, { status: 502, headers });
   }
 }

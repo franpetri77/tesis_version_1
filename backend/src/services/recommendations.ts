@@ -1,63 +1,62 @@
-// =============================================
-// SERVICIO: RECOMENDACIONES DE PRODUCTOS
-// Lógica de recomendaciones basada en:
-//   - Historial de compras del usuario
-//   - Categoría del producto actual
-//   - Productos trending (más vendidos recientemente)
-//
-// Migrado de Directus REST API a consultas directas en MySQL.
-// =============================================
-
 import type { RowDataPacket } from "mysql2";
-import pool from "../db/database";
+import db from "../db/database";
 
-/**
- * Obtiene los IDs de categorías que el usuario ha comprado.
- * Base para calcular recomendaciones personalizadas.
- */
-export async function getUserPreferredCategories(userId: string): Promise<string[]> {
-  try {
-    const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT DISTINCT p.category_id
-       FROM order_items oi
-       JOIN orders o ON o.id = oi.order_id
-       JOIN products p ON p.id = oi.product_id
-       WHERE o.user_id = ?
-         AND o.status IN ('paid', 'delivered')
-       LIMIT 30`,
-      [userId]
-    );
+// A purchase can still contribute to preferences while the order is in fulfillment.
+const PURCHASED = "'paid','processing','ready_to_ship','shipped','delivered'";
 
-    return rows.map((r) => (r as { category_id: string }).category_id);
-  } catch {
-    return [];
-  }
+export type RecommendationContext =
+  | { kind: "catalog" }
+  | { kind: "product"; productId: string }
+  | { kind: "history"; userId: string }
+  | { kind: "order"; userId: string; orderId: string };
+
+interface RecommendationRow extends RowDataPacket {
+  id: string;
+  matched_category: number;
 }
 
-/**
- * Obtiene productos trending basados en cantidad vendida en los últimos 30 días.
- */
-export async function getTrendingProductIds(limit = 10): Promise<string[]> {
-  try {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .replace("T", " ")
-      .split(".")[0];
+export async function getRecommendedProducts(context: RecommendationContext, limit: number) {
+  const available = "p.is_active = 1 AND p.stock_quantity > 0 AND c.is_active = 1";
+  const select = "p.*, c.name AS category_name, c.slug AS category_slug";
+  const catalogOrder = "p.is_featured DESC, p.created_at DESC, p.id ASC";
 
-    const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT oi.product_id, SUM(oi.quantity) AS total_sold
-       FROM order_items oi
-       JOIN orders o ON o.id = oi.order_id
-       WHERE o.created_at >= ?
-         AND o.status IN ('paid', 'delivered')
-       GROUP BY oi.product_id
-       ORDER BY total_sold DESC
-       LIMIT ?`,
-      [thirtyDaysAgo, limit]
+  if (context.kind === "catalog" || context.kind === "product") {
+    const related = context.kind === "product";
+    const [rows] = await db.query<RecommendationRow[]>(
+      `SELECT ${select}, ${related ? 1 : 0} AS matched_category
+       FROM products p
+       JOIN categories c ON c.id = p.category_id
+       ${related ? "JOIN products current ON current.id = ? AND current.is_active = 1 AND current.category_id = p.category_id" : ""}
+       WHERE ${available} ${related ? "AND p.id <> current.id" : ""}
+       ORDER BY ${catalogOrder} LIMIT ?`,
+      related ? [context.productId, limit] : [limit],
     );
-
-    return rows.map((r) => (r as { product_id: string }).product_id);
-  } catch {
-    return [];
+    return rows;
   }
+
+  const byOrder = context.kind === "order";
+  const [rows] = await db.query<RecommendationRow[]>(
+    `WITH eligible_orders AS (
+       SELECT id FROM orders
+       WHERE user_id = ? AND status IN (${PURCHASED}) ${byOrder ? "AND id = ?" : ""}
+     ), purchases AS (
+       SELECT i.product_id, original.category_id, SUM(i.quantity) AS units
+       FROM eligible_orders o
+       JOIN order_items i ON i.order_id = o.id
+       JOIN products original ON original.id = i.product_id
+       GROUP BY i.product_id, original.category_id
+     ), preferences AS (
+       SELECT category_id, SUM(units) AS units FROM purchases GROUP BY category_id
+     )
+     SELECT ${select}, (pref.category_id IS NOT NULL) AS matched_category
+     FROM products p
+     JOIN categories c ON c.id = p.category_id
+     LEFT JOIN preferences pref ON pref.category_id = p.category_id
+     WHERE ${available}
+       AND NOT EXISTS (SELECT 1 FROM purchases bought WHERE bought.product_id = p.id)
+       ${byOrder ? "AND EXISTS (SELECT 1 FROM eligible_orders)" : ""}
+     ORDER BY pref.units DESC, ${catalogOrder} LIMIT ?`,
+    byOrder ? [context.userId, context.orderId, limit] : [context.userId, limit],
+  );
+  return rows;
 }

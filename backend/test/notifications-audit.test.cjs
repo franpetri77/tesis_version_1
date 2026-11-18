@@ -6,15 +6,38 @@ const assert = require('node:assert/strict');
 const express = require('express');
 const jwt = require('jsonwebtoken');
 
-let q, handlers, logs;
+let q, handlers, logs, tx, state, locks;
 const N = s => s.replace(/\s+/g, ' ').trim();
+const clone = v => JSON.parse(JSON.stringify(v));
 const pool = {
   query: async (sql, p = []) => {
     const s = N(sql); q.push({ sql: s, p });
-    for (const [match, fn] of handlers) if (match(s)) return [fn(p, s), []];
+    for (const [match, fn] of handlers) if (match(s)) return [await fn(p, s), []];
     return [[], []];
   },
-  getConnection: async () => ({ beginTransaction: async () => {}, query: pool.query, commit: async () => {}, rollback: async () => {}, release() {} }),
+  // Conexión de transacción: registra BEGIN/COMMIT/ROLLBACK, restaura el
+  // estado simulado al revertir y emula el bloqueo de fila de FOR UPDATE.
+  getConnection: async () => {
+    let saved = null; const held = [];
+    const releaseLocks = () => { while (held.length) held.pop()(); };
+    return {
+      beginTransaction: async () => { tx.push('BEGIN'); q.push({ sql: 'BEGIN', p: [] }); saved = clone(state); },
+      query: async (sql, p = []) => {
+        const s = N(sql);
+        const m = s.match(/^SELECT id FROM products WHERE id = \? FOR UPDATE$/);
+        if (m) {
+          const key = p[0];
+          while (locks.get(key)) await locks.get(key);
+          let free; locks.set(key, new Promise(r => { free = r; }));
+          held.push(() => { locks.delete(key); free(); });
+        }
+        return pool.query(sql, p);
+      },
+      commit: async () => { tx.push('COMMIT'); q.push({ sql: 'COMMIT', p: [] }); releaseLocks(); },
+      rollback: async () => { tx.push('ROLLBACK'); if (saved) state = saved; releaseLocks(); },
+      release() {},
+    };
+  },
 };
 require.cache[require.resolve('../dist/db/database')] = { exports: { __esModule: true, default: pool } };
 process.env.JWT_SECRET = 't5-local-memory-test-only';
@@ -38,7 +61,7 @@ before(async () => {
 });
 after(async () => { console.warn = origWarn; console.error = origErr; await new Promise(r => server.close(r)); });
 beforeEach(() => {
-  q = []; handlers = []; logs = [];
+  q = []; handlers = []; logs = []; tx = []; state = {}; locks = new Map();
   console.warn = (...a) => logs.push(a.join(' ')); console.error = (...a) => logs.push(a.join(' '));
   on("SELECT id FROM users WHERE role = 'admin'", () => [{ id: 'a1' }, { id: 'a2' }]);
 });
@@ -156,4 +179,104 @@ test('consulta de auditoría: filtros por usuario, entidad y fechas inclusivas; 
   q = [];
   assert.equal((await call('GET', '/admin/audit-logs?from=18/11/2026')).status, 400);
   assert.equal(q.length, 0);
+});
+
+// ── Correcciones de la revisión de Codex (18/11) ────────────────────────────
+// Producto simulado con estado: el UPDATE y las imágenes modifican `state`,
+// y un ROLLBACK lo restaura, como haría MySQL.
+function productStore() {
+  state.product = { id: 'p1', name: 'Mouse', slug: 'mouse', sku: 'MOU', price: 10000, compare_price: null, category_id: 'cat',
+    stock_quantity: 8, brand: 'Logi', model: 'M1', description: 'Viejo', short_description: 'Corto', is_featured: 0, is_active: 1 };
+  state.images = [{ image_url: 'https://img.example.invalid/1.jpg', alt_text: 'uno' }];
+  on('INSERT INTO products', (p) => { state.product = { id: p[0], name: p[1], slug: p[2], sku: p[3], price: p[4], compare_price: p[5], category_id: p[6],
+    stock_quantity: p[7], brand: p[8], model: p[9], description: p[10], short_description: p[11], is_featured: p[12], is_active: p[13] }; state.images = []; return {}; });
+  on('SELECT * FROM products WHERE id = ?', () => state.product ? [{ ...state.product }] : []);
+  on('SELECT p.*, c.name AS category_name', () => state.product ? [{ ...state.product }] : []);
+  on('SELECT image_url, alt_text FROM product_images', () => state.images.map(i => ({ ...i })));
+  on('SELECT * FROM product_images', () => state.images.map((i, k) => ({ ...i, sort_order: k })));
+  on('UPDATE products SET name', (p) => {
+    const P = state.product, keep = (v, old) => (v === null ? old : v);
+    Object.assign(P, { name: keep(p[0], P.name), slug: p[1], sku: keep(p[2], P.sku), price: keep(p[3], P.price), compare_price: p[4],
+      category_id: keep(p[5], P.category_id), stock_quantity: keep(p[6], P.stock_quantity), brand: p[7], model: p[8], description: p[9],
+      short_description: p[10], is_featured: keep(p[11], P.is_featured), is_active: keep(p[12], P.is_active) });
+    return { affectedRows: 1 };
+  });
+  on('DELETE FROM product_images', () => { state.images = []; return {}; });
+  on('INSERT INTO product_images', (p) => { state.images.push({ image_url: p[2], alt_text: p[3] }); return {}; });
+}
+const failAudit = () => handlers.unshift([s => s.startsWith('INSERT INTO audit_logs'), () => { throw new Error('auditoría caída'); }]);
+const storeSnapshot = () => clone({ product: state.product, images: state.images });
+
+test('edición de producto: si falla la auditoría se revierte todo y responde 500', async () => {
+  productStore(); failAudit();
+  const snap = storeSnapshot();
+  const r = await call('PUT', '/admin/products/p1', { price: 9000, images: [{ url: 'https://img.example.invalid/2.jpg' }] });
+  assert.equal(r.status, 500);
+  assert.deepEqual(tx, ['BEGIN', 'ROLLBACK']);
+  assert.deepEqual(storeSnapshot(), snap, 'producto e imágenes quedan como estaban');
+});
+test('alta de producto: si falla la auditoría no queda el producto y responde 500', async () => {
+  productStore(); delete state.product; state.images = []; failAudit();
+  const r = await call('POST', '/admin/products', { name: 'Teclado', sku: 'TEC', price: 5000, category_id: 'cat', images: [{ url: 'https://img.example.invalid/t.jpg' }] });
+  assert.equal(r.status, 500);
+  assert.deepEqual(tx, ['BEGIN', 'ROLLBACK']);
+  assert.equal(state.product, undefined);
+  assert.deepEqual(state.images, []);
+});
+test('alta de producto: la auditoría va antes del commit e incluye todos los campos e imágenes', async () => {
+  productStore(); delete state.product;
+  const r = await call('POST', '/admin/products', { name: 'Teclado', sku: 'TEC', price: 5000, category_id: 'cat', brand: 'Redragon',
+    description: 'Mecánico', images: [{ url: 'https://img.example.invalid/t.jpg', alt: 'frente' }] });
+  assert.equal(r.status, 201);
+  const iAudit = q.findIndex(x => x.sql.startsWith('INSERT INTO audit_logs')), iCommit = q.findIndex(x => x.sql === 'COMMIT');
+  assert.ok(iAudit >= 0 && iAudit < iCommit, 'la auditoría se escribe dentro de la transacción');
+  const [a] = audits();
+  assert.equal(a.action, 'product_create');
+  assert.equal(a.next.brand, 'Redragon');
+  assert.equal(a.next.description, 'Mecánico');
+  assert.deepEqual(a.next.images, [{ url: 'https://img.example.invalid/t.jpg', alt: 'frente' }]);
+});
+test('edición sólo de marca y descripción: queda auditada aunque nombre, precio y stock no cambien', async () => {
+  productStore();
+  const r = await call('PUT', '/admin/products/p1', { brand: 'Logitech', description: 'Nuevo texto' });
+  assert.equal(r.status, 200);
+  assert.deepEqual(tx, ['BEGIN', 'COMMIT']);
+  assert.deepEqual(audits().map(a => [a.action, a.prev, a.next]),
+    [['product_update', { brand: 'Logi', description: 'Viejo' }, { brand: 'Logitech', description: 'Nuevo texto' }]]);
+});
+test('edición sólo de imágenes: queda auditada con las imágenes anteriores y nuevas', async () => {
+  productStore();
+  await call('PUT', '/admin/products/p1', { images: [{ url: 'https://img.example.invalid/2.jpg', alt: 'dos' }] });
+  const [a] = audits();
+  assert.deepEqual(a.prev, { images: [{ url: 'https://img.example.invalid/1.jpg', alt: 'uno' }] });
+  assert.deepEqual(a.next, { images: [{ url: 'https://img.example.invalid/2.jpg', alt: 'dos' }] });
+});
+test('edición sin cambios reales: no genera auditoría', async () => {
+  productStore();
+  assert.equal((await call('PUT', '/admin/products/p1', { brand: 'Logi' })).status, 200);
+  assert.equal(audits().length, 0);
+});
+test('rol, activación y reseñas: si falla la auditoría, el cambio se revierte (500)', async () => {
+  on('SELECT id, role FROM users WHERE id = ?', () => [{ id: 'c1', role: 'customer' }]);
+  on('SELECT id, is_active FROM products', () => [{ id: 'p1', is_active: 1 }]);
+  on('SELECT id, is_approved FROM product_reviews', () => [{ id: 'r1', is_approved: 0 }]);
+  failAudit();
+  for (const [m, path, body] of [['PUT', '/admin/users/c1/role', { role: 'readonly' }], ['PATCH', '/admin/products/p1/toggle'], ['PATCH', '/admin/reviews/r1/approve']]) {
+    tx = [];
+    assert.equal((await call(m, path, body)).status, 500, path);
+    assert.deepEqual(tx, ['BEGIN', 'ROLLBACK'], path);
+  }
+});
+test('stock bajo concurrente: dos llamadas simultáneas generan un solo aviso por producto', async () => {
+  on('AND stock_quantity <= ?', () => [{ id: 'p1', name: 'Mouse', stock_quantity: 2 }]);
+  // Se lee el estado y recién después se responde: sin bloqueo, ambas llamadas
+  // leen "sin aviso" antes de que la otra inserte (la carrera que reprodujo Codex).
+  on("type = 'stock_low' AND link = ?", async (p) => {
+    const seen = q.some(x => x.sql.startsWith('INSERT INTO notifications') && x.p.includes(p[0]));
+    await new Promise(r => setTimeout(r, 15));
+    return seen ? [{ id: 'x' }] : [];
+  });
+  const results = await Promise.all([n.notifyLowStock(['p1']), n.notifyLowStock(['p1'])]);
+  assert.deepEqual(results.sort(), [0, 2]);
+  assert.equal(inserts().length, 2, 'un aviso por administrador, una sola vez');
 });

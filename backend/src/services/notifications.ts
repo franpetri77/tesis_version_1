@@ -8,8 +8,10 @@
 
 import { randomUUID } from "crypto";
 import type { RowDataPacket } from "mysql2";
+import type { PoolConnection } from "mysql2/promise";
 import db from "../db/database";
 import { sendNewOrderEmail } from "./mailer";
+import { withTransaction } from "./audit";
 
 type NotificationType = "order_new" | "order_status" | "stock_low" | "review_new" | "product_new" | "price_drop" | "offer";
 const LOW_STOCK_THRESHOLD = 5;
@@ -22,10 +24,13 @@ export function dispatch(label: string, job: () => Promise<unknown>): void {
   void job().catch((error) => console.error(`[Notificaciones] ${label}:`, error));
 }
 
-async function insertMany(rows: Array<{ userId: string; type: NotificationType; title: string; message: string; link: string | null }>): Promise<number> {
+async function insertMany(
+  rows: Array<{ userId: string; type: NotificationType; title: string; message: string; link: string | null }>,
+  exec: Pick<PoolConnection, "query"> = db,
+): Promise<number> {
   if (rows.length === 0) return 0;
   const values = rows.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
-  await db.query(
+  await exec.query(
     `INSERT INTO notifications (id, user_id, type, title, message, link) VALUES ${values}`,
     rows.flatMap((r) => [randomUUID(), r.userId, r.type, r.title.slice(0, 255), r.message, r.link])
   );
@@ -83,17 +88,23 @@ export async function notifyLowStock(productIds: string[]): Promise<number> {
   );
   if (products.length === 0) return 0;
   const admins = await adminIds();
-  const rows = [];
+  let total = 0;
   for (const p of products) {
     const link = `/admin/stock?producto=${p.id}`;
-    const [recent] = await db.query<RowDataPacket[]>(
-      "SELECT id FROM notifications WHERE type = 'stock_low' AND link = ? AND created_at >= NOW() - INTERVAL 1 DAY LIMIT 1", [link]
-    );
-    if (recent.length) continue;
     const msg = Number(p.stock_quantity) <= 0 ? "Sin stock disponible." : `Quedan ${p.stock_quantity} unidades.`;
-    for (const userId of admins) rows.push({ userId, type: "stock_low" as const, title: `Stock bajo: ${p.name}`, message: msg, link });
+    // Control e inserción atómicos: la fila del producto queda bloqueada
+    // mientras se consulta el aviso del día y se inserta, así dos llamadas
+    // simultáneas no generan dos avisos para el mismo producto.
+    total += await withTransaction(async (conn) => {
+      await conn.query("SELECT id FROM products WHERE id = ? FOR UPDATE", [p.id]);
+      const [recent] = await conn.query<RowDataPacket[]>(
+        "SELECT id FROM notifications WHERE type = 'stock_low' AND link = ? AND created_at >= NOW() - INTERVAL 1 DAY LIMIT 1", [link]
+      );
+      if (recent.length) return 0;
+      return insertMany(admins.map((userId) => ({ userId, type: "stock_low" as const, title: `Stock bajo: ${p.name}`, message: msg, link })), conn);
+    });
   }
-  return insertMany(rows);
+  return total;
 }
 
 /**

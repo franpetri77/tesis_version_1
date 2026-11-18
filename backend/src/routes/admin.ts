@@ -10,7 +10,8 @@ import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
 import { OrderStatusError, allowedTransitions, changeOrderStatus, ORDER_STATUS_LABELS } from "../services/orderStatus";
-import { diffFields, logAudit } from "../services/audit";
+import { diffFields, logAudit, withTransaction } from "../services/audit";
+import type { PoolConnection } from "mysql2/promise";
 import { dispatch, notifyLowStock, notifyNewProduct, notifyPriceDrop } from "../services/notifications";
 
 const actorOf = (req: Request) => ({ userId: (req as unknown as AuthRequest).user?.userId ?? null, ip: req.ip ?? null });
@@ -94,6 +95,28 @@ interface ImageInput {
   alt?: string;
 }
 
+// Todo lo que el panel puede editar de un producto, más sus imágenes en orden.
+// La auditoría compara estas "fotos": cambiar sólo la marca, la descripción o
+// las imágenes también deja registro.
+const AUDITED_PRODUCT_FIELDS = [
+  "name", "slug", "sku", "price", "compare_price", "category_id", "stock_quantity",
+  "brand", "model", "description", "short_description", "is_featured", "is_active",
+] as const;
+
+async function productSnapshot(conn: PoolConnection, id: string, lock = false): Promise<Record<string, unknown> | null> {
+  const [rows] = await conn.query<DbProduct[]>(`SELECT * FROM products WHERE id = ?${lock ? " FOR UPDATE" : ""}`, [id]);
+  const row = rows[0];
+  if (!row) return null;
+  const [images] = await conn.query<DbImage[]>(
+    "SELECT image_url, alt_text FROM product_images WHERE product_id = ? ORDER BY sort_order ASC", [id]
+  );
+  const snap: Record<string, unknown> = Object.fromEntries(AUDITED_PRODUCT_FIELDS.map((f) => [f, row[f]]));
+  snap.is_active = Boolean(row.is_active);
+  snap.is_featured = Boolean(row.is_featured);
+  snap.images = images.map((i) => ({ url: i.image_url, alt: i.alt_text ?? null }));
+  return snap;
+}
+
 // =============================================
 // SECCIÓN: GESTIÓN DE USUARIOS
 // =============================================
@@ -133,31 +156,34 @@ adminRouter.put("/users/:id/role", async (req, res) => {
       return;
     }
 
-    const [existing] = await db.query<RowDataPacket[]>(
-      "SELECT id, role FROM users WHERE id = ?",
-      [id]
-    );
-    if (existing.length === 0) {
+    // Cambio de rol y auditoría en una sola transacción
+    const updated = await withTransaction(async (conn) => {
+      const [existing] = await conn.query<RowDataPacket[]>(
+        "SELECT id, role FROM users WHERE id = ? FOR UPDATE",
+        [id]
+      );
+      if (existing.length === 0) return null;
+
+      await conn.query(
+        "UPDATE users SET role = ?, updated_at = NOW() WHERE id = ?",
+        [role, id]
+      );
+      if (existing[0]!.role !== role) {
+        await logAudit({ action: "user_role", entityType: "user", entityId: String(id), ...actorOf(req),
+          previous: { role: existing[0]!.role }, next: { role } }, conn);
+      }
+      const [updatedRows] = await conn.query<RowDataPacket[]>(
+        "SELECT id, email, first_name, last_name, phone, role, created_at, updated_at FROM users WHERE id = ?",
+        [id]
+      );
+      return updatedRows[0];
+    });
+    if (!updated) {
       res.status(404).json({ error: "Usuario no encontrado" });
       return;
     }
 
-    // NOW() reemplaza datetime('now') de SQLite
-    await db.query(
-      "UPDATE users SET role = ?, updated_at = NOW() WHERE id = ?",
-      [role, id]
-    );
-
-    const [updatedRows] = await db.query<RowDataPacket[]>(
-      "SELECT id, email, first_name, last_name, phone, role, created_at, updated_at FROM users WHERE id = ?",
-      [id]
-    );
-    if (existing[0]!.role !== role) {
-      await logAudit({ action: "user_role", entityType: "user", entityId: String(id), ...actorOf(req),
-        previous: { role: existing[0]!.role }, next: { role } });
-    }
-
-    res.json({ data: updatedRows[0] });
+    res.json({ data: updated });
   } catch (error) {
     console.error("[Admin] Error actualizando rol:", error);
     res.status(500).json({ error: "Error al actualizar el rol del usuario" });
@@ -180,18 +206,23 @@ adminRouter.delete("/users/:id", async (req, res) => {
       return;
     }
 
-    const [existing] = await db.query<RowDataPacket[]>(
-      "SELECT id, email, role FROM users WHERE id = ?",
-      [id]
-    );
-    if (existing.length === 0) {
+    // Baja y auditoría juntas: si el usuario tiene registros asociados, el
+    // DELETE falla con ER_ROW_IS_REFERENCED_2 y no queda nada a medias
+    const found = await withTransaction(async (conn) => {
+      const [existing] = await conn.query<RowDataPacket[]>(
+        "SELECT id, email, role FROM users WHERE id = ? FOR UPDATE",
+        [id]
+      );
+      if (existing.length === 0) return false;
+      await conn.query("DELETE FROM users WHERE id = ?", [id]);
+      await logAudit({ action: "user_delete", entityType: "user", entityId: String(id), ...actorOf(req),
+        previous: { email: existing[0]!.email, role: existing[0]!.role } }, conn);
+      return true;
+    });
+    if (!found) {
       res.status(404).json({ error: "Usuario no encontrado" });
       return;
     }
-
-    await db.query("DELETE FROM users WHERE id = ?", [id]);
-    await logAudit({ action: "user_delete", entityType: "user", entityId: String(id), ...actorOf(req),
-      previous: { email: existing[0]!.email, role: existing[0]!.role } });
     res.json({ success: true });
   } catch (error) {
     if ((error as { code?: string }).code === "ER_ROW_IS_REFERENCED_2") {
@@ -318,10 +349,8 @@ adminRouter.post("/products", async (req, res) => {
     // Generar UUID antes del INSERT para usarlo también en las imágenes
     const productId = randomUUID();
 
-    // Insertar producto e imágenes en una transacción MySQL
-    const conn = await db.getConnection();
-    await conn.beginTransaction();
-    try {
+    // Producto, imágenes y auditoría en una sola transacción MySQL
+    await withTransaction(async (conn) => {
       await conn.query(
         `INSERT INTO products
            (id, name, slug, sku, price, compare_price, category_id, stock_quantity,
@@ -347,13 +376,9 @@ adminRouter.post("/products", async (req, res) => {
         }
       }
 
-      await conn.commit();
-    } catch (err) {
-      await conn.rollback();
-      throw err;
-    } finally {
-      conn.release();
-    }
+      await logAudit({ action: "product_create", entityType: "product", entityId: productId, ...actorOf(req),
+        next: await productSnapshot(conn, productId) }, conn);
+    });
 
     // Devolver el producto completo con imágenes
     const [productRows] = await db.query<DbProduct[]>(
@@ -369,8 +394,6 @@ adminRouter.post("/products", async (req, res) => {
     );
 
     const created = productRows[0]!;
-    await logAudit({ action: "product_create", entityType: "product", entityId: productId, ...actorOf(req),
-      next: { name: created.name, sku: created.sku, price: created.price, stock_quantity: created.stock_quantity, is_active: Boolean(created.is_active) } });
     if (created.is_active) dispatch(`producto nuevo ${productId}`, () => notifyNewProduct(productId));
 
     res.status(201).json({
@@ -464,10 +487,13 @@ adminRouter.put("/products/:id", async (req, res) => {
       }
     }
 
-    // Actualizar producto e imágenes en transacción MySQL
-    const conn = await db.getConnection();
-    await conn.beginTransaction();
-    try {
+    // Producto, imágenes y auditoría en una sola transacción MySQL.
+    // La foto "antes" se toma con la fila bloqueada, para que la auditoría
+    // describa exactamente el cambio que hizo esta operación.
+    const changes = await withTransaction(async (conn) => {
+      const before = await productSnapshot(conn, String(id), true);
+      if (!before) throw new Error("Producto eliminado durante la edición");
+
       // COALESCE preserva el valor actual cuando no se envía el campo
       await conn.query(
         `UPDATE products SET
@@ -519,13 +545,13 @@ adminRouter.put("/products/:id", async (req, res) => {
         }
       }
 
-      await conn.commit();
-    } catch (err) {
-      await conn.rollback();
-      throw err;
-    } finally {
-      conn.release();
-    }
+      const after = (await productSnapshot(conn, String(id)))!;
+      const diff = diffFields(before, after);
+      if (diff) {
+        await logAudit({ action: "product_update", entityType: "product", entityId: String(id), ...actorOf(req), ...diff }, conn);
+      }
+      return diff;
+    });
 
     // Devolver el producto actualizado
     const [updatedRows] = await db.query<DbProduct[]>(
@@ -540,14 +566,11 @@ adminRouter.put("/products/:id", async (req, res) => {
       [id]
     );
 
-    const updated = updatedRows[0]!;
-    const fields = ["name", "sku", "price", "compare_price", "category_id", "stock_quantity", "is_active", "is_featured"] as const;
-    const pick = (row: Record<string, unknown>) => Object.fromEntries(fields.map((f) => [f, row[f]]));
-    const changes = diffFields(pick(existing as unknown as Record<string, unknown>), pick(updated as unknown as Record<string, unknown>));
+    // Avisos sólo después del commit: un fallo acá no revierte la edición
     if (changes) {
-      await logAudit({ action: "product_update", entityType: "product", entityId: String(id), ...actorOf(req), ...changes });
-      if (Number(updated.price) < Number(existing.price)) {
-        dispatch(`baja de precio ${id}`, () => notifyPriceDrop(String(id), Number(existing.price), Number(updated.price)));
+      const prevPrice = Number(changes.previous.price), nextPrice = Number(changes.next.price);
+      if ("price" in changes.next && nextPrice < prevPrice) {
+        dispatch(`baja de precio ${id}`, () => notifyPriceDrop(String(id), prevPrice, nextPrice));
       }
       if ("stock_quantity" in changes.next) dispatch(`stock bajo ${id}`, () => notifyLowStock([String(id)]));
     }
@@ -574,26 +597,28 @@ adminRouter.patch("/products/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [rows] = await db.query<RowDataPacket[]>(
-      "SELECT id, is_active FROM products WHERE id = ?",
-      [id]
-    );
-    const product = rows[0] as { id: string; is_active: number } | undefined;
+    // Invertir el estado y auditar en una sola transacción
+    const newState = await withTransaction(async (conn) => {
+      const [rows] = await conn.query<RowDataPacket[]>(
+        "SELECT id, is_active FROM products WHERE id = ? FOR UPDATE",
+        [id]
+      );
+      const product = rows[0] as { id: string; is_active: number } | undefined;
+      if (!product) return null;
 
-    if (!product) {
+      const state = product.is_active ? 0 : 1;
+      await conn.query(
+        "UPDATE products SET is_active = ?, updated_at = NOW() WHERE id = ?",
+        [state, id]
+      );
+      await logAudit({ action: "product_toggle", entityType: "product", entityId: String(id), ...actorOf(req),
+        previous: { is_active: Boolean(product.is_active) }, next: { is_active: Boolean(state) } }, conn);
+      return state;
+    });
+    if (newState === null) {
       res.status(404).json({ error: "Producto no encontrado" });
       return;
     }
-
-    // Invertir el estado actual
-    const newState = product.is_active ? 0 : 1;
-    await db.query(
-      "UPDATE products SET is_active = ?, updated_at = NOW() WHERE id = ?",
-      [newState, id]
-    );
-
-    await logAudit({ action: "product_toggle", entityType: "product", entityId: String(id), ...actorOf(req),
-      previous: { is_active: Boolean(product.is_active) }, next: { is_active: Boolean(newState) } });
     res.json({ data: { id, is_active: Boolean(newState) } });
   } catch (error) {
     console.error("[Admin] Error en toggle de producto:", error);
@@ -609,18 +634,22 @@ adminRouter.delete("/products/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [existing] = await db.query<RowDataPacket[]>(
-      "SELECT id, name, sku FROM products WHERE id = ?",
-      [id]
-    );
-    if (existing.length === 0) {
+    // Baja y auditoría en una sola transacción
+    const found = await withTransaction(async (conn) => {
+      const [existing] = await conn.query<RowDataPacket[]>(
+        "SELECT id, name, sku FROM products WHERE id = ? FOR UPDATE",
+        [id]
+      );
+      if (existing.length === 0) return false;
+      await conn.query("DELETE FROM products WHERE id = ?", [id]);
+      await logAudit({ action: "product_delete", entityType: "product", entityId: String(id), ...actorOf(req),
+        previous: { name: existing[0]!.name, sku: existing[0]!.sku } }, conn);
+      return true;
+    });
+    if (!found) {
       res.status(404).json({ error: "Producto no encontrado" });
       return;
     }
-
-    await db.query("DELETE FROM products WHERE id = ?", [id]);
-    await logAudit({ action: "product_delete", entityType: "product", entityId: String(id), ...actorOf(req),
-      previous: { name: existing[0]!.name, sku: existing[0]!.sku } });
     res.json({ success: true });
   } catch (error) {
     console.error("[Admin] Error eliminando producto:", error);
@@ -688,18 +717,23 @@ adminRouter.get("/reviews", async (req, res) => {
 adminRouter.patch("/reviews/:id/approve", async (req, res) => {
   const { id } = req.params;
   try {
-    const [rows] = await db.query<RowDataPacket[]>(
-      "SELECT id, is_approved FROM product_reviews WHERE id = ? LIMIT 1",
-      [id]
-    );
-    if (!rows[0]) {
+    // Moderación y auditoría en una sola transacción
+    const newState = await withTransaction(async (conn) => {
+      const [rows] = await conn.query<RowDataPacket[]>(
+        "SELECT id, is_approved FROM product_reviews WHERE id = ? LIMIT 1 FOR UPDATE",
+        [id]
+      );
+      if (!rows[0]) return null;
+      const state = rows[0].is_approved === 1 ? 0 : 1;
+      await conn.query("UPDATE product_reviews SET is_approved = ? WHERE id = ?", [state, id]);
+      await logAudit({ action: state ? "review_approve" : "review_hide", entityType: "review", entityId: String(id), ...actorOf(req),
+        previous: { is_approved: Boolean(rows[0].is_approved) }, next: { is_approved: Boolean(state) } }, conn);
+      return state;
+    });
+    if (newState === null) {
       res.status(404).json({ error: "Reseña no encontrada" });
       return;
     }
-    const newState = rows[0].is_approved === 1 ? 0 : 1;
-    await db.query("UPDATE product_reviews SET is_approved = ? WHERE id = ?", [newState, id]);
-    await logAudit({ action: newState ? "review_approve" : "review_hide", entityType: "review", entityId: String(id), ...actorOf(req),
-      previous: { is_approved: Boolean(rows[0].is_approved) }, next: { is_approved: Boolean(newState) } });
     res.json({ data: { id, is_approved: Boolean(newState) } });
   } catch (error) {
     console.error("[Admin] Error aprobando reseña:", error);
@@ -714,17 +748,22 @@ adminRouter.patch("/reviews/:id/approve", async (req, res) => {
 adminRouter.delete("/reviews/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    const [rows] = await db.query<RowDataPacket[]>(
-      "SELECT id, product_id, rating FROM product_reviews WHERE id = ? LIMIT 1",
-      [id]
-    );
-    if (!rows[0]) {
+    // Borrado y auditoría en una sola transacción
+    const found = await withTransaction(async (conn) => {
+      const [rows] = await conn.query<RowDataPacket[]>(
+        "SELECT id, product_id, rating FROM product_reviews WHERE id = ? LIMIT 1 FOR UPDATE",
+        [id]
+      );
+      if (!rows[0]) return false;
+      await conn.query("DELETE FROM product_reviews WHERE id = ?", [id]);
+      await logAudit({ action: "review_delete", entityType: "review", entityId: String(id), ...actorOf(req),
+        previous: { product_id: rows[0].product_id, rating: rows[0].rating } }, conn);
+      return true;
+    });
+    if (!found) {
       res.status(404).json({ error: "Reseña no encontrada" });
       return;
     }
-    await db.query("DELETE FROM product_reviews WHERE id = ?", [id]);
-    await logAudit({ action: "review_delete", entityType: "review", entityId: String(id), ...actorOf(req),
-      previous: { product_id: rows[0].product_id, rating: rows[0].rating } });
     res.json({ success: true });
   } catch (error) {
     console.error("[Admin] Error eliminando reseña:", error);

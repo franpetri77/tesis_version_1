@@ -44,6 +44,26 @@ export async function logAudit(entry: AuditEntry, conn?: PoolConnection): Promis
   }
 }
 
+/**
+ * Ejecuta un cambio administrativo y su auditoría en una sola transacción.
+ * Si cualquier paso falla (incluido el INSERT de auditoría), se revierte todo:
+ * no puede quedar un cambio guardado sin su registro.
+ */
+export async function withTransaction<T>(work: (conn: PoolConnection) => Promise<T>): Promise<T> {
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const result = await work(conn);
+    await conn.commit();
+    return result;
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
+}
+
 /** Sólo los campos que cambiaron, para no guardar copias completas. */
 export function diffFields<T extends Record<string, unknown>>(before: T, after: Partial<T>): { previous: Partial<T>; next: Partial<T> } | null {
   const previous: Partial<T> = {};

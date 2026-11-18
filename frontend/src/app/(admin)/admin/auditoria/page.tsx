@@ -44,21 +44,21 @@ function getToken() {
 
 // Interpreta el campo action para mostrar etiqueta y color
 const ACTION_META: Record<string, { label: string; color: string; Icon: React.ElementType }> = {
-  stock_ingreso:  { label: "Ingreso",            color: "text-emerald-600 bg-emerald-50", Icon: ArrowDownCircle },
-  stock_egreso:   { label: "Egreso",             color: "text-red-600 bg-red-50",         Icon: ArrowUpCircle },
-  order_status:   { label: "Estado de pedido",   color: "text-brand-700 bg-brand-50",     Icon: Package },
-  product_create: { label: "Alta de producto",   color: "text-emerald-600 bg-emerald-50", Icon: PackagePlus },
-  product_update: { label: "Edición de producto", color: "text-slate-700 bg-slate-100",   Icon: Pencil },
-  product_toggle: { label: "Activación",         color: "text-slate-700 bg-slate-100",    Icon: Power },
-  product_delete: { label: "Baja de producto",   color: "text-red-600 bg-red-50",         Icon: PackageX },
-  user_role:      { label: "Cambio de rol",      color: "text-amber-700 bg-amber-50",     Icon: UserCog },
-  user_delete:    { label: "Baja de usuario",    color: "text-red-600 bg-red-50",         Icon: UserX },
-  review_approve: { label: "Reseña aprobada",    color: "text-emerald-600 bg-emerald-50", Icon: MessageSquare },
-  review_hide:    { label: "Reseña oculta",      color: "text-slate-700 bg-slate-100",    Icon: MessageSquare },
-  review_delete:  { label: "Reseña eliminada",   color: "text-red-600 bg-red-50",         Icon: MessageSquare },
+  stock_ingreso:  { label: "Ingreso",            color: "text-slate-700 bg-paper-100", Icon: ArrowDownCircle },
+  stock_egreso:   { label: "Egreso",             color: "text-slate-900 bg-paper-200",         Icon: ArrowUpCircle },
+  order_status:   { label: "Estado de pedido",   color: "text-slate-700 bg-paper-100",     Icon: Package },
+  product_create: { label: "Alta de producto",   color: "text-slate-700 bg-paper-100", Icon: PackagePlus },
+  product_update: { label: "Edición de producto", color: "text-slate-700 bg-paper-100",   Icon: Pencil },
+  product_toggle: { label: "Activación",         color: "text-slate-700 bg-paper-100",    Icon: Power },
+  product_delete: { label: "Baja de producto",   color: "text-slate-900 bg-paper-200",         Icon: PackageX },
+  user_role:      { label: "Cambio de rol",      color: "text-slate-700 bg-paper-100",     Icon: UserCog },
+  user_delete:    { label: "Baja de usuario",    color: "text-slate-900 bg-paper-200",         Icon: UserX },
+  review_approve: { label: "Reseña aprobada",    color: "text-slate-700 bg-paper-100", Icon: MessageSquare },
+  review_hide:    { label: "Reseña oculta",      color: "text-slate-700 bg-paper-100",    Icon: MessageSquare },
+  review_delete:  { label: "Reseña eliminada",   color: "text-slate-900 bg-paper-200",         Icon: MessageSquare },
   // Acciones que registra el ABM de promociones (T4)
-  promotion_create: { label: "Alta de promoción",   color: "text-emerald-600 bg-emerald-50", Icon: Tag },
-  promotion_update: { label: "Edición de promoción", color: "text-slate-700 bg-slate-100",   Icon: Tag },
+  promotion_create: { label: "Alta de promoción",   color: "text-slate-700 bg-paper-100", Icon: Tag },
+  promotion_update: { label: "Edición de promoción", color: "text-slate-700 bg-paper-100",   Icon: Tag },
 };
 function actionMeta(action: string): { label: string; color: string; Icon: React.ElementType } {
   return ACTION_META[action] ?? { label: action, color: "text-slate-600 bg-slate-100", Icon: ClipboardList };

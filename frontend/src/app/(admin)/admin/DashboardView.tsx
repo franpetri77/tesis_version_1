@@ -31,7 +31,7 @@ export function DashboardView() {
   const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   const salesThisMonth = allOrders
     .filter((o) => {
-      if (!["paid", "delivered", "processing", "shipped"].includes(o.status)) return false;
+      if (!["paid", "processing", "ready_to_ship", "shipped", "delivered"].includes(o.status)) return false;
       if (!o.created_at) return false;
       return new Date(o.created_at) >= thisMonth;
     })

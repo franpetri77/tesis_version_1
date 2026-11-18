@@ -9,6 +9,7 @@ import { randomUUID } from "crypto";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
+import { OrderStatusError, allowedTransitions, changeOrderStatus, ORDER_STATUS_LABELS } from "../services/orderStatus";
 
 export const adminRouter = Router();
 
@@ -709,6 +710,95 @@ interface AuditLogRow extends RowDataPacket {
   ip_address: string | null;
   created_at: string;
 }
+
+// -----------------------------------------------
+// GET /admin/orders/:id
+// Detalle del pedido para el panel: cliente, ítems, pagos, historial
+// de estados y transiciones disponibles.
+// -----------------------------------------------
+adminRouter.get("/orders/:id", async (req, res) => {
+  try {
+    const [orders] = await db.query<RowDataPacket[]>(
+      `SELECT o.id, o.order_number, o.status, o.subtotal, o.discount_amount, o.shipping_cost, o.total,
+              o.delivery_method, o.shipping_address, o.notes, o.created_at, o.updated_at,
+              o.payment_expires_at, u.email AS user_email, u.first_name AS user_first_name,
+              u.last_name AS user_last_name, u.phone AS user_phone
+       FROM orders o JOIN users u ON u.id = o.user_id
+       WHERE o.id = ?`, [req.params.id]
+    );
+    const order = orders[0];
+    if (!order) { res.status(404).json({ error: "Pedido no encontrado" }); return; }
+
+    const [items] = await db.query<RowDataPacket[]>(
+      `SELECT oi.id, oi.product_id, p.name AS product_name, p.sku, oi.quantity, oi.unit_price, oi.total_price
+       FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
+       WHERE oi.order_id = ? ORDER BY p.name`, [order.id]
+    );
+    const [payments] = await db.query<RowDataPacket[]>(
+      `SELECT id, mp_payment_id, status, amount, currency, created_at, updated_at
+       FROM payments WHERE order_id = ? ORDER BY created_at`, [order.id]
+    );
+    const [history] = await db.query<RowDataPacket[]>(
+      `SELECT a.id, a.previous_value, a.new_value, a.created_at, u.first_name, u.last_name, u.email
+       FROM audit_logs a LEFT JOIN users u ON u.id = a.user_id
+       WHERE a.entity_type = 'order' AND a.entity_id = ? AND a.action = 'order_status'
+       ORDER BY a.created_at`, [order.id]
+    );
+
+    let address: unknown = null;
+    try { address = order.shipping_address ? JSON.parse(String(order.shipping_address)) : null; } catch { address = order.shipping_address; }
+    const parse = (v: unknown) => { try { return v ? JSON.parse(String(v)) : null; } catch { return null; } };
+
+    res.json({
+      data: {
+        ...order,
+        shipping_address: address,
+        status_label: ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS] ?? order.status,
+        items,
+        payments,
+        history: history.map((h) => ({
+          id: h.id,
+          from: (parse(h.previous_value) as { status?: string } | null)?.status ?? null,
+          to: (parse(h.new_value) as { status?: string } | null)?.status ?? null,
+          note: (parse(h.new_value) as { note?: string } | null)?.note ?? null,
+          by: h.email ? `${h.first_name ?? ""} ${h.last_name ?? ""}`.trim() || h.email : null,
+          at: h.created_at,
+        })),
+        allowed_transitions: allowedTransitions(String(order.status), String(order.delivery_method))
+          .map((s) => ({ status: s, label: ORDER_STATUS_LABELS[s] })),
+      },
+    });
+  } catch (error) {
+    console.error("[Admin] Error obteniendo detalle de pedido:", error);
+    res.status(500).json({ error: "Error al obtener el pedido" });
+  }
+});
+
+// -----------------------------------------------
+// PATCH /admin/orders/:id/status  { status, note? }
+// Cambia el estado con transiciones validadas y registro en auditoría.
+// -----------------------------------------------
+adminRouter.patch("/orders/:id/status", async (req, res) => {
+  const body = (req.body ?? {}) as { status?: unknown; note?: unknown };
+  if (typeof body.status !== "string" || (body.note !== undefined && body.note !== null && typeof body.note !== "string")) {
+    res.status(400).json({ error: "Datos inválidos: se espera { status, note? }" });
+    return;
+  }
+  try {
+    const result = await changeOrderStatus({
+      orderId: req.params.id!,
+      next: body.status,
+      note: (body.note as string | null | undefined) ?? null,
+      actorId: (req as unknown as AuthRequest).user.userId,
+      ip: req.ip ?? null,
+    });
+    res.json({ data: result });
+  } catch (error) {
+    if (error instanceof OrderStatusError) { res.status(error.status).json({ error: error.message }); return; }
+    console.error("[Admin] Error cambiando estado de pedido:", error);
+    res.status(500).json({ error: "Error al cambiar el estado del pedido" });
+  }
+});
 
 // -----------------------------------------------
 // GET /admin/audit-logs?action=&entity_type=&limit=50&offset=0

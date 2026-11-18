@@ -535,6 +535,41 @@ async function order({ items, coupon, shipping = false } = {}) {
 const cents = v => Math.round(v * 100);
 const charged = () => preferenceBody.items.reduce((acc, i) => acc + cents(i.unit_price) * i.quantity, 0);
 
+async function atInstant(iso, job) {
+  const RealDate = global.Date;
+  const timestamp = new RealDate(iso).getTime();
+  global.Date = class extends RealDate {
+    constructor(...args) { if (args.length) super(...args); else super(timestamp); }
+    static now() { return timestamp; }
+  };
+  try { return await job(); } finally { global.Date = RealDate; }
+}
+
+test('cupones: entre 21:00 y 23:59 de Córdoba no vencen ni se activan al cambiar el día UTC', async () => {
+  for (const instant of ['2026-11-19T00:00:00Z', '2026-11-19T02:59:59Z']) {
+    await atInstant(instant, async () => {
+      promo('ULTIMO-DIA', 'percentage', 10, { valid_from:'2026-11-18', valid_until:'2026-11-18' });
+      promo('MANANA', 'percentage', 10, { valid_from:'2026-11-19' });
+      const valid = await post('/payments/validate-coupon', {code:'ULTIMO-DIA',subtotal:100});
+      assert.equal(valid.body.valid, true, instant);
+      assert.equal((await order({coupon:'ULTIMO-DIA'})).status, 201, instant);
+      assert.equal((await post('/payments/validate-coupon', {code:'MANANA',subtotal:100})).body.valid, false, instant);
+      assert.equal((await order({coupon:'MANANA'})).status, 400, instant);
+    });
+  }
+});
+
+test('cupones: a las 00:00 de Córdoba vencimiento e inicio cambian juntos en ambos endpoints', async () => {
+  await atInstant('2026-11-19T03:00:00Z', async () => {
+    promo('AYER', 'percentage', 10, {valid_until:'2026-11-18'});
+    promo('HOY', 'percentage', 10, {valid_from:'2026-11-19'});
+    assert.equal((await post('/payments/validate-coupon',{code:'AYER',subtotal:100})).body.valid,false);
+    assert.equal((await order({coupon:'AYER'})).status,400);
+    assert.equal((await post('/payments/validate-coupon',{code:'HOY',subtotal:100})).body.valid,true);
+    assert.equal((await order({coupon:'HOY'})).status,201);
+  });
+});
+
 test('P3b: sin cupón detalla productos y envío, y la suma es exactamente orders.total', async () => {
   const r = await order({ items: [{ product_id: 'a', quantity: 2 }, { product_id: 'b', quantity: 1 }], shipping: true });
   assert.equal(r.status, 201);

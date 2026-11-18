@@ -8,6 +8,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { randomUUID } from "crypto";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
+import { classificationInput, saveClassification, attachClassification, productTags, parseMetadata } from "../services/productClassification";
 import { requireAuth } from "./auth";
 import { requirePanelAccess } from "../middleware/roles";
 import { OrderStatusError, allowedTransitions, changeOrderStatus, ORDER_STATUS_LABELS } from "../services/orderStatus";
@@ -104,6 +105,8 @@ async function productSnapshot(conn: PoolConnection, id: string, lock = false): 
   const snap: Record<string, unknown> = Object.fromEntries(AUDITED_PRODUCT_FIELDS.map((f) => [f, row[f]]));
   snap.is_active = Boolean(row.is_active);
   snap.is_featured = Boolean(row.is_featured);
+  snap.tags = (await productTags(conn,id)).map(t => t.slug);
+  snap.metadata = parseMetadata(row.metadata);
   snap.images = images.map((i) => ({ url: i.image_url, alt: i.alt_text ?? null }));
   return snap;
 }
@@ -286,7 +289,7 @@ adminRouter.get("/products/:id", async (req, res) => {
 
     res.json({
       data: {
-        ...product,
+        ...await attachClassification(db,product),
         is_active: Boolean(product.is_active),
         is_featured: Boolean(product.is_featured),
         images,
@@ -303,6 +306,8 @@ adminRouter.get("/products/:id", async (req, res) => {
 // Crea un nuevo producto con sus imágenes
 // -----------------------------------------------
 adminRouter.post("/products", async (req, res) => {
+  const extra = classificationInput.safeParse(req.body);
+  if (!extra.success) { res.status(400).json({error:extra.error.issues[0].message}); return; }
   try {
     const {
       name,
@@ -394,6 +399,7 @@ adminRouter.post("/products", async (req, res) => {
         }
       }
 
+      await saveClassification(conn, productId, extra.data);
       await logAudit({ action: "product_create", entityType: "product", entityId: productId, ...actorOf(req),
         next: await productSnapshot(conn, productId) }, conn);
     });
@@ -416,7 +422,7 @@ adminRouter.post("/products", async (req, res) => {
 
     res.status(201).json({
       data: {
-        ...productRows[0],
+        ...await attachClassification(db,productRows[0]),
         is_active: Boolean(productRows[0].is_active),
         is_featured: Boolean(productRows[0].is_featured),
         images: productImages,
@@ -433,6 +439,8 @@ adminRouter.post("/products", async (req, res) => {
 // Actualiza un producto existente
 // -----------------------------------------------
 adminRouter.put("/products/:id", async (req, res) => {
+  const extra = classificationInput.safeParse(req.body);
+  if (!extra.success) { res.status(400).json({error:extra.error.issues[0].message}); return; }
   try {
     const { id } = req.params;
     const {
@@ -563,6 +571,7 @@ adminRouter.put("/products/:id", async (req, res) => {
         }
       }
 
+      await saveClassification(conn, String(id), extra.data);
       const after = (await productSnapshot(conn, String(id)))!;
       const diff = diffFields(before, after);
       if (diff) {
@@ -595,7 +604,7 @@ adminRouter.put("/products/:id", async (req, res) => {
 
     res.json({
       data: {
-        ...updatedRows[0],
+        ...await attachClassification(db,updatedRows[0]),
         is_active: Boolean(updatedRows[0].is_active),
         is_featured: Boolean(updatedRows[0].is_featured),
         images: productImages,

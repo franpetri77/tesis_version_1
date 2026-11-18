@@ -74,6 +74,8 @@ export function ActiveFilterChips({
     });
   }
 
+  if (currentFilters.tag) chips.push({label:`Etiqueta: ${currentFilters.tag}`,Icon:Tag,removeKeys:["etiqueta"]});
+
   if (chips.length === 0) return null;
 
   return (

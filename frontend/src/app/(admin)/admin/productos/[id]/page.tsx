@@ -18,6 +18,7 @@ import {
 } from "@/lib/api/admin";
 import type { Category, Product } from "@/types";
 import { useCanEdit } from "@/hooks/usePanelRole";
+import { ProductClassificationEditor } from "@/components/admin/ProductClassificationEditor";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -36,6 +37,8 @@ export default function EditProductPage() {
   const productId = params.id as string;
 
   // Estado del formulario
+  const [tagsText,setTagsText] = useState("");
+  const [metadata,setMetadata] = useState<Record<string,string|number|boolean>>({});
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
   const [price, setPrice] = useState("");
@@ -87,6 +90,8 @@ export default function EditProductPage() {
   }, [loadData]);
 
   function populateForm(product: Product) {
+    setTagsText((product.tags ?? []).map(t=>t.name).join(", "));
+    setMetadata(product.metadata as Record<string,string|number|boolean> ?? {});
     setName(product.name ?? "");
     setSku(product.sku ?? "");
     setPrice(String(product.price ?? ""));
@@ -166,6 +171,8 @@ export default function EditProductPage() {
         description: description.trim() || undefined,
         is_active: isActive,
         is_featured: isFeatured,
+        tags: tagsText.split(",").map(t=>t.trim()).filter(Boolean),
+        metadata,
         images: validImages,
       });
 
@@ -307,6 +314,7 @@ export default function EditProductPage() {
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Solo lectura: los campos se ven pero no se pueden editar */}
         <fieldset disabled={!canEdit} className="space-y-5 min-w-0">
+        <ProductClassificationEditor tags={tagsText} metadata={metadata} onTags={setTagsText} onMetadata={setMetadata} />
         {/* Información básica */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
           <h2 className="text-sm font-semibold text-slate-700 pb-2 border-b border-slate-100">

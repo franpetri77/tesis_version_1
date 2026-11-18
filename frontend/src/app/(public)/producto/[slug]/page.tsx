@@ -180,7 +180,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               {product.tags.map((tag) => (
                 <Link
                   key={tag.id}
-                  href={`/catalogo?buscar=${tag.slug}`}
+                  href={`/catalogo?etiqueta=${encodeURIComponent(tag.slug)}`}
                   className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full hover:bg-brand-50 hover:text-brand-700 transition-colors"
                 >
                   {tag.name}
@@ -191,6 +191,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
         </div>
       </div>
 
+      {product.metadata && Object.keys(product.metadata).length > 0 && <section className="mt-10 border-t border-paper-300 pt-6">
+        <h2 className="mb-4 text-lg font-semibold text-slate-900">Especificaciones técnicas</h2>
+        <dl className="max-w-3xl divide-y divide-paper-300 text-sm">{Object.entries(product.metadata).map(([key,value])=><div key={key} className="grid grid-cols-2 gap-4 py-3">
+          <dt className="text-slate-500">{key}</dt><dd className="text-slate-900">{typeof value==="boolean" ? value ? "Sí" : "No" : String(value)}</dd>
+        </div>)}</dl>
+      </section>}
       {/* ---- DESCRIPCIÓN COMPLETA ---- */}
       {product.description && (
         <section className="mt-14 pt-10 border-t border-slate-100">

@@ -77,6 +77,8 @@ export interface OrderReport {
 }
 
 export interface ProductInput {
+  tags?: string[];
+  metadata?: Record<string,string|number|boolean> | null;
   name: string;
   slug?: string;
   sku: string;

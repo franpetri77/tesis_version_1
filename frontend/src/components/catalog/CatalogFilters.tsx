@@ -14,9 +14,10 @@ import {
   Tag, ArrowUpDown, DollarSign, RotateCcw, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import type { Category, CatalogFilters as Filters } from "@/types";
+import type { ProductTag, Category, CatalogFilters as Filters } from "@/types";
 
 interface CatalogFiltersProps {
+  tags?: ProductTag[];
   categories: Category[];
   currentFilters: Filters;
   searchParams: Record<string, string | undefined>;
@@ -34,6 +35,7 @@ const SORT_OPTIONS = [
 
 function countActiveFilters(f: Filters): number {
   let n = 0;
+  if (f.tag) n++;
   if (f.category)  n++;
   if (f.search)    n++;
   if (f.min_price) n++;
@@ -43,6 +45,7 @@ function countActiveFilters(f: Filters): number {
 
 export function CatalogFilters({
   categories,
+  tags = [],
   currentFilters,
   searchParams,
   totalProducts,
@@ -89,6 +92,13 @@ export function CatalogFilters({
   ───────────────────────────────────────────────────────── */
   const panel = (
     <div className="space-y-2">
+      <label className="block border-b border-paper-300 pb-4 text-sm font-medium text-slate-700">Etiqueta
+        <select value={currentFilters.tag ?? ""} onChange={e=>navigate({etiqueta:e.target.value || undefined,pagina:undefined})} className="mt-2 w-full rounded border border-paper-300 bg-paper-50 px-2 py-2 text-sm focus-visible:ring-2 focus-visible:ring-brand-600">
+          <option value="">Todas las etiquetas</option>
+          {currentFilters.tag && !tags.some(t=>t.slug===currentFilters.tag) && <option value={currentFilters.tag}>{currentFilters.tag}</option>}
+          {tags.map(t=><option key={t.id} value={t.slug}>{t.name}</option>)}
+        </select>
+      </label>
 
       {/* ── Encabezado del panel ── */}
       <div className="flex items-center justify-between pb-3 mb-1">

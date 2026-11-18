@@ -8,7 +8,9 @@ const jwt = require('jsonwebtoken');
 
 let queries = [];
 let nextRows = [];
-const pool = { query: async (sql, params = []) => { queries.push({ sql: sql.replace(/\s+/g, ' '), params }); return [nextRows, []]; } };
+// T7 c1: el middleware del panel lee el rol vigente; se responde aparte y no se registra
+const ROLES = { "u-admin": "admin", "u-cust": "customer" };
+const pool = { query: async (sql, params = []) => { if (sql.includes("AS panel_role")) return [ROLES[params[0]] ? [{ panel_role: ROLES[params[0]] }] : [], []]; queries.push({ sql: sql.replace(/\s+/g, ' '), params }); return [nextRows, []]; } };
 require.cache[require.resolve('../dist/db/database')] = { exports: { __esModule: true, default: pool } };
 process.env.JWT_SECRET = 't1-local-memory-test-only';
 

@@ -3,10 +3,13 @@ const {test,before,after,beforeEach} = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 const jwt = require('jsonwebtoken');
-let rows,audit,tail=Promise.resolve(),failAudit=false,connections;
+let rows,audit,tail=Promise.resolve(),failAudit=false,connections,calls;
 const normalize = s=>s.replace(/\s+/g,' ').trim();
 function query(raw,args=[]) {
   const sql=normalize(raw);
+  // T7 c1: rol vigente que lee el middleware del panel (el id del token lo codifica: u-<rol>)
+  if(sql.includes("AS panel_role")) return [[{panel_role:args[0].slice(2)}],[]];
+  calls.push(sql);
   if(sql.startsWith('SELECT * FROM promotions WHERE id')) return [[structuredClone(rows.get(args[0]))].filter(Boolean),[]];
   if(sql.startsWith('SELECT * FROM promotions ORDER BY')) return [[...rows.values()].sort((a,b)=>a.code.localeCompare(b.code)),[]];
   if(sql.startsWith('INSERT INTO audit_logs')) { if(failAudit) throw Error('audit failure'); audit.push(args); return [{affectedRows:1},[]]; }
@@ -31,20 +34,23 @@ process.env.JWT_SECRET='promotions-local-tests';
 const {adminRouter}=require('../dist/routes/admin');
 const {promotionInput}=require('../dist/services/promotions');
 let server,base;
-const token=role=>jwt.sign({userId:'admin-1',role},process.env.JWT_SECRET);
+const token=role=>jwt.sign({userId:'u-'+role,role},process.env.JWT_SECRET);
 const input=(extra={})=>({code:' dto_10 ',name:'Descuento',description:null,type:'percentage',value:10,min_order_amount:null,max_uses:null,is_active:true,valid_from:'2026-11-18',valid_until:null,...extra});
 before(()=>new Promise(r=>{const app=express();app.use(express.json());app.use('/admin',adminRouter);server=app.listen(0,'127.0.0.1',()=>{base='http://127.0.0.1:'+server.address().port;r();});}));
 after(()=>new Promise(r=>server.close(r)));
-beforeEach(()=>{rows=new Map();audit=[];failAudit=false;connections=0;});
+beforeEach(()=>{rows=new Map();audit=[];failAudit=false;connections=0;calls=[];});
 async function request(method,path='',body,role='admin'){
   const res=await fetch(base+'/admin/promotions'+path,{method,headers:{'Content-Type':'application/json',...(role?{Authorization:'Bearer '+token(role)}:{})},...(body?{body:JSON.stringify(body)}:{})});
   return {status:res.status,body:await res.json()};
 }
-test('all promotion endpoints require administrator, before any database access',async()=>{
+test('readonly reads promotions; writes stay forbidden, customer denied and missing token rejected',async()=>{
   for(const role of [null,'customer','readonly']) for(const [method,path,body] of [['GET',''],['POST','',input()],['PUT','/p',input()],['PATCH','/p/active',{is_active:false}]]) {
-    assert.equal((await request(method,path,body,role)).status,role?403:401);
+    const expected=role==='readonly' && method==='GET' ? 200 : role ? 403 : 401;
+    assert.equal((await request(method,path,body,role)).status,expected);
   }
   assert.equal(connections,0);
+  assert.equal(calls.length,1,'only the allowed GET may query the database');
+  assert.ok(calls.every(sql=>sql.startsWith('SELECT')),'no writes from readonly');
 });
 test('create, edit, list and deactivate/reactivate preserve usage and identifiers',async()=>{
   const created=await request('POST','',input());assert.equal(created.status,201);const id=created.body.data.id;

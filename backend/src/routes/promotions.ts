@@ -3,7 +3,7 @@ import { z } from "zod";
 import db from "../db/database";
 import { presentPromotion, PromotionError, savePromotion, type PromotionRow } from "../services/promotions";
 
-// Mounted after requireAuth + requireAdmin in adminRouter.
+// Mounted after requireAuth + requirePanelAccess in adminRouter (readonly: GET only).
 export const promotionsRouter = Router();
 promotionsRouter.get("/", async (_req, res) => {
   try {

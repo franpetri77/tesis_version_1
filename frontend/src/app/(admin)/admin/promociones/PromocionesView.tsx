@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { formatPrice } from "@/lib/utils/format";
+import { useCanEdit } from "@/hooks/usePanelRole";
 import { listPromotions, savePromotion, setPromotionActive, type AdminPromotion, type PromotionInput } from "@/lib/api/promotions";
 
 const inputClass = "mt-1 w-full rounded border border-paper-300 bg-paper-50 px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:opacity-60";
@@ -16,6 +17,7 @@ const blank = (): Draft => ({code:"",name:"",description:"",type:"percentage",va
 const day = (value: string) => value.split("-").reverse().join("/");
 
 export function PromocionesView() {
+  const canEdit = useCanEdit();
   const [promotions, setPromotions] = useState<AdminPromotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +51,7 @@ export function PromocionesView() {
   }, [editing, busy]);
 
   function open(p?: AdminPromotion) {
+    if (!canEdit) return;
     setActionError(null); setMessage("");
     setEditor({id:p?.id ?? null, draft:p ? {code:p.code,name:p.name,type:p.type,is_active:p.is_active,valid_from:p.valid_from,description:p.description ?? "",value:String(p.value),
       min_order_amount:p.min_order_amount === null ? "" : String(p.min_order_amount),
@@ -62,7 +65,7 @@ export function PromocionesView() {
     setPromotions(rows => [...rows.filter(p => p.id !== saved.id), saved].sort((a,b)=>a.code.localeCompare(b.code)));
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!editor || busy) return;
+    event.preventDefault(); if (!canEdit || !editor || busy) return;
     setBusy(true); setActionError(null);
     const d = editor.draft;
     try {
@@ -74,7 +77,7 @@ export function PromocionesView() {
     finally { setBusy(false); }
   }
   async function toggle(p: AdminPromotion) {
-    if (busy) return;
+    if (!canEdit || busy) return;
     setBusy(true); setActionError(null); setMessage("");
     try {
       const saved = await setPromotionActive(p.id,!p.is_active);
@@ -90,12 +93,12 @@ export function PromocionesView() {
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Promociones</h1>
           <p className="mt-1 text-sm text-slate-500 tabular-nums">{loading ? "Cargando promociones…" : error ? "Consulta no disponible" : `${promotions.length} códigos · ${promotions.filter(p=>p.is_active).length} activos`}</p>
         </div>
-        <button ref={newRef} type="button" disabled={loading || !!error || busy || !!editor} onClick={()=>open()} className={primary}>Nueva promoción</button>
+        {canEdit && <button ref={newRef} type="button" disabled={loading || !!error || busy || !!editor} onClick={()=>open()} className={primary}>Nueva promoción</button>}
       </div>
       <p role="status" aria-live="polite" className="text-sm text-slate-600">{message}</p>
       {error && <div role="alert" className="space-y-2 text-sm text-slate-700"><p>{error}</p><button className={secondary} onClick={()=>setRetry(n=>n+1)}>Reintentar</button></div>}
       {actionError && <p role="alert" className="border-y border-paper-300 py-3 text-sm text-slate-700">{actionError}</p>}
-      {editor && d && (
+      {canEdit && editor && d && (
         <section aria-labelledby="editor-title" className="border-y border-paper-300 bg-paper-100 px-4 py-5 sm:px-6">
           <h2 id="editor-title" className="text-lg font-semibold tracking-tight text-slate-900">{editor.id ? "Editar promoción" : "Nueva promoción"}</h2>
           <p className="mt-1 max-w-prose text-sm text-slate-600">El código se aplica en el checkout. Los usos registrados se conservan al editar.</p>
@@ -118,7 +121,7 @@ export function PromocionesView() {
       )}
       {!error && <div className="overflow-x-auto border-y border-paper-300">
         <table className="w-full min-w-[850px] text-left text-sm tabular-nums">
-          <thead className="border-b border-paper-300 bg-paper-100"><tr>{["Código · Nombre","Beneficio","Mínimo","Usos","Vigencia","Estado","Acciones"].map(h=><th key={h} scope="col" className={`px-4 py-3 ${micro}`}>{h}</th>)}</tr></thead>
+          <thead className="border-b border-paper-300 bg-paper-100"><tr>{["Código · Nombre","Beneficio","Mínimo","Usos","Vigencia","Estado",...(canEdit ? ["Acciones"] : [])].map(h=><th key={h} scope="col" className={`px-4 py-3 ${micro}`}>{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-paper-200">
             {promotions.map(p=><tr key={p.id}>
               <th scope="row" className="px-4 py-4 font-normal"><span className="font-semibold tracking-wider text-slate-900">{p.code}</span><span className="mt-1 block text-xs text-slate-500">{p.name}</span></th>
@@ -127,9 +130,9 @@ export function PromocionesView() {
               <td className="px-4 py-4 text-slate-600">{p.current_uses} / {p.max_uses ?? "Sin límite"}</td>
               <td className="px-4 py-4 text-xs text-slate-600">{day(p.valid_from)}<span className="mt-1 block">{p.valid_until ? `a ${day(p.valid_until)}` : "Sin vencimiento"}</span></td>
               <td className="px-4 py-4 text-xs text-slate-600">{p.is_active ? "Activa" : "Inactiva"}</td>
-              <td className="px-4 py-4"><div className="flex gap-2"><button type="button" disabled={busy || !!editor} onClick={()=>open(p)} aria-label={`Editar ${p.code}`} className={secondary}>Editar</button><button type="button" disabled={busy || !!editor} onClick={()=>void toggle(p)} aria-label={`${p.is_active ? "Desactivar" : "Activar"} ${p.code}`} className={secondary}>{p.is_active ? "Desactivar" : "Activar"}</button></div></td>
+              {canEdit && <td className="px-4 py-4"><div className="flex gap-2"><button type="button" disabled={busy || !!editor} onClick={()=>open(p)} aria-label={`Editar ${p.code}`} className={secondary}>Editar</button><button type="button" disabled={busy || !!editor} onClick={()=>void toggle(p)} aria-label={`${p.is_active ? "Desactivar" : "Activar"} ${p.code}`} className={secondary}>{p.is_active ? "Desactivar" : "Activar"}</button></div></td>}
             </tr>)}
-            {!promotions.length && <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-500">{loading ? "Cargando promociones…" : "No hay promociones creadas todavía"}</td></tr>}
+            {!promotions.length && <tr><td colSpan={canEdit ? 7 : 6} className="px-4 py-10 text-center text-slate-500">{loading ? "Cargando promociones…" : "No hay promociones creadas todavía"}</td></tr>}
           </tbody>
         </table>
       </div>}

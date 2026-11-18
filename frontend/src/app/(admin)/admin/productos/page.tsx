@@ -8,6 +8,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Plus, Package } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { AdminOnly } from "@/components/admin/AdminOnly";
 import { formatPrice } from "@/lib/utils/format";
 import type { Product } from "@/types";
 
@@ -55,13 +56,15 @@ export default async function AdminProductsPage() {
             )}
           </p>
         </div>
-        <Link
-          href="/admin/productos/nuevo"
-          className="inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-700 transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Nuevo producto
-        </Link>
+        <AdminOnly>
+          <Link
+            href="/admin/productos/nuevo"
+            className="inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-700 transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Nuevo producto
+          </Link>
+        </AdminOnly>
       </div>
 
       {/* Tabla */}
@@ -157,7 +160,7 @@ export default async function AdminProductsPage() {
                         href={`/admin/productos/${product.id}`}
                         className="text-brand-600 hover:text-brand-700 text-xs font-semibold transition-colors"
                       >
-                        Editar
+                        <AdminOnly fallback="Ver">Editar</AdminOnly>
                       </Link>
                     </td>
                   </tr>
@@ -167,9 +170,11 @@ export default async function AdminProductsPage() {
                 <tr>
                   <td colSpan={8} className="px-4 py-14 text-center text-slate-400">
                     No hay productos registrados.{" "}
-                    <Link href="/admin/productos/nuevo" className="text-brand-600 hover:underline font-semibold">
-                      Crear el primero
-                    </Link>
+                    <AdminOnly>
+                      <Link href="/admin/productos/nuevo" className="text-brand-600 hover:underline font-semibold">
+                        Crear el primero
+                      </Link>
+                    </AdminOnly>
                   </td>
                 </tr>
               )}

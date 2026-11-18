@@ -17,6 +17,7 @@ import {
   toggleProduct,
 } from "@/lib/api/admin";
 import type { Category, Product } from "@/types";
+import { useCanEdit } from "@/hooks/usePanelRole";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -29,6 +30,7 @@ interface ImageField {
 }
 
 export default function EditProductPage() {
+  const canEdit = useCanEdit();
   const router = useRouter();
   const params = useParams();
   const productId = params.id as string;
@@ -243,13 +245,13 @@ export default function EditProductPage() {
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Editar producto</h1>
+            <h1 className="text-xl font-bold text-slate-900">{canEdit ? "Editar producto" : "Detalle del producto"}</h1>
             <p className="text-sm text-slate-500 mt-0.5 font-mono">{sku}</p>
           </div>
         </div>
 
-        {/* Acciones rápidas */}
-        <div className="flex items-center gap-2">
+        {/* Acciones rápidas (sólo administrador) */}
+        {canEdit && <div className="flex items-center gap-2">
           {/* Toggle activar/desactivar */}
           <button
             type="button"
@@ -286,7 +288,7 @@ export default function EditProductPage() {
             )}
             Eliminar
           </button>
-        </div>
+        </div>}
       </div>
 
       {/* Mensajes de estado */}
@@ -303,6 +305,8 @@ export default function EditProductPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Solo lectura: los campos se ven pero no se pueden editar */}
+        <fieldset disabled={!canEdit} className="space-y-5 min-w-0">
         {/* Información básica */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
           <h2 className="text-sm font-semibold text-slate-700 pb-2 border-b border-slate-100">
@@ -531,8 +535,10 @@ export default function EditProductPage() {
           </label>
         </div>
 
-        {/* Acciones del formulario */}
-        <div className="flex items-center gap-3 pt-2">
+        </fieldset>
+
+        {/* Acciones del formulario (sólo administrador) */}
+        {canEdit && <div className="flex items-center gap-3 pt-2">
           <button
             type="submit"
             disabled={saving}
@@ -547,7 +553,7 @@ export default function EditProductPage() {
           >
             Cancelar
           </Link>
-        </div>
+        </div>}
       </form>
     </div>
   );

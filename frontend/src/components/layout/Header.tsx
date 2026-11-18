@@ -50,7 +50,8 @@ export function Header() {
   const totalItems  = useCartStore((s) => s.total_items);
   const { user, isAuthenticated } = useAuthStore();
   const openModal = useModalStore((s) => s.openModal);
-  const isAdmin = isAuthenticated && user?.role === "admin";
+  // El panel lo ven el administrador y el rol de solo lectura (T7)
+  const canSeePanel = isAuthenticated && (user?.role === "admin" || user?.role === "readonly");
   const showCategoryNav = pathname !== "/catalogo";
 
   // Cerrar dropdown al hacer click fuera
@@ -122,7 +123,7 @@ export function Header() {
 
           {/* Acciones — desktop */}
           <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
-            {isAdmin && (
+            {canSeePanel && (
               <Link
                 href="/admin"
                 className={cn("flex items-center gap-1.5 rounded-lg border border-paper-300 px-2.5 py-2 text-sm font-medium text-slate-700 hover:bg-paper-100 hover:text-slate-900", COLOR_TRANSITION, FOCUS_RING)}
@@ -350,7 +351,7 @@ export function Header() {
                   <ShoppingBag className="w-4 h-4 text-slate-400" aria-hidden="true" />
                   Mis pedidos
                 </Link>
-                {isAdmin && (
+                {canSeePanel && (
                   <Link
                     href="/admin"
                     className={cn("flex items-center gap-2.5 rounded-lg border border-paper-300 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-paper-100 hover:text-slate-900", COLOR_TRANSITION, FOCUS_RING)}

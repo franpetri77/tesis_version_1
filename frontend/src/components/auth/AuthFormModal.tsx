@@ -9,6 +9,7 @@
 // =============================================
 
 import { useState, useEffect } from "react";
+import { passwordTooLong } from "@/lib/utils/password";
 import {
   Eye, EyeOff, AlertCircle, CheckCircle2, ArrowRight, ArrowLeft,
 } from "lucide-react";
@@ -298,8 +299,8 @@ function RegisterForm({ onSuccess, goLogin, setUser }: RegisterFormProps) {
     if (!form.password) newErrors.password = "La contraseña es requerida";
     else if (form.password.length < 8)
       newErrors.password = "La contraseña debe tener al menos 8 caracteres";
-    else if (form.password.length > 72)
-      newErrors.password = "La contraseña no puede superar los 72 caracteres";
+    else if (passwordTooLong(form.password))
+      newErrors.password = "La contraseña es demasiado larga: admite hasta 72 caracteres, y cada tilde, ñ o emoji cuenta como más de uno";
     else if (!isPasswordValid(form.password))
       newErrors.password = "Debe incluir al menos una letra y un número";
     if (form.password !== form.confirm_password)

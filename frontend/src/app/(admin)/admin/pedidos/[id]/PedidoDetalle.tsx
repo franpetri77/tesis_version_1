@@ -9,6 +9,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { useCanEdit } from "@/hooks/usePanelRole";
 import { ArrowLeft } from "lucide-react";
 import { Badge, ORDER_STATUS_LABEL, ORDER_STATUS_VARIANT } from "@/components/ui/Badge";
 import { formatDateTime, formatPrice } from "@/lib/utils/format";
@@ -20,6 +21,7 @@ const statusText = (s: string | null) => (s ? ORDER_STATUS_LABEL[s as OrderStatu
 const PAYMENT_LABEL: Record<string, string> = { approved: "aprobado", pending: "pendiente", rejected: "rechazado", cancelled: "cancelado", refunded: "reembolsado" };
 
 export function PedidoDetalle({ orderId }: { orderId: string }) {
+  const canEdit = useCanEdit();
   const [order, setOrder] = useState<AdminOrderDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);   // transición elegida, a confirmar
@@ -86,7 +88,11 @@ export function PedidoDetalle({ orderId }: { orderId: string }) {
       {/* ---- Acciones ---- */}
       <section aria-labelledby="acciones" className="rounded-xl border border-paper-300 bg-paper-50 p-5">
         <h2 id="acciones" className={label}>Estado del pedido</h2>
-        {order.allowed_transitions.length === 0 ? (
+        {!canEdit ? (
+          <p className="mt-2 text-sm text-slate-600">
+            {statusText(order.status)}. Tu usuario es de solo lectura: no puede cambiar el estado.
+          </p>
+        ) : order.allowed_transitions.length === 0 ? (
           <p className="mt-2 text-sm text-slate-600">
             {order.status === "delivered" ? "El pedido ya fue entregado." :
              order.status === "cancelled" || order.status === "refunded" ? "El pedido está cerrado." :

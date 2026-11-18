@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/Badge";
 import { formatDate } from "@/lib/utils/format";
 import { getAdminUsers, updateUserRole, deleteUser } from "@/lib/api/admin";
 import { useAuthStore } from "@/stores/authStore";
+import { useCanEdit } from "@/hooks/usePanelRole";
 import type { User, UserRole } from "@/types";
 
 // -----------------------------------------------
@@ -37,6 +38,7 @@ const ROLE_ICON: Record<UserRole, React.ReactNode> = {
 
 export default function AdminUsersPage() {
   const currentUser = useAuthStore((s) => s.user);
+  const canEdit = useCanEdit();
 
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -274,8 +276,8 @@ export default function AdminUsersPage() {
                       {/* Acciones */}
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-3">
-                          {/* Cambiar rol */}
-                          {!isEditing && (
+                          {/* Cambiar rol (sólo administrador) */}
+                          {canEdit && !isEditing && (
                             <button
                               onClick={() => startEditRole(user.id, user.role)}
                               className="text-xs text-brand-600 hover:text-brand-700 font-semibold transition-colors"
@@ -284,8 +286,8 @@ export default function AdminUsersPage() {
                             </button>
                           )}
 
-                          {/* Eliminar (no mostrar para el usuario logueado) */}
-                          {!isCurrentUser && (
+                          {/* Eliminar (no mostrar para el usuario logueado ni a solo lectura) */}
+                          {canEdit && !isCurrentUser && (
                             <button
                               onClick={() => handleDelete(user)}
                               disabled={isDeleting}

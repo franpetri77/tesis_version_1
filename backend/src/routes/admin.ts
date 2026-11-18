@@ -9,6 +9,7 @@ import { randomUUID } from "crypto";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
+import { requirePanelAccess } from "../middleware/roles";
 import { OrderStatusError, allowedTransitions, changeOrderStatus, ORDER_STATUS_LABELS } from "../services/orderStatus";
 import { promotionsRouter } from "./promotions";
 import { diffFields, logAudit, withTransaction } from "../services/audit";
@@ -29,22 +30,10 @@ interface AuthRequest extends Request {
   };
 }
 
-// -----------------------------------------------
-// Middleware: verifica que el usuario sea admin
-// Se aplica después de requireAuth
-// -----------------------------------------------
-function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  const authReq = req as AuthRequest;
-  if (authReq.user?.role !== "admin") {
-    res.status(403).json({ error: "Acceso denegado: se requiere rol de administrador" });
-    return;
-  }
-  next();
-}
-
-// Aplicar ambos middlewares a todas las rutas de admin
+// Autenticación y rol en todas las rutas de admin: el administrador puede
+// todo; el rol de solo lectura, sólo consultar (middleware/roles.ts).
 adminRouter.use(requireAuth as unknown as (req: Request, res: Response, next: NextFunction) => void);
-adminRouter.use(requireAdmin);
+adminRouter.use(requirePanelAccess);
 adminRouter.use("/promotions", promotionsRouter);
 
 // -----------------------------------------------
@@ -143,6 +132,21 @@ adminRouter.get("/users", async (_req, res) => {
 });
 
 // -----------------------------------------------
+// Protección del último administrador (T7)
+// Siempre se bloquea primero el conjunto de administradores y después el
+// usuario afectado: con ese orden fijo, dos admins que se quitan el rol al
+// mismo tiempo se esperan en lugar de cruzarse, y el segundo ve el cambio
+// del primero.
+// -----------------------------------------------
+class LastAdminError extends Error {}
+const LAST_ADMIN_MESSAGE = "Es el único administrador: asigná otro administrador antes de quitarle el rol o eliminarlo.";
+
+async function lockAdminIds(conn: PoolConnection): Promise<string[]> {
+  const [rows] = await conn.query<RowDataPacket[]>("SELECT id FROM users WHERE role = 'admin' FOR UPDATE");
+  return rows.map((r) => String(r.id));
+}
+
+// -----------------------------------------------
 // PUT /admin/users/:id/role
 // Actualiza el rol de un usuario
 // Body: { role: 'admin' | 'customer' | 'readonly' }
@@ -160,11 +164,13 @@ adminRouter.put("/users/:id/role", async (req, res) => {
 
     // Cambio de rol y auditoría en una sola transacción
     const updated = await withTransaction(async (conn) => {
+      const admins = await lockAdminIds(conn);
       const [existing] = await conn.query<RowDataPacket[]>(
         "SELECT id, role FROM users WHERE id = ? FOR UPDATE",
         [id]
       );
       if (existing.length === 0) return null;
+      if (existing[0]!.role === "admin" && role !== "admin" && admins.length <= 1) throw new LastAdminError();
 
       await conn.query(
         "UPDATE users SET role = ?, updated_at = NOW() WHERE id = ?",
@@ -187,6 +193,10 @@ adminRouter.put("/users/:id/role", async (req, res) => {
 
     res.json({ data: updated });
   } catch (error) {
+    if (error instanceof LastAdminError) {
+      res.status(409).json({ error: LAST_ADMIN_MESSAGE });
+      return;
+    }
     console.error("[Admin] Error actualizando rol:", error);
     res.status(500).json({ error: "Error al actualizar el rol del usuario" });
   }
@@ -211,11 +221,13 @@ adminRouter.delete("/users/:id", async (req, res) => {
     // Baja y auditoría juntas: si el usuario tiene registros asociados, el
     // DELETE falla con ER_ROW_IS_REFERENCED_2 y no queda nada a medias
     const found = await withTransaction(async (conn) => {
+      const admins = await lockAdminIds(conn);
       const [existing] = await conn.query<RowDataPacket[]>(
         "SELECT id, email, role FROM users WHERE id = ? FOR UPDATE",
         [id]
       );
       if (existing.length === 0) return false;
+      if (existing[0]!.role === "admin" && admins.length <= 1) throw new LastAdminError();
       await conn.query("DELETE FROM users WHERE id = ?", [id]);
       await logAudit({ action: "user_delete", entityType: "user", entityId: String(id), ...actorOf(req),
         previous: { email: existing[0]!.email, role: existing[0]!.role } }, conn);
@@ -227,6 +239,10 @@ adminRouter.delete("/users/:id", async (req, res) => {
     }
     res.json({ success: true });
   } catch (error) {
+    if (error instanceof LastAdminError) {
+      res.status(409).json({ error: LAST_ADMIN_MESSAGE });
+      return;
+    }
     if ((error as { code?: string }).code === "ER_ROW_IS_REFERENCED_2") {
       res.status(409).json({ error: "El usuario tiene pedidos o registros asociados. Cambiale el rol en lugar de eliminarlo." });
       return;

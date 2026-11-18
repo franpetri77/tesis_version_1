@@ -17,7 +17,7 @@ import { dispatch, notifyNewReview } from "../services/notifications";
 import { getRecommendedProducts, type RecommendationContext } from "../services/recommendations";
 
 // Mismo secreto que en auth.ts; se extrae para el endpoint de visitas (token opcional)
-const JWT_SECRET = process.env.JWT_SECRET ?? "tele-import-dev-secret-2024";
+import { JWT_SECRET } from "../config/jwt";
 
 interface AuthRequest extends Request {
   user: { userId: string; role: string };

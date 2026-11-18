@@ -12,6 +12,7 @@ import Link from "next/link";
 import { ArrowLeft, Plus, Trash2, Loader2, AlertCircle } from "lucide-react";
 import { createProduct } from "@/lib/api/admin";
 import type { Category } from "@/types";
+import { useCanEdit } from "@/hooks/usePanelRole";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -24,6 +25,7 @@ interface ImageField {
 }
 
 export default function NewProductPage() {
+  const canEdit = useCanEdit();
   const router = useRouter();
 
   // Estado del formulario
@@ -150,6 +152,13 @@ export default function NewProductPage() {
         </div>
       )}
 
+      {/* El rol de solo lectura no puede dar de alta productos (T7) */}
+      {!canEdit ? (
+        <p className="text-sm text-slate-600 border-y border-paper-300 py-4">
+          Tu usuario es de solo lectura: no puede crear productos.{" "}
+          <Link href="/admin/productos" className="font-semibold text-slate-900 underline underline-offset-2">Volver al listado</Link>
+        </p>
+      ) : (
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Información básica */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
@@ -397,6 +406,7 @@ export default function NewProductPage() {
           </Link>
         </div>
       </form>
+      )}
     </div>
   );
 }

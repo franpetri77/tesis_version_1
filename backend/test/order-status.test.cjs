@@ -11,6 +11,8 @@ const N = s => s.replace(/\s+/g, ' ').trim();
 function query(raw, a = []) {
   const sql = N(raw);
   const r = rows => [structuredClone(rows), []];
+  // T7: rol vigente que consulta el middleware del panel
+  if (sql.includes('AS panel_role')) return r({ 'u-admin': [{ panel_role: 'admin' }], 'u-c': [{ panel_role: 'customer' }] }[a[0]] ?? []);
   if (sql.startsWith('SELECT id, status, delivery_method FROM orders WHERE id = ? FOR UPDATE')) { const o = state.orders.get(a[0]); return r(o ? [o] : []); }
   if (sql.startsWith("SELECT id FROM payments WHERE order_id = ? AND status IN ('pending', 'approved')")) return r(state.payments.filter(p => p.order_id === a[0] && ['pending', 'approved'].includes(p.status)));
   if (sql.includes('FROM orders WHERE id = ? FOR UPDATE') && sql.includes('stock_reserved_at')) { const o = state.orders.get(a[0]); return r(o ? [{ ...o, expired: 0 }] : []); }

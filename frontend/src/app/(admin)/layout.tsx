@@ -2,7 +2,7 @@
 
 // =============================================
 // LAYOUT DEL PANEL DE ADMINISTRACIÓN
-// Solo accesible para usuarios con rol "admin".
+// Accesible para "admin" (completo) y "readonly" (sólo consulta, T7).
 // Sidebar con active link detection.
 // =============================================
 
@@ -13,6 +13,7 @@ import { Zap, LayoutDashboard, Package, ShoppingBag, Warehouse, BarChart3, Users
 import { cn } from "@/lib/utils/cn";
 import { getMe } from "@/lib/api/auth";
 import { useAuthStore } from "@/stores/authStore";
+import { useCanEdit } from "@/hooks/usePanelRole";
 
 const adminNavLinks = [
   { href: "/admin",              label: "Dashboard",   icon: LayoutDashboard },
@@ -33,6 +34,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const setUser = useAuthStore((s) => s.setUser);
   const clearUser = useAuthStore((s) => s.clearUser);
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
+  const canEdit = useCanEdit();
 
   useEffect(() => {
     let isMounted = true;
@@ -49,7 +51,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       try {
         const me = await getMe(token);
 
-        if (me.role !== "admin") {
+        // admin: acceso completo; readonly: consulta (T7). Los demás, afuera.
+        if (me.role !== "admin" && me.role !== "readonly") {
           router.replace("/");
           return;
         }
@@ -142,6 +145,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="bg-white border-b border-slate-200 px-8 py-3.5 flex items-center justify-between z-10 shadow-header flex-shrink-0">
           <span className="text-xs font-medium text-slate-400 uppercase tracking-widest">
             Panel de administración
+            {!canEdit && <span className="ml-3 normal-case tracking-normal text-slate-600">· Solo lectura: podés consultar, no modificar</span>}
           </span>
           <Link
             href="/catalogo"

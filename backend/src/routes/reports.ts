@@ -15,18 +15,11 @@ import {
   REPORT_TIMEZONE, SALE_STATUSES_SQL, TrendInputError, computeTrend, nextDay, todayInReportZone, validateTrendInput,
   type TrendRow,
 } from "../services/salesTrend";
+import { requirePanelAccess } from "../middleware/roles";
 import { dispatch, notifyLowStock } from "../services/notifications";
 
 interface AuthRequest extends Request {
   user: { userId: string; role: string };
-}
-
-function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  if ((req as AuthRequest).user?.role !== "admin") {
-    res.status(403).json({ error: "Acceso denegado: se requiere rol de administrador" });
-    return;
-  }
-  next();
 }
 
 const castAuth = requireAuth as unknown as (req: Request, res: Response, next: NextFunction) => void;
@@ -34,10 +27,10 @@ const castAuth = requireAuth as unknown as (req: Request, res: Response, next: N
 export const reportsRouter = Router();
 
 // Todo el módulo de reportes es administrativo: cada ruta exige un JWT válido
-// con rol "admin". Antes, siete endpoints (sales, top-products, worst-products,
+// con rol "admin", o "readonly" para consultar (T7). Antes, siete endpoints (sales, top-products, worst-products,
 // orders, users, metrics, promotions) respondían sin autenticación y exponían
 // datos comerciales y personales (emails y teléfonos de clientes).
-reportsRouter.use(castAuth, requireAdmin);
+reportsRouter.use(castAuth, requirePanelAccess);
 
 // -----------------------------------------------
 // Tipos internos para las consultas
@@ -390,7 +383,7 @@ interface ProductStockRow extends RowDataPacket {
 // GET /reports/stock-movements?limit=50
 // Historial de movimientos de stock (admin)
 // -----------------------------------------------
-reportsRouter.get("/stock-movements", castAuth, requireAdmin, async (req, res) => {
+reportsRouter.get("/stock-movements", castAuth, requirePanelAccess, async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit ?? 50), 200);
 
@@ -437,7 +430,7 @@ reportsRouter.get("/stock-movements", castAuth, requireAdmin, async (req, res) =
 // Actualiza products.stock_quantity, inserta en
 // stock_movements y registra en audit_logs.
 // -----------------------------------------------
-reportsRouter.post("/stock-movement", castAuth, requireAdmin, async (req, res) => {
+reportsRouter.post("/stock-movement", castAuth, requirePanelAccess, async (req, res) => {
   const authReq = req as AuthRequest;
   const { product_id, type, quantity, reason } = req.body as {
     product_id?: string;
@@ -633,7 +626,7 @@ interface MostVisitedRow extends RowDataPacket {
 // Productos con más visitas al detalle, orden descendente.
 // Rango de fechas opcional; sin rango = histórico completo.
 // -----------------------------------------------
-reportsRouter.get("/most-visited-products", castAuth, requireAdmin, async (req, res) => {
+reportsRouter.get("/most-visited-products", castAuth, requirePanelAccess, async (req, res) => {
   const limit = Math.min(Number(req.query.limit ?? 10), 100);
   const { from, to } = req.query as { from?: string; to?: string };
 

@@ -1,7 +1,7 @@
 // No MySQL, real mail or persisted products. Stateful SQL double for rollback.
 const {test,before,after,beforeEach}=require('node:test');const assert=require('node:assert/strict');
 const express=require('express'),jwt=require('jsonwebtoken');
-let product,tags,maps,audits,queries,failAudit=false,tx,server,base;
+let product,tags,maps,audits,queries,failAudit=false,tx,server,base,staleSnapshot=false;
 const clone=v=>structuredClone(v);const normalize=s=>s.replace(/\s+/g,' ').trim();
 async function query(raw,a=[]){const s=normalize(raw);queries.push({s,a});
  if(s.includes('AS panel_role'))return [[{panel_role:a[0]==='admin'?'admin':'readonly'}],[]];
@@ -13,7 +13,7 @@ async function query(raw,a=[]){const s=normalize(raw);queries.push({s,a});
  if(s.startsWith('UPDATE products SET metadata')){product.metadata=a[0];return [{affectedRows:1},[]];}
  if(s.startsWith('DELETE FROM product_tag_map')){maps.clear();return [{},[]];}
  if(s.startsWith('INSERT INTO product_tags')){if(!tags.has(a[2]))tags.set(a[2],{id:a[0],name:a[1],slug:a[2]});return [{},[]];}
- if(s.startsWith('SELECT id FROM product_tags'))return [[{id:tags.get(a[0]).id}],[]];
+ if(s.startsWith('SELECT id FROM product_tags'))return [staleSnapshot && !s.endsWith('FOR UPDATE') ? [] : [{id:tags.get(a[0]).id}],[]];
  if(s.startsWith('INSERT INTO product_tag_map')){maps.add([...tags.values()].find(t=>t.id===a[1]).slug);return [{},[]];}
  if(s.startsWith('INSERT INTO audit_logs')){if(failAudit)throw Error('audit blocked');audits.push(a);return [{},[]];}
  if(s.startsWith('SELECT COUNT(*) as count'))return [[{count:1}],[]];
@@ -29,7 +29,7 @@ const {classificationInput,parseMetadata,tagSlug}=require('../dist/services/prod
 const {adminRouter}=require('../dist/routes/admin');const {catalogRouter}=require('../dist/routes/catalog');
 before(async()=>{const app=express();app.use(express.json());app.use('/admin',adminRouter);app.use('/catalog',catalogRouter);server=await new Promise(r=>{const s=app.listen(0,'127.0.0.1',()=>r(s));});base='http://127.0.0.1:'+server.address().port;});
 after(()=>new Promise(r=>server.close(r)));
-beforeEach(()=>{product={id:'p',name:'Mouse',slug:'mouse',sku:'M',price:10,compare_price:null,category_id:'c',stock_quantity:5,brand:null,model:null,description:null,short_description:null,is_featured:0,is_active:1,metadata:'{}'};tags=new Map();maps=new Set();audits=[];queries=[];failAudit=false;});
+beforeEach(()=>{product={id:'p',name:'Mouse',slug:'mouse',sku:'M',price:10,compare_price:null,category_id:'c',stock_quantity:5,brand:null,model:null,description:null,short_description:null,is_featured:0,is_active:1,metadata:'{}'};tags=new Map();maps=new Set();audits=[];queries=[];failAudit=false;staleSnapshot=false;});
 async function call(method,path,body,role='admin'){const r=await fetch(base+path,{method,headers:{'Content-Type':'application/json',...(role?{Authorization:'Bearer '+jwt.sign({userId:role,role},process.env.JWT_SECRET)}:{})},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,body:await r.json()};}
 test('validation: bounded flat specs, labels and reserved keys; legacy malformed JSON renders empty',()=>{
  assert.equal(tagSlug('Conexión USB-C'),'conexion-usb-c');
@@ -63,4 +63,20 @@ test('catalog vocabulary exposes only assigned active tags, and detail parses sp
  await call('PUT','/admin/products/p',{tags:['Audio'],metadata:{Potencia:'20 W'}});
  const v=await call('GET','/catalog/tags');assert.equal(v.status,200);assert.ok(queries.some(q=>q.s.includes('WHERE p.is_active=1 GROUP BY')));
  const r=await call('GET','/catalog/products/mouse');assert.equal(r.status,200);assert.equal(r.body.data.tags[0].name,'Audio');assert.equal(r.body.data.metadata.Potencia,'20 W');
+});
+
+test('repeatable read: tag lookup after upsert uses a current locking read, not the stale snapshot',async()=>{
+ staleSnapshot=true;
+ const r=await call('PUT','/admin/products/p',{tags:['Compartida']});
+ assert.equal(r.status,200);assert.equal(maps.size,1);
+ assert.ok(queries.some(q=>q.s==='SELECT id FROM product_tags WHERE slug = ? FOR UPDATE'));
+});
+test('normalized metadata duplicate keys return 400 without losing either value',async()=>{
+ const r=await call('PUT','/admin/products/p',{metadata:{Puertos:'HDMI','Puertos ':'USB'}});
+ assert.equal(r.status,400);assert.match(r.body.error,/repetido/);assert.equal(product.metadata,'{}');
+ assert.deepEqual(classificationInput.parse({metadata:{' Puertos ':'HDMI'}}).metadata,{Puertos:'HDMI'});
+});
+test('reachable validation errors are in Spanish',()=>{
+ const cases=[{tags:['x'.repeat(101)]},{tags:['']},{metadata:{Puertos:'x'.repeat(501)}}];
+ for(const input of cases){const result=classificationInput.safeParse(input);assert.equal(result.success,false);assert.match(result.error.issues[0].message,/no puede|no pueden/);assert.doesNotMatch(result.error.issues[0].message,/String must/);}
 });

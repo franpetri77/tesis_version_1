@@ -197,7 +197,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
               totalProducts={productsResult.total}
               mobileOnly
             />
-            <ActiveFilterChips
+            <ActiveFilterChips tags={tags}
               currentFilters={filters}
               searchParams={rawParams}
               categories={categories}

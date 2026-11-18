@@ -9,6 +9,7 @@ import { randomUUID } from "crypto";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
+import { promotionsRouter } from "./promotions";
 
 export const adminRouter = Router();
 
@@ -38,6 +39,7 @@ function requireAdmin(req: Request, res: Response, next: NextFunction): void {
 // Aplicar ambos middlewares a todas las rutas de admin
 adminRouter.use(requireAuth as unknown as (req: Request, res: Response, next: NextFunction) => void);
 adminRouter.use(requireAdmin);
+adminRouter.use("/promotions", promotionsRouter);
 
 // -----------------------------------------------
 // Función auxiliar: genera un slug desde un texto

@@ -24,6 +24,14 @@ import { startReservationExpiry } from "./services/orderStock";
 const app = express();
 const PORT = process.env.PORT ?? 4000;
 
+// Detrás del proxy de Railway, req.ip sería la IP del proxy para todos los
+// visitantes: el límite de intentos del login los contaría juntos y la
+// auditoría guardaría siempre la misma IP. TRUST_PROXY indica cuántos saltos
+// de proxy confiar (Railway: 1). Sin la variable no se confía en
+// X-Forwarded-For, que un cliente podría falsificar.
+const TRUST_PROXY = Number(process.env.TRUST_PROXY ?? 0);
+if (Number.isInteger(TRUST_PROXY) && TRUST_PROXY > 0) app.set("trust proxy", TRUST_PROXY);
+
 // -----------------------------------------------
 // Middleware global
 // -----------------------------------------------

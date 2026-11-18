@@ -21,12 +21,14 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { randomUUID, randomBytes, createHash } from "crypto";
 import type { RowDataPacket } from "mysql2";
+import { z } from "zod";
 import db from "../db/database";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../services/mailer";
+import { clearLoginFailures, loginBlockedFor, recordLoginFailure, takeEmailRequest } from "../services/rateLimit";
 
 export const authRouter = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "tele-import-dev-secret-2024";
+import { JWT_SECRET } from "../config/jwt";
 const JWT_EXPIRES_IN = "7d"; // Token válido por 7 días
 const FRONTEND_URL = (process.env.FRONTEND_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
@@ -63,32 +65,78 @@ async function createAuthToken(
 }
 
 // -----------------------------------------------
-// Validaciones de credenciales (compartidas)
+// Validación de los cuerpos con Zod (T7)
+// Cada ruta valida tipo, longitud y formato antes de tocar la base: un
+// email que no es texto ya no rompe el login con un 500. Los mensajes son
+// los mismos que antes, para no cambiar lo que ve el usuario.
 // -----------------------------------------------
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Devuelve un mensaje de error si el email es inválido, o null si es válido. */
-function validateEmail(raw: unknown): string | null {
-  if (typeof raw !== "string" || !raw.trim()) return "El email es requerido";
-  const email = raw.trim().toLowerCase();
-  if (email.length > 255) return "El email es demasiado largo";
-  if (!EMAIL_REGEX.test(email)) return "El email no tiene un formato válido";
-  return null;
-}
+const emailField = z.string({ required_error: "El email es requerido", invalid_type_error: "El email es requerido" })
+  .trim().toLowerCase()
+  .min(1, "El email es requerido")
+  .max(255, "El email es demasiado largo")
+  .regex(EMAIL_REGEX, "El email no tiene un formato válido");
 
 /**
- * Devuelve un mensaje de error si la contraseña no cumple la política, o null.
  * Política: 8–72 caracteres, al menos una letra y un número.
  * (72 es el límite efectivo de bcrypt; más allá se truncaría silenciosamente.)
  */
-function validatePassword(raw: unknown): string | null {
-  if (typeof raw !== "string" || !raw) return "La contraseña es requerida";
-  if (raw.length < 8) return "La contraseña debe tener al menos 8 caracteres";
-  if (raw.length > 72) return "La contraseña no puede superar los 72 caracteres";
-  if (!/[a-zA-Z]/.test(raw)) return "La contraseña debe incluir al menos una letra";
-  if (!/[0-9]/.test(raw)) return "La contraseña debe incluir al menos un número";
+const passwordField = z.string({ required_error: "La contraseña es requerida", invalid_type_error: "La contraseña es requerida" })
+  .min(1, "La contraseña es requerida")
+  .min(8, "La contraseña debe tener al menos 8 caracteres")
+  .max(72, "La contraseña no puede superar los 72 caracteres")
+  .regex(/[a-zA-Z]/, "La contraseña debe incluir al menos una letra")
+  .regex(/[0-9]/, "La contraseña debe incluir al menos un número");
+
+const NAME_REQUIRED = "Nombre y apellido son requeridos";
+const nameField = z.string({ required_error: NAME_REQUIRED, invalid_type_error: NAME_REQUIRED })
+  .trim().min(1, NAME_REQUIRED).max(100, "Nombre y apellido no pueden superar los 100 caracteres");
+const phoneField = z.string().trim().max(50, "El teléfono es demasiado largo").nullish()
+  .transform((v) => (v ? v : null));
+
+// El login no aplica la política de contraseñas (las cuentas existentes
+// pueden ser anteriores a ella); sólo exige texto razonable.
+const loginSchema = z.object({
+  email: z.string({ invalid_type_error: "Email y contraseña son requeridos" }).trim().toLowerCase()
+    .min(1, "Email y contraseña son requeridos").max(255, "Credenciales incorrectas"),
+  password: z.string({ invalid_type_error: "Email y contraseña son requeridos" })
+    .min(1, "Email y contraseña son requeridos").max(200, "Credenciales incorrectas"),
+}, { required_error: "Email y contraseña son requeridos" });
+const registerSchema = z.object({
+  first_name: nameField,
+  last_name: nameField,
+  email: emailField,
+  password: passwordField,
+  phone: phoneField,
+});
+const emailOnlySchema = z.object({ email: emailField });
+const resetSchema = z.object({
+  token: z.string({ invalid_type_error: "Token inválido", required_error: "Token inválido" }).regex(/^[a-f0-9]{64}$/, "Token inválido"),
+  password: passwordField,
+});
+const profileSchema = z.object({
+  first_name: nameField,
+  last_name: nameField,
+  phone: phoneField,
+});
+
+/** Valida el body; si no cumple responde 400 con el primer mensaje y devuelve null. */
+function parseBody<T extends z.ZodTypeAny>(schema: T, req: Request, res: Response): z.infer<T> | null {
+  const result = schema.safeParse(req.body ?? {});
+  if (result.success) return result.data;
+  res.status(400).json({ error: result.error.issues[0]?.message ?? "Datos inválidos" });
   return null;
 }
+
+// Hash de relleno: el login hace el mismo trabajo de bcrypt exista o no la
+// cuenta, para que el tiempo de respuesta no revele qué emails están registrados.
+const DUMMY_HASH = bcrypt.hashSync("tele-import-usuario-inexistente", 10);
+
+const tooMany = (res: Response, seconds: number, error: string) => {
+  res.setHeader("Retry-After", String(seconds));
+  res.status(429).json({ error });
+};
 
 // -----------------------------------------------
 // Tipos internos
@@ -162,24 +210,33 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 // Body: { email, password }
 // -----------------------------------------------
 authRouter.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+  const body = parseBody(loginSchema, req, res);
+  if (!body) return;
+  const { email, password } = body;
+  const ip = req.ip ?? "desconocida";
 
-  if (!email || !password) {
-    res.status(400).json({ error: "Email y contraseña son requeridos" });
+  // Demasiados intentos fallidos: se corta antes de consultar la base
+  const wait = loginBlockedFor(email, ip);
+  if (wait !== null) {
+    tooMany(res, wait, `Demasiados intentos fallidos. Probá de nuevo en ${Math.ceil(wait / 60)} minutos.`);
     return;
   }
 
   try {
     const [rows] = await db.query<DbUser[]>(
       "SELECT * FROM users WHERE email = ?",
-      [email.toLowerCase().trim()]
+      [email]
     );
     const user = rows[0];
 
-    if (!user || !bcrypt.compareSync(password, user.password)) {
+    // Siempre se compara contra un hash (el real o el de relleno)
+    const valid = bcrypt.compareSync(password, user?.password ?? DUMMY_HASH);
+    if (!user || !valid) {
+      recordLoginFailure(email, ip);
       res.status(401).json({ error: "Credenciales incorrectas" });
       return;
     }
+    clearLoginFailures(email, ip);
 
     const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN,
@@ -199,30 +256,10 @@ authRouter.post("/login", async (req, res) => {
 // Body: { email, password, first_name, last_name, phone? }
 // -----------------------------------------------
 authRouter.post("/register", async (req, res) => {
-  const { email, password, first_name, last_name, phone } = req.body;
-
-  // Nombre y apellido requeridos
-  if (typeof first_name !== "string" || !first_name.trim() ||
-      typeof last_name !== "string" || !last_name.trim()) {
-    res.status(400).json({ error: "Nombre y apellido son requeridos" });
-    return;
-  }
-
-  // Validación de email
-  const emailError = validateEmail(email);
-  if (emailError) {
-    res.status(400).json({ error: emailError });
-    return;
-  }
-
-  // Validación de contraseña
-  const passwordError = validatePassword(password);
-  if (passwordError) {
-    res.status(400).json({ error: passwordError });
-    return;
-  }
-
-  const normalizedEmail = (email as string).trim().toLowerCase();
+  const body = parseBody(registerSchema, req, res);
+  if (!body) return;
+  const { password, first_name, last_name, phone } = body;
+  const normalizedEmail = body.email;
 
   try {
     // Verificar si el email ya existe
@@ -321,12 +358,14 @@ authRouter.get("/verify-email", async (req, res) => {
 // Responde 200 siempre (no revela si el email existe).
 // -----------------------------------------------
 authRouter.post("/resend-verification", async (req, res) => {
-  const emailError = validateEmail(req.body?.email);
-  if (emailError) {
-    res.status(400).json({ error: emailError });
+  const body = parseBody(emailOnlySchema, req, res);
+  if (!body) return;
+  const normalizedEmail = body.email;
+  const wait = takeEmailRequest("verify", normalizedEmail, req.ip ?? "desconocida");
+  if (wait !== null) {
+    tooMany(res, wait, "Ya enviamos varios correos. Esperá unos minutos antes de pedir otro.");
     return;
   }
-  const normalizedEmail = (req.body.email as string).trim().toLowerCase();
 
   try {
     const [rows] = await db.query<DbUser[]>(
@@ -351,12 +390,15 @@ authRouter.post("/resend-verification", async (req, res) => {
 // Responde 200 siempre para no revelar qué emails están registrados.
 // -----------------------------------------------
 authRouter.post("/forgot-password", async (req, res) => {
-  const emailError = validateEmail(req.body?.email);
-  if (emailError) {
-    res.status(400).json({ error: emailError });
+  const body = parseBody(emailOnlySchema, req, res);
+  if (!body) return;
+  const normalizedEmail = body.email;
+  // El límite se aplica exista o no la cuenta, así no revela nada
+  const wait = takeEmailRequest("reset", normalizedEmail, req.ip ?? "desconocida");
+  if (wait !== null) {
+    tooMany(res, wait, "Ya enviamos varios correos. Esperá unos minutos antes de pedir otro.");
     return;
   }
-  const normalizedEmail = (req.body.email as string).trim().toLowerCase();
 
   try {
     const [rows] = await db.query<DbUser[]>(
@@ -381,17 +423,9 @@ authRouter.post("/forgot-password", async (req, res) => {
 // Body: { token, password }. Valida el token y actualiza la contraseña.
 // -----------------------------------------------
 authRouter.post("/reset-password", async (req, res) => {
-  const { token, password } = req.body ?? {};
-
-  if (typeof token !== "string" || !token) {
-    res.status(400).json({ error: "Token inválido" });
-    return;
-  }
-  const passwordError = validatePassword(password);
-  if (passwordError) {
-    res.status(400).json({ error: passwordError });
-    return;
-  }
+  const body = parseBody(resetSchema, req, res);
+  if (!body) return;
+  const { token, password } = body;
 
   try {
     const [rows] = await db.query<RowDataPacket[]>(
@@ -454,22 +488,15 @@ authRouter.get("/me", requireAuth, async (req, res) => {
 // -----------------------------------------------
 authRouter.patch("/me", requireAuth, async (req, res) => {
   const { userId } = (req as Request & { user: { userId: string } }).user;
-  const { first_name, last_name, phone } = req.body as {
-    first_name?: string;
-    last_name?: string;
-    phone?: string;
-  };
-
-  if (!first_name?.trim() || !last_name?.trim()) {
-    res.status(400).json({ error: "Nombre y apellido son requeridos" });
-    return;
-  }
+  const body = parseBody(profileSchema, req, res);
+  if (!body) return;
+  const { first_name, last_name, phone } = body;
 
   try {
     // NOW() reemplaza datetime('now') de SQLite
     await db.query(
       `UPDATE users SET first_name = ?, last_name = ?, phone = ?, updated_at = NOW() WHERE id = ?`,
-      [first_name.trim(), last_name.trim(), phone?.trim() ?? null, userId]
+      [first_name, last_name, phone, userId]
     );
 
     const [rows] = await db.query<DbUser[]>(

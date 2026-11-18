@@ -16,10 +16,11 @@ import jwt from "jsonwebtoken";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
+import { requirePanelAccess } from "../middleware/roles";
 
 export const quotesRouter = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "tele-import-dev-secret-2024";
+import { JWT_SECRET } from "../config/jwt";
 
 interface AuthRequest extends Request {
   user: { userId: string; role: string };
@@ -27,14 +28,6 @@ interface AuthRequest extends Request {
 const castAuth = requireAuth as unknown as (
   req: Request, res: Response, next: NextFunction
 ) => void;
-
-function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  if ((req as AuthRequest).user?.role !== "admin") {
-    res.status(403).json({ error: "Acceso denegado: se requiere rol de administrador" });
-    return;
-  }
-  next();
-}
 
 // -----------------------------------------------
 // Validación del formulario público
@@ -135,7 +128,7 @@ quotesRouter.post("/", async (req: Request, res: Response) => {
 // -----------------------------------------------
 // GET /quotes — listado para administración
 // -----------------------------------------------
-quotesRouter.get("/", castAuth, requireAdmin, async (req: Request, res: Response) => {
+quotesRouter.get("/", castAuth, requirePanelAccess, async (req: Request, res: Response) => {
   const estado = typeof req.query.status === "string" ? req.query.status : null;
   const limite = Math.min(Number(req.query.limit) || 50, 200);
 
@@ -164,7 +157,7 @@ quotesRouter.get("/", castAuth, requireAdmin, async (req: Request, res: Response
 // -----------------------------------------------
 const ESTADOS = ["pending", "in_review", "quoted", "closed"] as const;
 
-quotesRouter.patch("/:id/status", castAuth, requireAdmin, async (req: Request, res: Response) => {
+quotesRouter.patch("/:id/status", castAuth, requirePanelAccess, async (req: Request, res: Response) => {
   const { status } = req.body as { status?: string };
 
   if (!status || !ESTADOS.includes(status as (typeof ESTADOS)[number])) {

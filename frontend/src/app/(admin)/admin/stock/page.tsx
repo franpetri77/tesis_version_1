@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCanEdit } from "@/hooks/usePanelRole";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -43,6 +44,7 @@ const MOVEMENT_LABEL: Record<MovementType | "venta" | "devolucion", string> = {
 };
 
 export default function AdminStockPage() {
+  const canEdit = useCanEdit();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<StockFormData>({
     product_id: "",
@@ -119,8 +121,8 @@ export default function AdminStockPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* ---- Formulario ---- */}
-        <div className="lg:col-span-1">
+        {/* ---- Formulario (sólo administrador) ---- */}
+        {canEdit && <div className="lg:col-span-1">
           <div className="bg-white rounded-xl border border-slate-200 shadow-card p-5">
             <div className="flex items-center gap-2 mb-4">
               <PackagePlus className="w-4 h-4 text-brand-500" />
@@ -205,10 +207,10 @@ export default function AdminStockPage() {
               </Button>
             </form>
           </div>
-        </div>
+        </div>}
 
         {/* ---- Historial ---- */}
-        <div className="lg:col-span-2">
+        <div className={canEdit ? "lg:col-span-2" : "lg:col-span-3"}>
           <div className="bg-white rounded-xl border border-slate-200 shadow-card overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100">
               <h2 className="font-semibold text-slate-900 text-sm">Últimos 50 movimientos</h2>

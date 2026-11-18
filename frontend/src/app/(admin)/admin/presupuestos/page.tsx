@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCanEdit } from "@/hooks/usePanelRole";
 import { FileText, Mail, Phone, Building2, Hash, Package } from "lucide-react";
 import { formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
@@ -118,6 +119,7 @@ function TarjetaSolicitud({
   actualizando: boolean;
 }) {
   const estado = ESTADOS[solicitud.status];
+  const canEdit = useCanEdit();
 
   return (
     <article className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6">
@@ -134,7 +136,8 @@ function TarjetaSolicitud({
 
         <select
           value={solicitud.status}
-          disabled={actualizando}
+          disabled={actualizando || !canEdit}
+          title={canEdit ? undefined : "Tu usuario es de solo lectura"}
           onChange={(e) => onCambiarEstado(e.target.value as QuoteStatus)}
           className="text-sm border border-slate-200 rounded-xl px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/10 disabled:opacity-50"
           aria-label="Cambiar estado de la solicitud"

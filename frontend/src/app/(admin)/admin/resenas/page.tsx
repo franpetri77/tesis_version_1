@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCanEdit } from "@/hooks/usePanelRole";
 import { Star, CheckCircle2, XCircle, Trash2, MessageSquare } from "lucide-react";
 import { formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
@@ -49,6 +50,7 @@ function getToken() {
 }
 
 export default function AdminResenasPage() {
+  const canEdit = useCanEdit();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<"all" | "pending" | "approved">("all");
 
@@ -216,7 +218,7 @@ export default function AdminResenasPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-2">
+                      {canEdit ? <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => toggleApprove.mutate(review.id)}
                           disabled={toggleApprove.isPending}
@@ -245,7 +247,7 @@ export default function AdminResenasPage() {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                      </div>
+                      </div> : <span className="block text-center text-xs text-slate-400">—</span>}
                     </td>
                   </tr>
                 ))

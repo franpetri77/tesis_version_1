@@ -22,7 +22,9 @@ function query(raw, a = []) {
   if (sql.startsWith('UPDATE promotions SET current_uses = GREATEST')) { state.promotions.get(a[0]).current_uses--; return r([]); }
   if (sql.startsWith('UPDATE orders SET promotion_released_at')) { state.orders.get(a[0]).promotion_released_at = 'x'; return r([]); }
   if (sql.startsWith('UPDATE orders SET status = ?')) { state.orders.get(a[1]).status = a[0]; return r([]); }
-  if (sql.startsWith('INSERT INTO audit_logs')) { state.audit.push({ entity_id: a[1], user_id: a[2], previous_value: a[3], new_value: a[4] }); return r([]); }
+  if (sql.startsWith('INSERT INTO audit_logs')) { state.audit.push({ action: a[1], entity_id: a[3], user_id: a[4], previous_value: a[5], new_value: a[6] }); return r([]); }
+  if (sql.includes('o.user_id, o.total') && sql.includes('FROM orders o JOIN users u')) { const o = state.orders.get(a[0]); return r(o ? [{ ...o, user_id: 'u-c', first_name: 'Cliente', last_name: 'Demo', email: 'c@example.invalid' }] : []); }
+  if (sql.startsWith('INSERT INTO notifications')) { for (let k = 0; k < a.length; k += 6) state.notifications.push({ user_id: a[k + 1], type: a[k + 2], title: a[k + 3], message: a[k + 4], link: a[k + 5] }); return r([]); }
   if (sql.includes('FROM orders o JOIN users u ON u.id = o.user_id WHERE o.id = ?')) { const o = state.orders.get(a[0]); return r(o ? [{ ...o, user_email: 'cliente@example.invalid', shipping_address: o.shipping_address ?? null }] : []); }
   if (sql.includes('FROM order_items oi LEFT JOIN products p')) return r(state.items.filter(i => i.order_id === a[0]));
   if (sql.startsWith('SELECT id, mp_payment_id, status, amount')) return r(state.payments.filter(p => p.order_id === a[0]));
@@ -60,7 +62,7 @@ function order(id, status, delivery = 'shipping', extra = {}) {
   state.orders.set(id, { id, order_number: 'TI-' + id, status, delivery_method: delivery, total: 100, stock_reserved_at: 'r', stock_released_at: null, promotion_id: null, promotion_released_at: null, ...extra });
 }
 beforeEach(() => {
-  state = { orders: new Map(), payments: [], items: [], products: new Map([['p1', { id: 'p1', stock_quantity: 3 }]]), promotions: new Map([['CUP', { id: 'CUP', current_uses: 1 }]]), movements: [], audit: [] };
+  state = { orders: new Map(), payments: [], items: [], products: new Map([['p1', { id: 'p1', stock_quantity: 3 }]]), promotions: new Map([['CUP', { id: 'CUP', current_uses: 1 }]]), movements: [], audit: [], notifications: [] };
 });
 const patch = async (id, body, token = admin) => {
   const res = await fetch(`${base}/admin/orders/${id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(body) });
@@ -82,12 +84,21 @@ test('circuito completo con envío: pagado → preparación → listo → enviad
   assert.equal(state.orders.get('o1').status, 'delivered');
   assert.deepEqual(state.audit.map(a => [JSON.parse(a.previous_value).status, JSON.parse(a.new_value).status, a.user_id]),
     [['paid', 'processing', 'u-admin'], ['processing', 'ready_to_ship', 'u-admin'], ['ready_to_ship', 'shipped', 'u-admin'], ['shipped', 'delivered', 'u-admin']]);
+  assert.ok(state.audit.every(a => a.action === 'order_status'));
+  await new Promise(r => setTimeout(r, 50));
+  assert.deepEqual(state.notifications.map(n => [n.user_id, n.type, n.message]), [
+    ['u-c', 'order_status', 'Estamos preparando tu pedido.'],
+    ['u-c', 'order_status', 'Tu pedido está listo para ser enviado.'],
+    ['u-c', 'order_status', 'Tu pedido fue enviado.'],
+    ['u-c', 'order_status', 'Tu pedido fue entregado. ¡Gracias por tu compra!']]);
 });
 test('retiro en el local: de listo pasa directo a entregado; no puede marcarse enviado', async () => {
   order('o2', 'ready_to_ship', 'pickup');
   assert.equal((await patch('o2', { status: 'shipped' })).status, 409);
   assert.equal((await patch('o2', { status: 'delivered', note: 'Retiró en sucursal' })).status, 200);
   assert.equal(JSON.parse(state.audit[0].new_value).note, 'Retiró en sucursal');
+  await new Promise(r => setTimeout(r, 50));
+  assert.equal(state.notifications.length, 1);
 });
 test('no se saltean pasos ni se retrocede; estado inexistente → 400; pedido inexistente → 404', async () => {
   order('o3', 'paid');

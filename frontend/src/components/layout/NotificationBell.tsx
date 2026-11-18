@@ -9,7 +9,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bell, Package, ShoppingBag, AlertTriangle, Star, CheckCheck } from "lucide-react";
+import { Bell, Package, ShoppingBag, AlertTriangle, Star, CheckCheck, Sparkles, TrendingDown, Tag } from "lucide-react";
 import Link from "next/link";
 import { formatDateTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
@@ -18,7 +18,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 interface Notification {
   id: string;
-  type: "order_new" | "order_status" | "stock_low" | "review_new";
+  type: "order_new" | "order_status" | "stock_low" | "review_new" | "product_new" | "price_drop" | "offer";
   title: string;
   message: string;
   is_read: number;
@@ -40,6 +40,9 @@ const TYPE_ICON: Record<Notification["type"], React.ReactNode> = {
   order_status: <Package     className="w-4 h-4 text-emerald-500" />,
   stock_low:    <AlertTriangle className="w-4 h-4 text-amber-500" />,
   review_new:   <Star        className="w-4 h-4 text-purple-500" />,
+  product_new:  <Sparkles    className="w-4 h-4 text-brand-500" />,
+  price_drop:   <TrendingDown className="w-4 h-4 text-emerald-500" />,
+  offer:        <Tag         className="w-4 h-4 text-brand-500" />,
 };
 
 export function NotificationBell() {

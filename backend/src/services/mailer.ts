@@ -118,3 +118,59 @@ export async function sendPasswordResetEmail(to: string, token: string, firstNam
     text: `${hola}restablecé tu contraseña entrando a: ${url} (vence en 1 hora). Si no fuiste vos, ignorá este correo.`,
   });
 }
+
+
+// -----------------------------------------------
+// T5: email al encargado por pedido nuevo (pagado)
+// Destinatario: MANAGER_EMAIL. Sin SMTP o sin destinatario se registra en
+// el log y no se interrumpe el flujo del pedido.
+// -----------------------------------------------
+const esc = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+const money = (n: number) => `$${n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+export async function sendNewOrderEmail(order: {
+  orderId: string;
+  orderNumber: string;
+  total: number;
+  deliveryMethod: string;
+  customer: string;
+  email: string;
+  phone: string | null;
+  address: Record<string, string> | null;
+  items: Array<{ name: string; sku: string | null; quantity: number; total: number }>;
+}): Promise<boolean> {
+  const to = process.env.MANAGER_EMAIL;
+  if (!to) {
+    console.warn(`[Mailer] MANAGER_EMAIL no configurado: no se avisó al encargado del pedido ${order.orderNumber}.`);
+    return false;
+  }
+  const pickup = order.deliveryMethod === "pickup";
+  const addr = order.address
+    ? `${order.address.street ?? ""} ${order.address.number ?? ""}, ${order.address.city ?? ""} (${order.address.postal_code ?? ""})`.trim()
+    : "";
+  const lines = order.items.map((i) => `- ${i.quantity} × ${i.name}${i.sku ? ` (${i.sku})` : ""}: ${money(i.total)}`);
+  const text = [
+    `Nuevo pedido ${order.orderNumber} pagado.`,
+    `Cliente: ${order.customer} · ${order.email}${order.phone ? ` · ${order.phone}` : ""}`,
+    `Entrega: ${pickup ? "retiro en el local" : `envío a ${addr}`}`,
+    "", ...lines, "", `Total: ${money(order.total)}`,
+    `Ver en el panel: ${FRONTEND_URL}/admin/pedidos/${order.orderId}`,
+  ].join("\n");
+  const rows = order.items.map((i) => `<tr><td style="padding:4px 0;">${i.quantity} × ${esc(i.name)}${i.sku ? ` <span style="color:#64748b;">${esc(i.sku)}</span>` : ""}</td><td style="padding:4px 0;text-align:right;">${money(i.total)}</td></tr>`).join("");
+  const html = `
+  <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#0f172a;">
+    <p style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#64748b;margin:0;">Pedido pagado</p>
+    <h1 style="font-size:20px;margin:4px 0 16px;">${esc(order.orderNumber)}</h1>
+    <p style="margin:0 0 4px;">${esc(order.customer)} · ${esc(order.email)}${order.phone ? ` · ${esc(order.phone)}` : ""}</p>
+    <p style="margin:0 0 16px;color:#334155;">${pickup ? "Retiro en el local" : `Envío a ${esc(addr)}`}</p>
+    <table style="width:100%;border-top:1px solid #e6e3dc;border-bottom:1px solid #e6e3dc;font-size:14px;">${rows}</table>
+    <p style="text-align:right;font-weight:600;margin:8px 0 20px;">Total ${money(order.total)}</p>
+    <a href="${FRONTEND_URL}/admin/pedidos/${encodeURIComponent(order.orderId)}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:600;">Ver el pedido</a>
+  </div>`;
+  try {
+    return await sendMail({ to, subject: `Nuevo pedido ${order.orderNumber}`, html, text });
+  } catch (error) {
+    console.error(`[Mailer] No se pudo enviar el aviso del pedido ${order.orderNumber}:`, error);
+    return false;
+  }
+}

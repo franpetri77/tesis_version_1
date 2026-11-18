@@ -15,6 +15,7 @@ import {
   REPORT_TIMEZONE, SALE_STATUSES_SQL, TrendInputError, computeTrend, nextDay, todayInReportZone, validateTrendInput,
   type TrendRow,
 } from "../services/salesTrend";
+import { dispatch, notifyLowStock } from "../services/notifications";
 
 interface AuthRequest extends Request {
   user: { userId: string; role: string };
@@ -528,6 +529,7 @@ reportsRouter.post("/stock-movement", castAuth, requireAdmin, async (req, res) =
     );
 
     await conn.commit();
+    dispatch(`stock bajo ${product_id}`, () => notifyLowStock([product_id]));
 
     res.status(201).json({
       message: "Movimiento registrado correctamente",

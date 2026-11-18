@@ -303,7 +303,7 @@ export async function initSchema(pool: Pool): Promise<void> {
       CREATE TABLE IF NOT EXISTS notifications (
         id         VARCHAR(50)   NOT NULL,
         user_id    VARCHAR(50)   NOT NULL,
-        type       ENUM('order_new','order_status','stock_low','review_new') NOT NULL,
+        type       ENUM('order_new','order_status','stock_low','review_new','product_new','price_drop','offer') NOT NULL,
         title      VARCHAR(255)  NOT NULL,
         message    TEXT          NOT NULL,
         is_read    TINYINT(1)    NOT NULL DEFAULT 0,
@@ -444,6 +444,18 @@ export async function initSchema(pool: Pool): Promise<void> {
         await conn.query(`ALTER TABLE orders ADD COLUMN ${column} ${definition}`);
       }
     }
+    // T5: tipos de notificación personalizados (producto nuevo, baja de precio, ofertas).
+    const [notifType] = await conn.query(
+      `SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'type'`
+    );
+    const notifTypeDef = String((notifType as Array<{ COLUMN_TYPE: string }>)[0]?.COLUMN_TYPE ?? "");
+    if (notifTypeDef && !notifTypeDef.includes("'price_drop'")) {
+      await conn.query(
+        "ALTER TABLE notifications MODIFY COLUMN type ENUM('order_new','order_status','stock_low','review_new','product_new','price_drop','offer') NOT NULL"
+      );
+    }
+
     // P3b: payments.amount guarda el importe informado por MP; NULL si no vino.
     const [amountColumn] = await conn.query(
       `SELECT IS_NULLABLE FROM information_schema.COLUMNS

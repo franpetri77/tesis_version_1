@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import type { RowDataPacket } from "mysql2";
 import type { PoolConnection } from "mysql2/promise";
 import db from "../db/database";
+import { dispatch, notifyOrderStatus } from "./notifications";
 
 export const RESERVATION_MINUTES = 60;
 export const RESERVATION_GRACE_MINUTES = 10;
@@ -163,6 +164,8 @@ export async function cancelPendingOrder(orderId: string, onlyExpired = false): 
     await releaseOrderPromotion(conn, order);
     await conn.query("UPDATE orders SET status = 'cancelled', updated_at = NOW() WHERE id = ?", [order.id]);
     await conn.commit();
+    // T5: el cliente se entera de que venció el plazo de pago.
+    if (onlyExpired) dispatch(`pedido vencido ${order.id}`, () => notifyOrderStatus(order.id, "cancelled"));
     return true;
   } catch (error) {
     await conn.rollback();

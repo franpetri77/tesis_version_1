@@ -9,20 +9,23 @@ import mysql from "mysql2/promise";
 // SSL: se activa con DB_SSL=true. Railway y otros proveedores administrados
 // cierran la conexión si el cliente no negocia TLS (PROTOCOL_CONNECTION_LOST).
 //
-// T7: con SSL activo el certificado del servidor SE VERIFICA. Sin verificarlo,
-// el cifrado no impide que un intermediario se haga pasar por la base.
+// T7: con SSL activo el certificado del servidor SE VERIFICA: que lo firme
+// una autoridad confiable (rejectUnauthorized) y que corresponda al host de
+// DB_HOST (verifyIdentity, que mysql2 deja apagado por defecto). Sin las dos
+// cosas, el cifrado no impide que un intermediario con un certificado válido
+// para otro nombre se haga pasar por la base.
 //   - DB_SSL_CA: certificado de la autoridad (PEM; acepta "\n" escapados,
 //     como queda al pegarlo en una variable de entorno) para proveedores
 //     con certificado propio.
-//   - DB_SSL_REJECT_UNAUTHORIZED=false: desactiva la verificación. Sólo como
+//   - DB_SSL_REJECT_UNAUTHORIZED=false: desactiva las dos verificaciones. Sólo como
 //     decisión explícita y temporal; queda advertido en el log.
 // Sin DB_SSL (red privada de Railway, desarrollo local) no cambia nada.
-function sslOptions(): { ssl?: { rejectUnauthorized: boolean; ca?: string } } {
+function sslOptions(): { ssl?: { rejectUnauthorized: boolean; verifyIdentity: boolean; ca?: string } } {
   if (process.env.DB_SSL !== "true") return {};
   const verify = process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false";
   if (!verify) console.warn("[DB] SSL sin verificación de certificado (DB_SSL_REJECT_UNAUTHORIZED=false).");
   const ca = process.env.DB_SSL_CA?.replace(/\\n/g, "\n");
-  return { ssl: { rejectUnauthorized: verify, ...(ca ? { ca } : {}) } };
+  return { ssl: { rejectUnauthorized: verify, verifyIdentity: verify, ...(ca ? { ca } : {}) } };
 }
 const sslConfig = sslOptions();
 

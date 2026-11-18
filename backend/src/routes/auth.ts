@@ -24,7 +24,7 @@ import type { RowDataPacket } from "mysql2";
 import { z } from "zod";
 import db from "../db/database";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../services/mailer";
-import { clearLoginFailures, loginBlockedFor, recordLoginFailure, takeEmailRequest } from "../services/rateLimit";
+import { loginSucceeded, releaseLoginAttempt, reserveLoginAttempt, takeEmailRequest } from "../services/rateLimit";
 
 export const authRouter = Router();
 
@@ -79,15 +79,19 @@ const emailField = z.string({ required_error: "El email es requerido", invalid_t
   .regex(EMAIL_REGEX, "El email no tiene un formato válido");
 
 /**
- * Política: 8–72 caracteres, al menos una letra y un número.
- * (72 es el límite efectivo de bcrypt; más allá se truncaría silenciosamente.)
+ * Política: al menos 8 caracteres y como máximo 72 bytes, con al menos una
+ * letra y un número. bcrypt usa sólo los primeros 72 BYTES en UTF-8 y
+ * descarta el resto sin avisar; contar caracteres no alcanza, porque una
+ * tilde, una ñ o un emoji ocupan más de un byte.
  */
+export const PASSWORD_MAX_BYTES = 72;
 const passwordField = z.string({ required_error: "La contraseña es requerida", invalid_type_error: "La contraseña es requerida" })
   .min(1, "La contraseña es requerida")
   .min(8, "La contraseña debe tener al menos 8 caracteres")
-  .max(72, "La contraseña no puede superar los 72 caracteres")
-  .regex(/[a-zA-Z]/, "La contraseña debe incluir al menos una letra")
-  .regex(/[0-9]/, "La contraseña debe incluir al menos un número");
+  .refine((v) => Buffer.byteLength(v, "utf8") <= PASSWORD_MAX_BYTES,
+    "La contraseña es demasiado larga: admite hasta 72 caracteres, y cada tilde, ñ o emoji cuenta como más de uno")
+  .refine((v) => /[a-zA-Z]/.test(v), "La contraseña debe incluir al menos una letra")
+  .refine((v) => /[0-9]/.test(v), "La contraseña debe incluir al menos un número");
 
 const NAME_REQUIRED = "Nombre y apellido son requeridos";
 const nameField = z.string({ required_error: NAME_REQUIRED, invalid_type_error: NAME_REQUIRED })
@@ -215,8 +219,10 @@ authRouter.post("/login", async (req, res) => {
   const { email, password } = body;
   const ip = req.ip ?? "desconocida";
 
-  // Demasiados intentos fallidos: se corta antes de consultar la base
-  const wait = loginBlockedFor(email, ip);
+  // Demasiados intentos: se corta antes de consultar la base. El cupo se
+  // reserva de forma síncrona, antes de la primera espera, para que una
+  // ráfaga de pedidos simultáneos no pase entera el control.
+  const wait = reserveLoginAttempt(email, ip);
   if (wait !== null) {
     tooMany(res, wait, `Demasiados intentos fallidos. Probá de nuevo en ${Math.ceil(wait / 60)} minutos.`);
     return;
@@ -232,11 +238,11 @@ authRouter.post("/login", async (req, res) => {
     // Siempre se compara contra un hash (el real o el de relleno)
     const valid = bcrypt.compareSync(password, user?.password ?? DUMMY_HASH);
     if (!user || !valid) {
-      recordLoginFailure(email, ip);
+      // El cupo reservado queda contado como fallo
       res.status(401).json({ error: "Credenciales incorrectas" });
       return;
     }
-    clearLoginFailures(email, ip);
+    loginSucceeded(email, ip);
 
     const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN,
@@ -246,6 +252,7 @@ authRouter.post("/login", async (req, res) => {
     const { password: _pw, ...userWithoutPassword } = user;
     res.json({ data: { user: userWithoutPassword, access_token: token } });
   } catch (error) {
+    releaseLoginAttempt(email, ip);
     console.error("[Auth] Error en login:", error);
     res.status(500).json({ error: "Error interno del servidor" });
   }

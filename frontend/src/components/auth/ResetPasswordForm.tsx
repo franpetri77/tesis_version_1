@@ -3,7 +3,7 @@
 // =============================================
 // FORM: RESTABLECER CONTRASEÑA
 // Recibe el token del email y setea una nueva contraseña.
-// Misma política de validación que registro (letra + número, 8–72).
+// Misma política de validación que registro (letra + número, 8 caracteres a 72 bytes).
 // =============================================
 
 import { useState } from "react";
@@ -14,9 +14,10 @@ import {
 import { Button } from "@/components/ui/Button";
 import { resetPassword } from "@/lib/api/auth";
 import { useModalStore } from "@/stores/modalStore";
+import { passwordTooLong } from "@/lib/utils/password";
 
 function isPasswordValid(pw: string): boolean {
-  return pw.length >= 8 && pw.length <= 72 && /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw);
+  return pw.length >= 8 && !passwordTooLong(pw) && /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw);
 }
 
 export function ResetPasswordForm({ token }: { token: string }) {
@@ -35,7 +36,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
     setError("");
 
     if (!isPasswordValid(password)) {
-      setError("La contraseña debe tener 8–72 caracteres, con al menos una letra y un número.");
+      setError("La contraseña debe tener al menos 8 caracteres (hasta 72; cada tilde, ñ o emoji cuenta como más de uno), con al menos una letra y un número.");
       return;
     }
     if (password !== confirm) {

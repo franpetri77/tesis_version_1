@@ -11,7 +11,10 @@ const N = s => s.replace(/\s+/g, ' ').trim();
 const clone = v => JSON.parse(JSON.stringify(v));
 const pool = {
   query: async (sql, p = []) => {
-    const s = N(sql); q.push({ sql: s, p });
+    const s = N(sql);
+    // T7: rol vigente que consulta el middleware del panel (no se registra en q)
+    if (s.includes('AS panel_role')) return [p[0] === 'u-admin' ? [{ panel_role: 'admin' }] : [], []];
+    q.push({ sql: s, p });
     for (const [match, fn] of handlers) if (match(s)) return [await fn(p, s), []];
     return [[], []];
   },

@@ -10,11 +10,15 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
-let q, handlers, tx;
+let q, handlers, tx, roleLookup;
+// Rol vigente de cada usuario en la base simulada (lo consulta requirePanelAccess)
+const dbRoles = new Map();
 const N = s => s.replace(/\s+/g, ' ').trim();
+const ROLE_SQL = 'AS panel_role';
 const pool = {
   query: async (sql, p = []) => {
     const s = N(sql); q.push({ sql: s, p });
+    if (s.includes(ROLE_SQL)) return [await roleLookup(p[0]), []];
     for (const [match, fn] of handlers) if (match(s)) return [await fn(p, s), []];
     return [[], []];
   },
@@ -36,7 +40,10 @@ const { authRouter } = require('../dist/routes/auth');
 const { resetRateLimits, LIMITS } = require('../dist/services/rateLimit');
 
 const on = (needle, fn) => handlers.push([s => s.includes(needle), fn]);
-const sign = (role, userId = 'u-' + role) => jwt.sign({ userId, role }, process.env.JWT_SECRET);
+// Firma un token y deja ese mismo rol como vigente en la base (salvo que la prueba lo cambie)
+const sign = (role, userId = 'u-' + role) => { dbRoles.set(userId, role); return jwt.sign({ userId, role }, process.env.JWT_SECRET); };
+const dataQueries = () => q.filter(x => !x.sql.includes(ROLE_SQL));
+const writeQueries = () => q.filter(x => /^(INSERT|UPDATE|DELETE)/.test(x.sql));
 let server, base, origErr, origWarn, origLog;
 before(async () => {
   const app = express();
@@ -51,6 +58,7 @@ before(async () => {
 after(async () => { console.error = origErr; console.warn = origWarn; console.log = origLog; await new Promise(r => server.close(r)); });
 beforeEach(() => {
   q = []; handlers = []; tx = []; resetRateLimits();
+  roleLookup = (id) => (dbRoles.has(id) ? [{ panel_role: dbRoles.get(id) }] : []);
   console.error = () => {}; console.warn = () => {}; console.log = () => {};
 });
 const call = async (method, url, { token, body, ip } = {}) => {
@@ -69,7 +77,7 @@ test('solo lectura: consulta /admin, /reports y /quotes', async () => {
     assert.equal((await call('GET', url, { token: ro })).status, 200, url);
   }
 });
-test('solo lectura: toda escritura responde 403 sin tocar la base', async () => {
+test('solo lectura: toda escritura responde 403; sólo se lee el rol vigente', async () => {
   const ro = sign('readonly');
   const writes = [
     ['POST', '/admin/products', { name: 'X', sku: 'X', price: 1, category_id: 'c' }],
@@ -88,14 +96,57 @@ test('solo lectura: toda escritura responde 403 sin tocar la base', async () => 
     assert.equal(r.status, 403, `${m} ${url}`);
     assert.match(r.body.error, /solo lectura/);
   }
-  assert.equal(q.length, 0, 'ninguna consulta a la base');
+  assert.equal(dataQueries().length, 0, 'ninguna consulta además del rol');
+  assert.equal(q.length, writes.length, 'una lectura del rol por petición');
+  assert.deepEqual(tx, []);
 });
 test('cliente: sin acceso al panel ni para leer; sin token: 401', async () => {
   for (const url of ['/admin/users', '/reports/users', '/quotes']) {
     assert.equal((await call('GET', url, { token: sign('customer') })).status, 403, url);
     assert.equal((await call('GET', url)).status, 401, url);
   }
-  assert.equal(q.length, 0);
+  assert.equal(dataQueries().length, 0);
+});
+
+// ── Rol vigente en la base, no el del token (corrección 1) ─────────────────
+test('admin degradado: con su token anterior ya no escribe ni puede devolverse el rol', async () => {
+  const oldToken = sign('admin', 'a9');
+  dbRoles.set('a9', 'readonly'); // otro admin le quitó el rol después del login
+  on("WHERE role = 'admin' FOR UPDATE", () => [{ id: 'a1' }]);
+  on('SELECT id, role FROM users WHERE id = ?', () => [{ id: 'a9', role: 'readonly' }]);
+  const r = await call('PUT', '/admin/users/a9/role', { token: oldToken, body: { role: 'admin' } });
+  assert.equal(r.status, 403);
+  assert.match(r.body.error, /solo lectura/);
+  assert.deepEqual(tx, [], 'ni siquiera abre la transacción');
+  assert.equal(writeQueries().length, 0);
+  // Sigue pudiendo leer como readonly
+  on('SELECT COUNT(*)', () => [{ total: 0 }]);
+  assert.equal((await call('GET', '/admin/users', { token: oldToken })).status, 200);
+  // Degradado a cliente: pierde también la lectura
+  dbRoles.set('a9', 'customer');
+  assert.equal((await call('GET', '/admin/users', { token: oldToken })).status, 403);
+});
+test('cuenta eliminada: el token deja de servir en el panel (401) sin otras consultas', async () => {
+  const token = sign('admin', 'a-borrado');
+  dbRoles.delete('a-borrado');
+  const r = await call('DELETE', '/admin/products/p1', { token });
+  assert.equal(r.status, 401);
+  assert.equal(dataQueries().length, 0);
+  assert.equal((await call('GET', '/reports/users', { token })).status, 401);
+});
+test('rol promovido después del login: rige el de la base', async () => {
+  on('SELECT COUNT(*)', () => [{ total: 0 }]);
+  const token = sign('customer', 'c-promovido');
+  assert.equal((await call('GET', '/admin/users', { token })).status, 403);
+  dbRoles.set('c-promovido', 'readonly');
+  assert.equal((await call('GET', '/admin/users', { token })).status, 200);
+});
+test('si no se puede leer el rol, la acción no se ejecuta (503)', async () => {
+  roleLookup = () => { throw new Error('conexión perdida'); };
+  const r = await call('DELETE', '/admin/products/p1', { token: sign('admin', 'a1') });
+  assert.equal(r.status, 503);
+  assert.equal(dataQueries().length, 0);
+  assert.deepEqual(tx, []);
 });
 
 // ── Último administrador ────────────────────────────────────────────────────
@@ -158,6 +209,29 @@ test('registro: mismos mensajes que antes para nombre, email y contraseña', asy
   }
   assert.equal(q.length, 0);
 });
+test('contraseña: el máximo se mide en bytes UTF-8 (bcrypt trunca en 72), en registro y en reseteo', async () => {
+  const ok = { first_name: 'Ana', last_name: 'Paz', email: 'ana@example.invalid' };
+  const longMsg = /demasiado larga/;
+  const tooLong = [
+    'ñ'.repeat(36) + 'a1',        // 38 caracteres, 74 bytes
+    '😀'.repeat(18) + 'a1',       // 38 unidades UTF-16, 74 bytes
+    'clave1' + 'é'.repeat(34),    // 40 caracteres, 74 bytes
+    'a1' + 'x'.repeat(71),        // 73 bytes ASCII
+  ];
+  for (const password of tooLong) {
+    const r = await call('POST', '/auth/register', { body: { ...ok, password } });
+    assert.equal(r.status, 400, password); assert.match(r.body.error, longMsg);
+    const t = await call('POST', '/auth/reset-password', { body: { token: 'a'.repeat(64), password } });
+    assert.equal(t.status, 400, password); assert.match(t.body.error, longMsg);
+  }
+  assert.equal(q.length, 0);
+  // Justo en el límite: 72 bytes se aceptan
+  on('SELECT id, email, first_name, last_name, phone, role', () => [{ id: 'n1', email: ok.email, role: 'customer' }]);
+  for (const password of ['ñ'.repeat(35) + 'a1', 'a1' + 'x'.repeat(70)]) {
+    assert.equal(Buffer.byteLength(password), 72);
+    assert.equal((await call('POST', '/auth/register', { body: { ...ok, password } })).status, 201, password);
+  }
+});
 test('restablecer contraseña: token con formato inválido responde 400 sin consultar', async () => {
   const r = await call('POST', '/auth/reset-password', { body: { token: "' OR 1=1 --", password: 'clave1234' } });
   assert.equal(r.status, 400); assert.equal(r.body.error, 'Token inválido');
@@ -194,6 +268,35 @@ test('login: un acceso correcto limpia los fallos previos de esa cuenta e IP', a
   for (let i = 0; i < LIMITS.account - 1; i++) {
     assert.equal((await call('POST', '/auth/login', { ip, body: { email: user.email, password: 'mala' } })).status, 401);
   }
+});
+test('login: una ráfaga simultánea no supera el límite aunque la base demore', async () => {
+  on('SELECT * FROM users WHERE email = ?', async () => { await new Promise(r => setTimeout(r, 80)); return [user]; });
+  const ip = '203.0.113.20';
+  const n = LIMITS.account + 3;
+  const res = await Promise.all(Array.from({ length: n }, () =>
+    call('POST', '/auth/login', { ip, body: { email: user.email, password: 'mala' } })));
+  const statuses = res.map(r => r.status).sort();
+  assert.deepEqual(statuses, [...Array(LIMITS.account).fill(401), ...Array(n - LIMITS.account).fill(429)]);
+  assert.equal(q.filter(x => x.sql.startsWith('SELECT * FROM users')).length, LIMITS.account, 'sólo 5 llegan a la base y a bcrypt');
+});
+test('login: un error de la base no consume el cupo; un acceso correcto no cuenta contra la IP', async () => {
+  let fail = true;
+  on('SELECT * FROM users WHERE email = ?', (p) => {
+    if (fail) throw new Error('caída');
+    return p[0] === user.email ? [user] : [];
+  });
+  const ip = '203.0.113.21';
+  for (let i = 0; i < LIMITS.account + 2; i++) {
+    assert.equal((await call('POST', '/auth/login', { ip, body: { email: user.email, password: 'mala' } })).status, 500);
+  }
+  fail = false;
+  assert.equal((await call('POST', '/auth/login', { ip, body: { email: user.email, password: 'mala' } })).status, 401, 'los 500 no bloquearon');
+  // IP: 49 fallos de cuentas distintas + 1 acceso correcto; el siguiente fallo todavía entra
+  resetRateLimits();
+  for (let i = 0; i < LIMITS.ip - 1; i++) await call('POST', '/auth/login', { ip, body: { email: 'v' + i + '@example.invalid', password: 'x' } });
+  assert.equal((await call('POST', '/auth/login', { ip, body: { email: user.email, password: 'correcta1' } })).status, 200);
+  assert.equal((await call('POST', '/auth/login', { ip, body: { email: 'w@example.invalid', password: 'x' } })).status, 401);
+  assert.equal((await call('POST', '/auth/login', { ip, body: { email: 'z@example.invalid', password: 'x' } })).status, 429);
 });
 test('login: cuenta inexistente también cuenta como fallo y responde igual', async () => {
   const ip = '203.0.113.12';
@@ -235,7 +338,10 @@ test('SSL de la base: con DB_SSL verifica el certificado; desactivarlo es explí
   const ssl = (env) => JSON.parse(runNode(show, env).stdout.trim().split('\n').pop());
   assert.ok(!ssl({ DB_SSL: '' }), 'sin DB_SSL no hay SSL (red privada)');
   assert.equal(ssl({ DB_SSL: 'true' }).rejectUnauthorized, true);
-  assert.equal(ssl({ DB_SSL: 'true', DB_SSL_REJECT_UNAUTHORIZED: 'false' }).rejectUnauthorized, false);
+  assert.equal(ssl({ DB_SSL: 'true' }).verifyIdentity, true, 'también comprueba que el certificado sea de DB_HOST');
+  const off = ssl({ DB_SSL: 'true', DB_SSL_REJECT_UNAUTHORIZED: 'false' });
+  assert.equal(off.rejectUnauthorized, false);
+  assert.equal(off.verifyIdentity, false);
   assert.equal(ssl({ DB_SSL: 'true', DB_SSL_CA: '-----BEGIN CERTIFICATE-----\\nABC\\n-----END CERTIFICATE-----' }).ca,
     '-----BEGIN CERTIFICATE-----\nABC\n-----END CERTIFICATE-----');
 });

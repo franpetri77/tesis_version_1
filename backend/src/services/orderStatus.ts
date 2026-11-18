@@ -6,11 +6,12 @@
 // con los mismos servicios idempotentes del checkout.
 // =============================================
 
-import { randomUUID } from "crypto";
 import type { RowDataPacket } from "mysql2";
 import type { PoolConnection } from "mysql2/promise";
 import db from "../db/database";
 import { lockStockOrder, releaseOrderPromotion, restoreLockedOrderStock } from "./orderStock";
+import { logAudit } from "./audit";
+import { dispatch, notifyOrderStatus } from "./notifications";
 
 export type OrderStatus =
   | "pending" | "paid" | "processing" | "ready_to_ship" | "shipped" | "delivered" | "cancelled" | "refunded";
@@ -52,11 +53,8 @@ interface LockedOrder extends RowDataPacket {
 
 async function audit(conn: PoolConnection, orderId: string, actorId: string, ip: string | null,
   previous: OrderStatus, next: OrderStatus, note: string | null): Promise<void> {
-  await conn.query(
-    `INSERT INTO audit_logs (id, action, entity_type, entity_id, user_id, previous_value, new_value, ip_address, created_at)
-     VALUES (?, 'order_status', 'order', ?, ?, ?, ?, ?, NOW())`,
-    [randomUUID(), orderId, actorId, JSON.stringify({ status: previous }), JSON.stringify({ status: next, note }), ip]
-  );
+  await logAudit({ action: "order_status", entityType: "order", entityId: orderId, userId: actorId,
+    previous: { status: previous }, next: { status: next, note }, ip }, conn);
 }
 
 export async function changeOrderStatus(params: {
@@ -107,6 +105,7 @@ export async function changeOrderStatus(params: {
     await conn.query("UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?", [next, order.id]);
     await audit(conn, order.id, params.actorId, params.ip ?? null, order.status, next, note);
     await conn.commit();
+    dispatch(`estado ${next} ${order.id}`, () => notifyOrderStatus(order.id, next));
     return { id: order.id, previous: order.status, status: next };
   } catch (error) {
     await conn.rollback();

@@ -3,14 +3,15 @@
 // =============================================
 // PÁGINA ADMIN: AUDITORÍA
 // Muestra el registro de acciones del sistema
-// (audit_logs). Permite filtrar por tipo de acción
-// y paginar resultados.
+// (audit_logs). Permite filtrar por acción, entidad,
+// operador y rango de fechas, y paginar resultados.
 // =============================================
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ClipboardList, ArrowDownCircle, ArrowUpCircle, ChevronLeft, ChevronRight,
+  Package, UserCog, UserX, PackagePlus, PackageX, Pencil, Power, MessageSquare,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
@@ -42,10 +43,45 @@ function getToken() {
 }
 
 // Interpreta el campo action para mostrar etiqueta y color
+const ACTION_META: Record<string, { label: string; color: string; Icon: React.ElementType }> = {
+  stock_ingreso:  { label: "Ingreso",            color: "text-emerald-600 bg-emerald-50", Icon: ArrowDownCircle },
+  stock_egreso:   { label: "Egreso",             color: "text-red-600 bg-red-50",         Icon: ArrowUpCircle },
+  order_status:   { label: "Estado de pedido",   color: "text-brand-700 bg-brand-50",     Icon: Package },
+  product_create: { label: "Alta de producto",   color: "text-emerald-600 bg-emerald-50", Icon: PackagePlus },
+  product_update: { label: "Edición de producto", color: "text-slate-700 bg-slate-100",   Icon: Pencil },
+  product_toggle: { label: "Activación",         color: "text-slate-700 bg-slate-100",    Icon: Power },
+  product_delete: { label: "Baja de producto",   color: "text-red-600 bg-red-50",         Icon: PackageX },
+  user_role:      { label: "Cambio de rol",      color: "text-amber-700 bg-amber-50",     Icon: UserCog },
+  user_delete:    { label: "Baja de usuario",    color: "text-red-600 bg-red-50",         Icon: UserX },
+  review_approve: { label: "Reseña aprobada",    color: "text-emerald-600 bg-emerald-50", Icon: MessageSquare },
+  review_hide:    { label: "Reseña oculta",      color: "text-slate-700 bg-slate-100",    Icon: MessageSquare },
+  review_delete:  { label: "Reseña eliminada",   color: "text-red-600 bg-red-50",         Icon: MessageSquare },
+};
 function actionMeta(action: string): { label: string; color: string; Icon: React.ElementType } {
-  if (action === "stock_ingreso") return { label: "Ingreso",  color: "text-emerald-600 bg-emerald-50", Icon: ArrowDownCircle };
-  if (action === "stock_egreso")  return { label: "Egreso",   color: "text-red-600 bg-red-50",         Icon: ArrowUpCircle };
-  return { label: action, color: "text-slate-600 bg-slate-100", Icon: ClipboardList };
+  return ACTION_META[action] ?? { label: action, color: "text-slate-600 bg-slate-100", Icon: ClipboardList };
+}
+
+const FIELD_LABEL: Record<string, string> = {
+  status: "estado", role: "rol", price: "precio", compare_price: "precio anterior",
+  stock_quantity: "stock", is_active: "activo", is_approved: "aprobada", name: "nombre",
+};
+// Resume en una línea los campos que cambiaron (para acciones que no son de stock)
+function summarizeChange(prevRaw: string | null, nextRaw: string | null): string | null {
+  const parse = (raw: string | null) => {
+    if (!raw) return {} as Record<string, unknown>;
+    try { const o = JSON.parse(raw); return o && typeof o === "object" ? o as Record<string, unknown> : {}; }
+    catch { return {}; }
+  };
+  const prev = parse(prevRaw), next = parse(nextRaw);
+  const show = (v: unknown) => v === true ? "sí" : v === false ? "no" : v == null ? "—" : String(v);
+  const keys = Array.from(new Set([...Object.keys(prev), ...Object.keys(next)])).filter((k) => k !== "reason");
+  if (keys.length === 0) return null;
+  return keys.slice(0, 3).map((k) => {
+    const label = FIELD_LABEL[k] ?? k.replace(/_/g, " ");
+    if (!(k in next)) return `${label}: ${show(prev[k])}`;
+    if (!(k in prev)) return `${label}: ${show(next[k])}`;
+    return `${label}: ${show(prev[k])} → ${show(next[k])}`;
+  }).join(" · ");
 }
 
 // Extrae el stock_quantity de un JSON almacenado como string
@@ -69,21 +105,54 @@ function parseReason(raw: string | null): string | null {
 }
 
 const FILTER_OPTIONS = [
-  { value: "",               label: "Todas las acciones" },
-  { value: "stock_ingreso",  label: "Ingresos de stock"  },
-  { value: "stock_egreso",   label: "Egresos de stock"   },
+  { value: "", label: "Todas las acciones" },
+  ...Object.entries(ACTION_META).map(([value, m]) => ({ value, label: m.label })),
 ];
+
+const ENTITY_OPTIONS = [
+  { value: "",        label: "Todas las entidades" },
+  { value: "order",   label: "Pedidos" },
+  { value: "product", label: "Productos" },
+  { value: "user",    label: "Usuarios" },
+  { value: "review",  label: "Reseñas" },
+];
+
+interface Operator { id: string; first_name: string | null; last_name: string | null; email: string; role: string }
+
+const CONTROL = "px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white " +
+  "focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400";
 
 export default function AuditoriaPage() {
   const [actionFilter, setActionFilter] = useState("");
+  const [entityFilter, setEntityFilter] = useState("");
+  const [userFilter, setUserFilter] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [offset, setOffset] = useState(0);
 
+  // Operadores (todo usuario que no sea cliente) para el filtro por responsable
+  const { data: operators = [] } = useQuery<Operator[]>({
+    queryKey: ["audit-operators"],
+    queryFn: async () => {
+      const token = getToken();
+      const res = await fetch(`${API_URL}/admin/users`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) return [];
+      const body = await res.json() as { data: Operator[] };
+      return body.data.filter((u) => u.role !== "customer");
+    },
+    staleTime: 60_000,
+  });
+
   const { data, isLoading, isError } = useQuery<AuditResponse>({
-    queryKey: ["audit-logs", actionFilter, offset],
+    queryKey: ["audit-logs", actionFilter, entityFilter, userFilter, from, to, offset],
     queryFn: async () => {
       const token = getToken();
       const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
       if (actionFilter) params.set("action", actionFilter);
+      if (entityFilter) params.set("entity_type", entityFilter);
+      if (userFilter)   params.set("user_id", userFilter);
+      if (from)         params.set("from", from);
+      if (to)           params.set("to", to);
       const res = await fetch(`${API_URL}/admin/audit-logs?${params}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -98,9 +167,13 @@ export default function AuditoriaPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
 
-  function handleFilterChange(value: string) {
-    setActionFilter(value);
-    setOffset(0);
+  // Cualquier cambio de filtro vuelve a la primera página
+  function withReset<T>(setter: (v: T) => void) {
+    return (v: T) => { setter(v); setOffset(0); };
+  }
+  const hasFilters = Boolean(actionFilter || entityFilter || userFilter || from || to);
+  function clearFilters() {
+    setActionFilter(""); setEntityFilter(""); setUserFilter(""); setFrom(""); setTo(""); setOffset(0);
   }
 
   return (
@@ -114,18 +187,46 @@ export default function AuditoriaPage() {
           </p>
         </div>
 
-        {/* Filtro por acción */}
-        <select
-          value={actionFilter}
-          onChange={(e) => handleFilterChange(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700
-                     bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/30
-                     focus:border-brand-400 min-w-[180px]"
-        >
-          {FILTER_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+          Acción
+          <select value={actionFilter} onChange={(e) => withReset(setActionFilter)(e.target.value)} className={cn(CONTROL, "min-w-[180px]")}>
+            {FILTER_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+          Entidad
+          <select value={entityFilter} onChange={(e) => withReset(setEntityFilter)(e.target.value)} className={CONTROL}>
+            {ENTITY_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+          Responsable
+          <select value={userFilter} onChange={(e) => withReset(setUserFilter)(e.target.value)} className={cn(CONTROL, "min-w-[160px]")}>
+            <option value="">Todos</option>
+            {operators.map((u) => (
+              <option key={u.id} value={u.id}>
+                {[u.first_name, u.last_name].filter(Boolean).join(" ") || u.email}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+          Desde
+          <input type="date" value={from} max={to || undefined} onChange={(e) => withReset(setFrom)(e.target.value)} className={CONTROL} />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+          Hasta
+          <input type="date" value={to} min={from || undefined} onChange={(e) => withReset(setTo)(e.target.value)} className={CONTROL} />
+        </label>
+        {hasFilters && (
+          <button type="button" onClick={clearFilters} className="px-3 py-2 text-sm font-medium text-brand-600 hover:text-brand-700">
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
       {/* Tabla */}
@@ -163,13 +264,13 @@ export default function AuditoriaPage() {
                     Acción
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Producto
+                    Entidad
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
                     Operador
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Stock
+                    Cambio
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
                     Motivo
@@ -186,6 +287,8 @@ export default function AuditoriaPage() {
                   const next   = parseStock(log.new_value);
                   const reason = parseReason(log.new_value);
                   const diff   = prev !== null && next !== null ? next - prev : null;
+                  const isStock = log.action.startsWith("stock_");
+                  const summary = isStock ? null : summarizeChange(log.previous_value, log.new_value);
 
                   return (
                     <tr key={log.id} className="hover:bg-slate-50 transition-colors">
@@ -208,7 +311,7 @@ export default function AuditoriaPage() {
                         {log.user_name ?? <span className="text-slate-400 italic">—</span>}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        {prev !== null && next !== null ? (
+                        {isStock && prev !== null && next !== null ? (
                           <span className="flex items-center gap-1 text-xs">
                             <span className="text-slate-500">{prev}</span>
                             <span className="text-slate-300">→</span>
@@ -229,6 +332,8 @@ export default function AuditoriaPage() {
                               </span>
                             )}
                           </span>
+                        ) : summary ? (
+                          <span className="block max-w-[260px] truncate text-xs text-slate-600" title={summary}>{summary}</span>
                         ) : (
                           <span className="text-slate-400 text-xs">—</span>
                         )}

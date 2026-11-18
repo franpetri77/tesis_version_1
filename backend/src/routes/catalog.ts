@@ -13,6 +13,7 @@ import jwt from "jsonwebtoken";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
+import { dispatch, notifyNewReview } from "../services/notifications";
 import { getRecommendedProducts, type RecommendationContext } from "../services/recommendations";
 
 // Mismo secreto que en auth.ts; se extrae para el endpoint de visitas (token opcional)
@@ -399,6 +400,11 @@ catalogRouter.post("/products/:productId/reviews", castAuth, async (req, res) =>
        VALUES (?, ?, ?, ?, ?, ?, 0, NOW())`,
       [reviewId, productId, authReq.user.userId, ratingNum, title?.trim() ?? null, body.trim()]
     );
+
+    dispatch(`reseña ${reviewId}`, async () => {
+      const [p] = await db.query<RowDataPacket[]>("SELECT name FROM products WHERE id = ?", [productId]);
+      await notifyNewReview(String(p[0]?.name ?? "un producto"));
+    });
 
     res.status(201).json({
       message: "Reseña enviada. Será publicada luego de ser aprobada.",

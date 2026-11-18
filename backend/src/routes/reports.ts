@@ -11,6 +11,7 @@ import { randomUUID } from "crypto";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
+import { dispatch, notifyLowStock } from "../services/notifications";
 
 interface AuthRequest extends Request {
   user: { userId: string; role: string };
@@ -515,6 +516,7 @@ reportsRouter.post("/stock-movement", castAuth, requireAdmin, async (req, res) =
     );
 
     await conn.commit();
+    dispatch(`stock bajo ${product_id}`, () => notifyLowStock([product_id]));
 
     res.status(201).json({
       message: "Movimiento registrado correctamente",

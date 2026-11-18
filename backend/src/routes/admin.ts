@@ -10,6 +10,10 @@ import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
 import { OrderStatusError, allowedTransitions, changeOrderStatus, ORDER_STATUS_LABELS } from "../services/orderStatus";
+import { diffFields, logAudit } from "../services/audit";
+import { dispatch, notifyLowStock, notifyNewProduct, notifyPriceDrop } from "../services/notifications";
+
+const actorOf = (req: Request) => ({ userId: (req as unknown as AuthRequest).user?.userId ?? null, ip: req.ip ?? null });
 
 export const adminRouter = Router();
 
@@ -130,7 +134,7 @@ adminRouter.put("/users/:id/role", async (req, res) => {
     }
 
     const [existing] = await db.query<RowDataPacket[]>(
-      "SELECT id FROM users WHERE id = ?",
+      "SELECT id, role FROM users WHERE id = ?",
       [id]
     );
     if (existing.length === 0) {
@@ -148,6 +152,10 @@ adminRouter.put("/users/:id/role", async (req, res) => {
       "SELECT id, email, first_name, last_name, phone, role, created_at, updated_at FROM users WHERE id = ?",
       [id]
     );
+    if (existing[0]!.role !== role) {
+      await logAudit({ action: "user_role", entityType: "user", entityId: String(id), ...actorOf(req),
+        previous: { role: existing[0]!.role }, next: { role } });
+    }
 
     res.json({ data: updatedRows[0] });
   } catch (error) {
@@ -173,7 +181,7 @@ adminRouter.delete("/users/:id", async (req, res) => {
     }
 
     const [existing] = await db.query<RowDataPacket[]>(
-      "SELECT id FROM users WHERE id = ?",
+      "SELECT id, email, role FROM users WHERE id = ?",
       [id]
     );
     if (existing.length === 0) {
@@ -182,8 +190,14 @@ adminRouter.delete("/users/:id", async (req, res) => {
     }
 
     await db.query("DELETE FROM users WHERE id = ?", [id]);
+    await logAudit({ action: "user_delete", entityType: "user", entityId: String(id), ...actorOf(req),
+      previous: { email: existing[0]!.email, role: existing[0]!.role } });
     res.json({ success: true });
   } catch (error) {
+    if ((error as { code?: string }).code === "ER_ROW_IS_REFERENCED_2") {
+      res.status(409).json({ error: "El usuario tiene pedidos o registros asociados. Cambiale el rol en lugar de eliminarlo." });
+      return;
+    }
     console.error("[Admin] Error eliminando usuario:", error);
     res.status(500).json({ error: "Error al eliminar el usuario" });
   }
@@ -354,6 +368,11 @@ adminRouter.post("/products", async (req, res) => {
       [productId]
     );
 
+    const created = productRows[0]!;
+    await logAudit({ action: "product_create", entityType: "product", entityId: productId, ...actorOf(req),
+      next: { name: created.name, sku: created.sku, price: created.price, stock_quantity: created.stock_quantity, is_active: Boolean(created.is_active) } });
+    if (created.is_active) dispatch(`producto nuevo ${productId}`, () => notifyNewProduct(productId));
+
     res.status(201).json({
       data: {
         ...productRows[0],
@@ -521,6 +540,18 @@ adminRouter.put("/products/:id", async (req, res) => {
       [id]
     );
 
+    const updated = updatedRows[0]!;
+    const fields = ["name", "sku", "price", "compare_price", "category_id", "stock_quantity", "is_active", "is_featured"] as const;
+    const pick = (row: Record<string, unknown>) => Object.fromEntries(fields.map((f) => [f, row[f]]));
+    const changes = diffFields(pick(existing as unknown as Record<string, unknown>), pick(updated as unknown as Record<string, unknown>));
+    if (changes) {
+      await logAudit({ action: "product_update", entityType: "product", entityId: String(id), ...actorOf(req), ...changes });
+      if (Number(updated.price) < Number(existing.price)) {
+        dispatch(`baja de precio ${id}`, () => notifyPriceDrop(String(id), Number(existing.price), Number(updated.price)));
+      }
+      if ("stock_quantity" in changes.next) dispatch(`stock bajo ${id}`, () => notifyLowStock([String(id)]));
+    }
+
     res.json({
       data: {
         ...updatedRows[0],
@@ -561,6 +592,8 @@ adminRouter.patch("/products/:id/toggle", async (req, res) => {
       [newState, id]
     );
 
+    await logAudit({ action: "product_toggle", entityType: "product", entityId: String(id), ...actorOf(req),
+      previous: { is_active: Boolean(product.is_active) }, next: { is_active: Boolean(newState) } });
     res.json({ data: { id, is_active: Boolean(newState) } });
   } catch (error) {
     console.error("[Admin] Error en toggle de producto:", error);
@@ -577,7 +610,7 @@ adminRouter.delete("/products/:id", async (req, res) => {
     const { id } = req.params;
 
     const [existing] = await db.query<RowDataPacket[]>(
-      "SELECT id FROM products WHERE id = ?",
+      "SELECT id, name, sku FROM products WHERE id = ?",
       [id]
     );
     if (existing.length === 0) {
@@ -586,6 +619,8 @@ adminRouter.delete("/products/:id", async (req, res) => {
     }
 
     await db.query("DELETE FROM products WHERE id = ?", [id]);
+    await logAudit({ action: "product_delete", entityType: "product", entityId: String(id), ...actorOf(req),
+      previous: { name: existing[0]!.name, sku: existing[0]!.sku } });
     res.json({ success: true });
   } catch (error) {
     console.error("[Admin] Error eliminando producto:", error);
@@ -663,6 +698,8 @@ adminRouter.patch("/reviews/:id/approve", async (req, res) => {
     }
     const newState = rows[0].is_approved === 1 ? 0 : 1;
     await db.query("UPDATE product_reviews SET is_approved = ? WHERE id = ?", [newState, id]);
+    await logAudit({ action: newState ? "review_approve" : "review_hide", entityType: "review", entityId: String(id), ...actorOf(req),
+      previous: { is_approved: Boolean(rows[0].is_approved) }, next: { is_approved: Boolean(newState) } });
     res.json({ data: { id, is_approved: Boolean(newState) } });
   } catch (error) {
     console.error("[Admin] Error aprobando reseña:", error);
@@ -678,7 +715,7 @@ adminRouter.delete("/reviews/:id", async (req, res) => {
   const { id } = req.params;
   try {
     const [rows] = await db.query<RowDataPacket[]>(
-      "SELECT id FROM product_reviews WHERE id = ? LIMIT 1",
+      "SELECT id, product_id, rating FROM product_reviews WHERE id = ? LIMIT 1",
       [id]
     );
     if (!rows[0]) {
@@ -686,6 +723,8 @@ adminRouter.delete("/reviews/:id", async (req, res) => {
       return;
     }
     await db.query("DELETE FROM product_reviews WHERE id = ?", [id]);
+    await logAudit({ action: "review_delete", entityType: "review", entityId: String(id), ...actorOf(req),
+      previous: { product_id: rows[0].product_id, rating: rows[0].rating } });
     res.json({ success: true });
   } catch (error) {
     console.error("[Admin] Error eliminando reseña:", error);
@@ -806,7 +845,7 @@ adminRouter.patch("/orders/:id/status", async (req, res) => {
 // y productos (cuando entity_type = 'product')
 // -----------------------------------------------
 adminRouter.get("/audit-logs", async (req, res) => {
-  const { action, entity_type } = req.query as Record<string, string | undefined>;
+  const { action, entity_type, user_id, entity_id, from, to } = req.query as Record<string, string | undefined>;
   const limit  = Math.min(Number(req.query.limit)  || 50, 200);
   const offset = Math.max(Number(req.query.offset) || 0,  0);
 
@@ -815,6 +854,16 @@ adminRouter.get("/audit-logs", async (req, res) => {
 
   if (action)      { conditions.push("al.action = ?");      params.push(action); }
   if (entity_type) { conditions.push("al.entity_type = ?"); params.push(entity_type); }
+  if (user_id)     { conditions.push("al.user_id = ?");     params.push(user_id); }
+  if (entity_id)   { conditions.push("al.entity_id = ?");   params.push(entity_id); }
+  // Fechas inclusivas (AAAA-MM-DD): desde el inicio del primer día hasta antes del día siguiente al último.
+  const isDay = (v?: string) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+  if ((from && !isDay(from)) || (to && !isDay(to))) {
+    res.status(400).json({ error: "Las fechas deben tener el formato AAAA-MM-DD" });
+    return;
+  }
+  if (from) { conditions.push("al.created_at >= ?"); params.push(from); }
+  if (to)   { conditions.push("al.created_at < DATE_ADD(?, INTERVAL 1 DAY)"); params.push(to); }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
@@ -832,7 +881,7 @@ adminRouter.get("/audit-logs", async (req, res) => {
          al.entity_id,
          al.user_id,
          CONCAT(u.first_name, ' ', u.last_name) AS user_name,
-         p.name AS entity_name,
+         COALESCE(p.name, o.order_number, CONCAT(eu.first_name, ' ', eu.last_name)) AS entity_name,
          al.previous_value,
          al.new_value,
          al.ip_address,
@@ -840,6 +889,8 @@ adminRouter.get("/audit-logs", async (req, res) => {
        FROM audit_logs al
        LEFT JOIN users    u ON u.id = al.user_id
        LEFT JOIN products p ON p.id = al.entity_id AND al.entity_type = 'product'
+       LEFT JOIN orders   o ON o.id = al.entity_id AND al.entity_type = 'order'
+       LEFT JOIN users   eu ON eu.id = al.entity_id AND al.entity_type = 'user'
        ${where}
        ORDER BY al.created_at DESC
        LIMIT ? OFFSET ?`,

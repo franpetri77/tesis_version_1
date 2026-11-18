@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { lockStockOrder, releaseOrderPromotion, restoreLockedOrderStock } from "./orderStock";
+import { dispatch, notifyOrderPaid, notifyOrderStatus } from "./notifications";
 
 interface OrderPayment {
   mp_payment_id: string;
@@ -93,6 +94,13 @@ export async function recordOrderPayment(orderId: string, payment: OrderPayment)
       await conn.query("UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?", [nextStatus, orderId]);
     }
     await conn.commit();
+
+    // T5: avisos después de confirmar; un fallo no revierte el pago.
+    if (nextStatus === "paid" && order.status === "pending") {
+      dispatch(`pedido pagado ${orderId}`, () => notifyOrderPaid(orderId));
+    } else if (nextStatus !== order.status && (nextStatus === "cancelled" || nextStatus === "refunded")) {
+      dispatch(`pedido ${nextStatus} ${orderId}`, () => notifyOrderStatus(orderId, nextStatus));
+    }
 
     // Un cobro que llega después de liberar la reserva necesita conciliación;
     // nunca reabrir automáticamente un pedido cuyo stock ya quedó disponible.

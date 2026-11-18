@@ -881,7 +881,7 @@ adminRouter.get("/audit-logs", async (req, res) => {
          al.entity_id,
          al.user_id,
          CONCAT(u.first_name, ' ', u.last_name) AS user_name,
-         COALESCE(p.name, o.order_number, CONCAT(eu.first_name, ' ', eu.last_name)) AS entity_name,
+         COALESCE(p.name, o.order_number, CONCAT(eu.first_name, ' ', eu.last_name), pr.code) AS entity_name,
          al.previous_value,
          al.new_value,
          al.ip_address,
@@ -891,6 +891,7 @@ adminRouter.get("/audit-logs", async (req, res) => {
        LEFT JOIN products p ON p.id = al.entity_id AND al.entity_type = 'product'
        LEFT JOIN orders   o ON o.id = al.entity_id AND al.entity_type = 'order'
        LEFT JOIN users   eu ON eu.id = al.entity_id AND al.entity_type = 'user'
+       LEFT JOIN promotions pr ON pr.id = al.entity_id AND al.entity_type = 'promotion'
        ${where}
        ORDER BY al.created_at DESC
        LIMIT ? OFFSET ?`,

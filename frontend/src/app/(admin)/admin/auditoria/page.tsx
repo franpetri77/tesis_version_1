@@ -11,7 +11,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ClipboardList, ArrowDownCircle, ArrowUpCircle, ChevronLeft, ChevronRight,
-  Package, UserCog, UserX, PackagePlus, PackageX, Pencil, Power, MessageSquare,
+  Package, UserCog, UserX, PackagePlus, PackageX, Pencil, Power, MessageSquare, Tag,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
@@ -56,6 +56,9 @@ const ACTION_META: Record<string, { label: string; color: string; Icon: React.El
   review_approve: { label: "Reseña aprobada",    color: "text-emerald-600 bg-emerald-50", Icon: MessageSquare },
   review_hide:    { label: "Reseña oculta",      color: "text-slate-700 bg-slate-100",    Icon: MessageSquare },
   review_delete:  { label: "Reseña eliminada",   color: "text-red-600 bg-red-50",         Icon: MessageSquare },
+  // Acciones que registra el ABM de promociones (T4)
+  promotion_create: { label: "Alta de promoción",   color: "text-emerald-600 bg-emerald-50", Icon: Tag },
+  promotion_update: { label: "Edición de promoción", color: "text-slate-700 bg-slate-100",   Icon: Tag },
 };
 function actionMeta(action: string): { label: string; color: string; Icon: React.ElementType } {
   return ACTION_META[action] ?? { label: action, color: "text-slate-600 bg-slate-100", Icon: ClipboardList };
@@ -64,7 +67,11 @@ function actionMeta(action: string): { label: string; color: string; Icon: React
 const FIELD_LABEL: Record<string, string> = {
   status: "estado", role: "rol", price: "precio", compare_price: "precio anterior",
   stock_quantity: "stock", is_active: "activo", is_approved: "aprobada", name: "nombre",
+  code: "código", value: "valor", max_uses: "límite de usos", min_order_amount: "compra mínima",
+  valid_from: "vigente desde", valid_until: "vigente hasta",
 };
+// Campos técnicos que no aportan al resumen aunque vengan en la fila completa
+const SKIP_FIELDS = new Set(["reason", "id", "created_at", "updated_at"]);
 // Resume en una línea los campos que cambiaron (para acciones que no son de stock)
 function summarizeChange(prevRaw: string | null, nextRaw: string | null): string | null {
   const parse = (raw: string | null) => {
@@ -74,7 +81,11 @@ function summarizeChange(prevRaw: string | null, nextRaw: string | null): string
   };
   const prev = parse(prevRaw), next = parse(nextRaw);
   const show = (v: unknown) => v === true ? "sí" : v === false ? "no" : v == null ? "—" : String(v);
-  const keys = Array.from(new Set([...Object.keys(prev), ...Object.keys(next)])).filter((k) => k !== "reason");
+  // Algunas acciones (p. ej. promociones) guardan la fila completa antes y después:
+  // se muestran sólo los campos cuyo valor cambió.
+  const same = (k: string) => k in prev && k in next && JSON.stringify(prev[k]) === JSON.stringify(next[k]);
+  const keys = Array.from(new Set([...Object.keys(prev), ...Object.keys(next)]))
+    .filter((k) => !SKIP_FIELDS.has(k) && !same(k));
   if (keys.length === 0) return null;
   return keys.slice(0, 3).map((k) => {
     const label = FIELD_LABEL[k] ?? k.replace(/_/g, " ");
@@ -115,6 +126,7 @@ const ENTITY_OPTIONS = [
   { value: "product", label: "Productos" },
   { value: "user",    label: "Usuarios" },
   { value: "review",  label: "Reseñas" },
+  { value: "promotion", label: "Promociones" },
 ];
 
 interface Operator { id: string; first_name: string | null; last_name: string | null; email: string; role: string }

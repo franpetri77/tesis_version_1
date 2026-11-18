@@ -250,6 +250,58 @@ export async function getMetrics(): Promise<AdminMetrics> {
   return data.data;
 }
 
+// -----------------------------------------------
+// R02 — Tendencias de compra
+// -----------------------------------------------
+export type TrendGroup = "day" | "week" | "month";
+
+export interface TrendPeriod {
+  start: string;
+  end: string;
+  label: string;
+  partial: boolean;
+  open: boolean;
+  units: number;
+  refunded_units: number;
+  variation_pct: number | null;
+}
+
+export interface TrendBreakdownItem {
+  id: string;
+  name: string;
+  units_current: number;
+  units_previous: number;
+  variation_pct: number | null;
+}
+
+export interface SalesTrend {
+  period: { from: string; to: string; group: TrendGroup };
+  as_of: { date: string; timezone: string };
+  breakdown_by: "category" | "product";
+  series: TrendPeriod[];
+  comparison: { current: { start: string; end: string }; previous: { start: string; end: string } } | null;
+  breakdown: TrendBreakdownItem[];
+  notes: string[];
+}
+
+export async function getSalesTrend(params: {
+  from: string;
+  to: string;
+  group: TrendGroup;
+  by: "category" | "product";
+  categoryId?: string;
+}): Promise<SalesTrend> {
+  const qs = new URLSearchParams({ from: params.from, to: params.to, group: params.group, by: params.by });
+  if (params.categoryId) qs.set("category_id", params.categoryId);
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/reports/sales-trend?${qs}`,
+    { headers: authHeaders(), cache: "no-store" }
+  );
+  const body = (await res.json().catch(() => ({}))) as SalesTrend & { error?: string };
+  if (!res.ok) throw new Error(body.error ?? "No se pudo obtener el reporte de tendencias");
+  return body;
+}
+
 /**
  * Productos más visitados (por visitas al detalle de producto)
  */

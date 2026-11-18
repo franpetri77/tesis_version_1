@@ -12,6 +12,7 @@ import { z } from "zod";
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import db from "../db/database";
 import { requireAuth } from "./auth";
+import { todayInCordoba } from "../utils/businessDate";
 import {
   cancelPendingOrder, CheckoutConflict, consolidateStockItems, deductOrderStock,
   lockStockProducts, RESERVATION_MINUTES,
@@ -180,7 +181,7 @@ const validateCouponSchema = z.object({
 paymentsRouter.post("/validate-coupon", async (req, res) => {
   try {
     const { code, subtotal } = validateCouponSchema.parse(req.body);
-    const today = new Date().toISOString().split("T")[0]!; // YYYY-MM-DD
+    const today = todayInCordoba();
 
     const [rows] = await db.query<DbPromotion[]>(
       "SELECT * FROM promotions WHERE code = ? AND is_active = 1 LIMIT 1",
@@ -346,7 +347,7 @@ paymentsRouter.post("/create-order", castAuth, async (req, res) => {
     let isFreeShipping = false;
 
     if (body.coupon_code) {
-      const today = new Date().toISOString().split("T")[0]!;
+      const today = todayInCordoba();
       const [promoRows] = await db.query<DbPromotion[]>(
         "SELECT * FROM promotions WHERE code = ? AND is_active = 1 LIMIT 1",
         [body.coupon_code.toUpperCase()]

@@ -78,7 +78,9 @@ export default function ImportProductsPage() {
         if (r.plan) setPlan(r.plan);
       }
     } catch {
-      setError("No se pudo conectar con el servidor. No se guardó ningún cambio.");
+      // Un fallo de red no prueba que no se haya guardado: la conexión puede
+      // cortarse después del commit.
+      setError("No pudimos confirmar el resultado. Revisá el catálogo o la auditoría antes de volver a intentar.");
     } finally {
       setStatus("idle");
     }

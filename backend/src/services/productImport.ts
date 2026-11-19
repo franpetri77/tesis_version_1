@@ -426,8 +426,31 @@ export async function planImport(db: Executor, csv: string, opts: { lock?: boole
 
   const summary = { total: rows.length, create: 0, update: 0, unchanged: 0, error: 0 };
   for (const r of rows) summary[r.action]++;
-  const signature = sha256(JSON.stringify(rows.map((r) => [r.line, r.sku, r.action, r.changes])));
-  return { fileErrors: [], columns, ignoredColumns, rows, summary, hash, signature };
+  return { fileErrors: [], columns, ignoredColumns, rows, summary, hash, signature: planSignature(rows) };
+}
+
+/**
+ * Huella del plan: por fila, el producto que identifica, su estado actual
+ * (la misma foto que usa la auditoría: campos, etiquetas, especificaciones e
+ * imágenes), la acción, las columnas que cambian y los valores que quedarían.
+ * Con solo acción y columnas, dos vistas previas que llevan el mismo precio a
+ * valores distintos, o un cambio intermedio de precio o stock que no coincide
+ * con el destino, daban la misma huella y la confirmación pisaba ese cambio.
+ */
+function planSignature(rows: InternalRow[]): string {
+  return sha256(canonicalStringify(rows.map((r) => ({
+    line: r.line, sku: r.sku, action: r.action, changes: r.changes,
+    product: r.existingId ?? null, before: r.before ?? null, desired: r.desired ?? null,
+  }))));
+}
+
+/** JSON con las claves ordenadas en todos los niveles: la misma entrada da siempre el mismo texto. */
+function canonicalStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) => {
+    if (v === null || typeof v !== "object" || Array.isArray(v) || v instanceof Date) return v;
+    return Object.keys(v as Record<string, unknown>).sort()
+      .reduce<Record<string, unknown>>((acc, k) => { acc[k] = (v as Record<string, unknown>)[k]; return acc; }, {});
+  });
 }
 
 function changedColumns(before: ProductSnapshot, d: Desired, has: (c: CsvColumn) => boolean): CsvColumn[] {

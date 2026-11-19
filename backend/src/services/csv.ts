@@ -6,14 +6,15 @@
 //   Una comilla en medio de un campo sin comillas se toma como texto
 //   (ej. {"Color":"Negro"} escrito a mano), como hacen las planillas.
 // - Al exportar protege contra fórmulas en planillas (=, +, -, @) con un
-//   apóstrofo inicial, que la importación vuelve a quitar.
+//   apóstrofo inicial, que la importación vuelve a quitar. El escape es
+//   reversible: un apóstrofo original delante de esos caracteres también
+//   se protege, así que exportar e importar no cambia ningún texto.
 // =============================================
 
 export type CsvDelimiter = ";" | "," | "\t";
 
 export class CsvError extends Error {}
 
-const FORMULA_START = /^[=+\-@\t\r]/;
 
 /** Separador más frecuente fuera de comillas en la primera línea. */
 export function detectDelimiter(text: string): CsvDelimiter {
@@ -80,13 +81,26 @@ export function parseCsv(input: string, delimiter: CsvDelimiter = detectDelimite
   return rows.filter((r) => r.cells.some((c) => c.trim() !== ""));
 }
 
-/** Quita el apóstrofo de protección que agrega la exportación. */
+// Texto que una planilla tomaría como fórmula, aunque vaya precedido de
+// apóstrofos: "=x", "'=x", "''=x"...
+const NEEDS_PROTECTION = /^'*[=+\-@\t\r]/;
+
+/**
+ * Quita el apóstrofo de protección que agrega la exportación: exactamente uno.
+ * Es la inversa de protectCell: "'=x" → "=x", "''=x" → "'=x".
+ */
 export function unprotectCell(value: string): string {
-  return value.startsWith("'") && FORMULA_START.test(value.slice(1)) ? value.slice(1) : value;
+  return value.startsWith("'") && NEEDS_PROTECTION.test(value.slice(1)) ? value.slice(1) : value;
 }
 
-function protectCell(value: string): string {
-  return FORMULA_START.test(value) ? `'${value}` : value;
+/**
+ * Antepone un apóstrofo a lo que empieza como fórmula. También a lo que ya
+ * empieza con apóstrofos seguidos de =, +, -, @, tabulación o CR: si no, la
+ * importación no podría distinguir el apóstrofo original del protector y
+ * "'=Nombre literal" volvería como "=Nombre literal".
+ */
+export function protectCell(value: string): string {
+  return NEEDS_PROTECTION.test(value) ? `'${value}` : value;
 }
 
 function quoteCell(value: string, delimiter: CsvDelimiter): string {

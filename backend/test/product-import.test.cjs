@@ -129,7 +129,15 @@ test('CSV: la exportación neutraliza fórmulas y el ciclo exportar/leer conserv
   assert.ok(csv.startsWith('﻿'));
   assert.match(csv, /^﻿'=SUMA\(A1\);'\+54 351;'-5;'@usuario;normal;" con espacios ";"a;b";"comilla ""x""";"salto\nlínea"/);
   const back = parseCsv(csv)[0].cells.map(unprotectCell);
-  assert.deepEqual(back.slice(0, 9), cells[0].slice(0, 9));
+  assert.deepEqual(back, cells[0], 'todas las celdas, incluida la que ya empezaba con apóstrofo');
+});
+
+test('CSV: el escape es reversible con apóstrofos originales delante de =, +, -, @, tabulación o CR', () => {
+  const originals = ["'=Nombre literal", "''=doble", "'+54", "'-5", "'@x", "'\tcon tab", "'normal", "''", "'", 'sin nada', "=x"];
+  const csv = toCsv([originals]);
+  assert.match(csv, /^﻿''=Nombre literal;'''=doble;''\+54;''-5;''@x;''\tcon tab;'normal;'';';sin nada;'=x\r\n$/);
+  assert.deepEqual(parseCsv(csv)[0].cells.map(unprotectCell), originals);
+  for (const cell of parseCsv(csv)[0].cells) assert.doesNotMatch(cell, /^[=+\-@\t\r]/, 'ninguna celda exportada empieza como fórmula');
 });
 
 test('números y sí/no: coma o punto solo para centavos; "45.999" es ambiguo y se rechaza', () => {
@@ -171,6 +179,55 @@ test('ida y vuelta: importar el mismo CSV exportado no cambia nada ni escribe', 
   assert.equal(c.status, 200);
   assert.deepEqual([...db.products.values()], [...before.products.values()]);
   assert.deepEqual(db.audits.map((a) => a.action), ['product_import'], 'solo queda el registro resumen');
+});
+
+test('ida y vuelta HTTP con apóstrofos originales en textos: sin cambios', async () => {
+  Object.assign(db.products.get('p1'), { name: "'=Nombre literal", brand: "''+Marca", short_description: "'-corta" });
+  Object.assign(db.products.get('p2'), { model: "'@modelo", description: "'normal" });
+  const before = clone(db);
+  const csv = (await call('GET', '/admin/products/export')).text;
+  const p = await preview(csv);
+  assert.deepEqual(p.body.data.summary, { total: 3, create: 0, update: 0, unchanged: 3, error: 0 }, JSON.stringify(p.body.data.rows));
+  const c = await call('POST', '/admin/products/import', { csv, hash: p.body.data.hash, signature: p.body.data.signature });
+  assert.equal(c.status, 200);
+  assert.deepEqual([...db.products.values()], [...before.products.values()]);
+  assert.equal(bySku('HUB-1').name, "'=Nombre literal");
+});
+
+test('firma: dos vistas previas que llevan el mismo SKU a precios distintos; la segunda confirmación es obsoleta (409)', async () => {
+  const a = 'sku;precio\nHUB-1;100', b = 'sku;precio\nHUB-1;200';
+  const pa = await preview(a), pb = await preview(b);
+  assert.deepEqual(pa.body.data.rows[0].changes, ['precio']);
+  assert.deepEqual(pb.body.data.rows[0].changes, ['precio']);
+  assert.notEqual(pa.body.data.signature, pb.body.data.signature, 'mismo SKU, acción y columna, pero otro destino');
+  const ra = await call('POST', '/admin/products/import', { csv: a, hash: pa.body.data.hash, signature: pa.body.data.signature });
+  assert.equal(ra.status, 200);
+  queries = [];
+  const rb = await call('POST', '/admin/products/import', { csv: b, hash: pb.body.data.hash, signature: pb.body.data.signature });
+  assert.equal(rb.status, 409); assert.match(rb.body.error, /cambiaron desde la vista previa/);
+  assert.equal(bySku('HUB-1').price, money(100), 'no pisa el cambio confirmado después de su vista previa');
+  assert.equal(writes().length, 0);
+  assert.equal(rb.body.data.rows[0].action, 'update', 'la nueva vista previa sigue proponiendo el cambio, para revisarlo');
+});
+
+test('firma: un cambio intermedio de precio o stock que no coincide con el destino invalida la vista previa (409)', async () => {
+  for (const [csv, change] of [
+    ['sku;precio\nHUB-1;30000', (p) => { p.price = money(40000); }],
+    ['sku;stock\nHUB-1;50', (p) => { p.stock_quantity = 20; }],
+  ]) {
+    seed(); queries = [];
+    const p = await preview(csv);
+    change(db.products.get('p1')); // otra sesión editó el producto después de la vista previa
+    const r = await call('POST', '/admin/products/import', { csv, hash: p.body.data.hash, signature: p.body.data.signature });
+    assert.equal(r.status, 409, csv); assert.match(r.body.error, /cambiaron desde la vista previa/);
+    assert.equal(writes().length, 0); assert.equal(db.audits.length, 0);
+  }
+  // Un cambio en otro campo del mismo producto (etiquetas) también
+  const csv = 'sku;precio\nHUB-1;30000';
+  const p = await preview(csv);
+  db.maps = db.maps.filter((m) => !(m.product_id === 'p1' && m.tag_id === 't1'));
+  const r = await call('POST', '/admin/products/import', { csv, hash: p.body.data.hash, signature: p.body.data.signature });
+  assert.equal(r.status, 409);
 });
 
 test('vista previa: errores por fila con línea y columna, sin escribir en la base', async () => {

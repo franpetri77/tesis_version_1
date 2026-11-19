@@ -110,6 +110,7 @@ function Conversation({ id, onStatusChange }: { id: string; onStatusChange: () =
           hasMore={t.hasMore}
           onLoadOlder={t.loadOlder}
           onSend={(body) => t.send(body)}
+          onRetry={t.initFailed ? () => void t.retry() : undefined}
           sending={t.sending}
           sendError={t.sendError}
           canWrite={canEdit}

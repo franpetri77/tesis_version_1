@@ -66,6 +66,8 @@ export interface ChatThreadProps {
   /** false: se muestra la conversación sin caja de texto. */
   canWrite: boolean;
   readOnlyNote?: ReactNode;
+  /** Presente sólo si la carga inicial falló: muestra el aviso con "Reintentar". */
+  onRetry?: () => void;
   /** Producto que se adjuntará al próximo mensaje (sólo el cliente). */
   attachment?: { product: Pick<ChatProduct, "name" | "price">; onRemove: () => void } | null;
   empty?: ReactNode;
@@ -161,10 +163,23 @@ export function ChatThread(props: ChatThreadProps) {
             <Loader2 className="mr-2 h-4 w-4 motion-safe:animate-spin" aria-hidden /> Cargando mensajes…
           </div>
         )}
-        {!loading && error && messages.length === 0 && (
+        {props.onRetry ? (
+          // La carga inicial falló: se avisa aunque ya se vea algún mensaje propio
+          <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <span>No se pudo cargar la conversación. Volvemos a intentar solos en unos segundos.</span>
+            <button
+              type="button"
+              onClick={props.onRetry}
+              disabled={loading}
+              className="flex-shrink-0 rounded-md border border-red-200 bg-white px-2.5 py-1 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+            >
+              {loading ? "Cargando…" : "Reintentar"}
+            </button>
+          </div>
+        ) : !loading && error && messages.length === 0 && (
           <p className="py-8 text-center text-sm text-red-600">{error}</p>
         )}
-        {!loading && !error && messages.length === 0 && props.empty}
+        {!loading && !error && !props.onRetry && messages.length === 0 && props.empty}
 
         <ol className="space-y-1">
           {messages.map((m, i) => {

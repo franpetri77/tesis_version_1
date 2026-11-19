@@ -2,7 +2,8 @@
 
 // =============================================
 // HOOK: CONVERSACIÓN CON CONSULTA PERIÓDICA (T9)
-// Carga los últimos mensajes y, cuando esa carga termina, mientras la vista
+// Carga los últimos mensajes (si falla, reintenta sola o con "Reintentar")
+// y, cuando esa carga sale bien, mientras la vista
 // está activa y la pestaña visible, pide cada pocos segundos lo posterior al
 // cursor de entrega (?after=). La lógica del cursor está en
 // lib/chat/threadSync.ts: los mensajes propios que devuelve el POST se
@@ -47,25 +48,56 @@ export function useChatThread<P extends ThreadPage>(source: ThreadSource<P>, act
   const generation = useRef(0);
   const polling = useRef(false);
   const lastMarked = useRef(0);
+  const initRunning = useRef(false);
+  /** Fallos seguidos de la carga inicial (0 = sin fallos); cambia en cada fallo para reprogramar el reintento. */
+  const [initFailures, setInitFailures] = useState(0);
 
-  // Carga inicial (y al cambiar de conversación). Hasta que termina no hay consulta periódica.
+  /**
+   * Carga inicial. Hasta que sale bien no hay consulta periódica (protege el
+   * cursor). Si falla se reintenta sola (efecto de abajo), con el botón
+   * "Reintentar" o después de un envío exitoso.
+   */
+  const loadInitial = useCallback(async () => {
+    if (!src.current.key || initRunning.current || state.current.ready) return;
+    initRunning.current = true;
+    const gen = generation.current;
+    setLoading(true);
+    try {
+      const p = await src.current.load({});
+      if (gen !== generation.current) return;
+      setSync((s) => applyInitial(s, p));
+      setPage(p);
+      setError(null);
+      setInitFailures(0);
+    } catch (e) {
+      if (gen !== generation.current) return;
+      setError((e as Error).message || "No se pudieron cargar los mensajes");
+      setInitFailures((n) => n + 1);
+    } finally {
+      if (gen === generation.current) { initRunning.current = false; setLoading(false); }
+    }
+  }, [setSync]);
+
+  // Al abrir (o cambiar de conversación): estado limpio y carga inicial
   useEffect(() => {
-    const gen = ++generation.current;
+    ++generation.current;
     state.current = emptySync();
     setSyncState(state.current);
-    setPage(null); setError(null); setSendError(null);
-    lastMarked.current = 0; polling.current = false;
-    if (!source.key) return;
-    setLoading(true);
-    src.current.load({})
-      .then((p) => {
-        if (gen !== generation.current) return;
-        setSync((s) => applyInitial(s, p));
-        setPage(p);
-      })
-      .catch((e: Error) => { if (gen === generation.current) setError(e.message || "No se pudieron cargar los mensajes"); })
-      .finally(() => { if (gen === generation.current) setLoading(false); });
-  }, [source.key, setSync]);
+    setPage(null); setError(null); setSendError(null); setInitFailures(0);
+    lastMarked.current = 0; polling.current = false; initRunning.current = false;
+    if (source.key) void loadInitial();
+  }, [source.key, loadInitial]);
+
+  // Reintento de la carga inicial tras un fallo: 2 s, 4 s, 8 s… hasta 30 s,
+  // sólo con la vista activa; al volver a la pestaña, enseguida.
+  useEffect(() => {
+    if (!active || !source.key || sync.ready || initFailures === 0) return;
+    const delay = Math.min(2000 * 2 ** (initFailures - 1), 30_000);
+    const retry = () => { if (document.visibilityState === "visible") void loadInitial(); };
+    const timer = window.setTimeout(retry, delay);
+    document.addEventListener("visibilitychange", retry);
+    return () => { window.clearTimeout(timer); document.removeEventListener("visibilitychange", retry); };
+  }, [active, source.key, sync.ready, initFailures, loadInitial]);
 
   /** Pide lo posterior al cursor y vacía has_more en vueltas seguidas. */
   const poll = useCallback(async () => {
@@ -134,8 +166,10 @@ export function useChatThread<P extends ThreadPage>(source: ThreadSource<P>, act
       const m = await src.current.send(body, productId);
       if (gen === generation.current) {
         setSync((s) => applyOwn(s, m));
-        // Trae enseguida lo que el otro lado haya escrito antes (y el estado de la conversación)
-        void poll();
+        // Trae enseguida lo que el otro lado haya escrito antes (y el estado de la
+        // conversación). Si la carga inicial había fallado, la API respondió:
+        // se reintenta esa carga en lugar de consultar con un cursor sin inicializar.
+        if (state.current.ready) void poll(); else void loadInitial();
       }
       return true;
     } catch (e) {
@@ -144,10 +178,18 @@ export function useChatThread<P extends ThreadPage>(source: ThreadSource<P>, act
     } finally {
       setSending(false);
     }
-  }, [poll, setSync]);
+  }, [poll, loadInitial, setSync]);
+
+  /** Actualiza: consulta incremental si ya cargó; si no, reintenta la carga inicial. */
+  const refresh = useCallback(async () => {
+    if (state.current.ready) await poll(); else await loadInitial();
+  }, [poll, loadInitial]);
 
   return {
     messages: sync.messages, conversation: sync.conversation, page, hasMore: sync.hasOlder,
-    loading, error, sending, sendError, setSendError, loadOlder, send, refresh: poll,
+    loading, error, sending, sendError, setSendError, loadOlder, send, refresh,
+    /** true mientras la carga inicial no salió bien (hay que mostrar "Reintentar"). */
+    initFailed: !sync.ready && initFailures > 0,
+    retry: loadInitial,
   };
 }

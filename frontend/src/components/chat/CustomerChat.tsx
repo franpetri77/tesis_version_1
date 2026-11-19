@@ -42,6 +42,7 @@ export function CustomerChat({ userId, active, className, autoFocus }: { userId:
       hasMore={t.hasMore}
       onLoadOlder={t.loadOlder}
       onSend={onSend}
+      onRetry={t.initFailed ? () => void t.retry() : undefined}
       sending={t.sending}
       sendError={t.sendError}
       canWrite

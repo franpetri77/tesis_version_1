@@ -145,8 +145,9 @@ export function PedidoDetalle({ orderId }: { orderId: string }) {
 
       <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
         {/* ---- Ítems ---- */}
-        <section aria-labelledby="items">
+        <section aria-labelledby="items" className="min-w-0">
           <h2 id="items" className={`${label} mb-2`}>Productos</h2>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm tabular-nums">
             <thead>
               <tr className="border-b border-paper-300 text-left text-[11px] uppercase tracking-[0.12em] text-slate-500">
@@ -167,6 +168,7 @@ export function PedidoDetalle({ orderId }: { orderId: string }) {
               ))}
             </tbody>
           </table>
+          </div>
           <dl className="ml-auto mt-3 max-w-xs space-y-1 text-sm tabular-nums">
             <div className="flex justify-between"><dt className="text-slate-500">Subtotal</dt><dd>{formatPrice(order.subtotal)}</dd></div>
             {order.discount_amount > 0 && <div className="flex justify-between"><dt className="text-slate-500">Descuento</dt><dd>− {formatPrice(order.discount_amount)}</dd></div>}

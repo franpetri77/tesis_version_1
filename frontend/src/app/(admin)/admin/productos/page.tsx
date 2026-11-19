@@ -42,7 +42,7 @@ export default async function AdminProductsPage() {
   return (
     <div className="space-y-5">
       {/* Encabezado */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Productos</h1>
           <p className="text-sm text-slate-500 mt-0.5">

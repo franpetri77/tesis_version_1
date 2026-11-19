@@ -58,9 +58,8 @@ function run(s, p) {
     return list.slice(0, limit).map(msgRow);
   }
   if (s.startsWith("UPDATE chat_conversations SET status = 'open'")) {
-    const c = convById(p[1]); c.status = 'open'; c.last_message_at = 'now';
-    const col = s.includes('customer_last_read_id = GREATEST') ? 'customer_last_read_id' : 'staff_last_read_id';
-    c[col] = Math.max(c[col], p[0]); return { affectedRows: 1 };
+    if (s.includes('last_read_id')) throw new Error('enviar no debe mover punteros de lectura: ' + s);
+    const c = convById(p[0]); c.status = 'open'; c.last_message_at = 'now'; return { affectedRows: 1 };
   }
   if (s.startsWith('UPDATE chat_conversations c SET')) {
     const c = convById(p[1]); if (!c) return { affectedRows: 0 };
@@ -205,7 +204,10 @@ test('personal: bandeja, respuesta, un aviso por tanda al cliente y punteros de 
 
   let r = await call('a1', 'POST', `/admin/chat/conversations/${id}/messages`, { body: 'Sí, enviamos a todo el país.' });
   assert.equal(r.status, 201); assert.equal(r.body.data.sender_name, 'Fran');
-  assert.equal(state.convs[0].staff_last_read_id, r.body.data.id, 'responder marca como leído lo anterior');
+  assert.equal(state.convs[0].staff_last_read_id, 0, 'responder no marca como leído: lo hace /read');
+  assert.equal((await call('a1', 'GET', '/admin/chat/unread')).body.data.messages, 2);
+  assert.equal((await call('a1', 'POST', `/admin/chat/conversations/${id}/read`, { up_to: state.msgs[1].id })).status, 200);
+  assert.equal((await call('a1', 'GET', '/admin/chat/unread')).body.data.messages, 0);
   await call('a1', 'POST', `/admin/chat/conversations/${id}/messages`, { body: 'Cualquier duda, escribinos.' });
   await tick();
   const toCustomer = state.notifs.filter((n) => n.user === 'c1');
@@ -228,6 +230,7 @@ test('personal: resolver y reabrir; un mensaje nuevo del cliente reabre y vuelve
   await call('c1', 'POST', '/chat/messages', { body: 'Hola' });
   const id = state.convs[0].id;
   await call('a1', 'POST', `/admin/chat/conversations/${id}/messages`, { body: 'Hola Ana' });
+  await call('a1', 'POST', `/admin/chat/conversations/${id}/read`, { up_to: state.seq });
   assert.equal((await call('a1', 'PATCH', `/admin/chat/conversations/${id}`, { status: 'resuelta' })).status, 400);
   assert.equal((await call('a1', 'PATCH', `/admin/chat/conversations/${id}`, { status: 'closed' })).status, 200);
   assert.equal(state.convs[0].status, 'closed');
@@ -254,4 +257,44 @@ test('parámetros de lectura inválidos → 400', async () => {
   assert.equal((await call('c1', 'GET', '/chat?after=1&before=5')).status, 400);
   assert.equal((await call('c1', 'POST', '/chat/read', { up_to: 'x' })).status, 400);
   assert.equal((await call('a1', 'GET', '/admin/chat/conversations?status=todas')).status, 400);
+});
+
+test('cruce: enviar no marca como leído lo que el otro lado guardó mientras se redactaba (ambos órdenes)', async () => {
+  for (const order of ['personal primero', 'cliente primero']) {
+    state = { convs: [], msgs: [], notifs: [], seq: 0 };
+    await call('c1', 'POST', '/chat/messages', { body: 'Inicio' });
+    const id = state.convs[0].id;
+    await call('a1', 'POST', `/admin/chat/conversations/${id}/read`, { up_to: 1 });
+    // Los dos lados ya vieron hasta el 1 y escriben sin volver a consultar
+    const staff = () => call('a1', 'POST', `/admin/chat/conversations/${id}/messages`, { body: 'Respuesta' });
+    const customer = () => call('c1', 'POST', '/chat/messages', { body: 'Otra pregunta' });
+    if (order === 'personal primero') { await staff(); await customer(); } else { await customer(); await staff(); }
+    assert.equal((await call('c1', 'GET', '/chat/unread')).body.data.unread, 1, order + ': cliente');
+    assert.equal((await call('a1', 'GET', '/admin/chat/unread')).body.data.messages, 1, order + ': personal');
+    assert.deepEqual([state.convs[0].customer_last_read_id, state.convs[0].staff_last_read_id], [0, 1], order);
+    // Lectura explícita posterior, idempotente y sin retroceder
+    for (let k = 0; k < 2; k++) {
+      assert.equal((await call('c1', 'POST', '/chat/read', { up_to: state.seq })).status, 200);
+      assert.equal((await call('a1', 'POST', `/admin/chat/conversations/${id}/read`, { up_to: state.seq })).status, 200);
+    }
+    await call('c1', 'POST', '/chat/read', { up_to: 1 });
+    assert.deepEqual([state.convs[0].customer_last_read_id, state.convs[0].staff_last_read_id], [state.seq, state.seq], order + ': monótono');
+    assert.equal((await call('c1', 'GET', '/chat/unread')).body.data.unread, 0);
+  }
+});
+
+test('un aviso por tanda: dos mensajes del mismo lado sin leer avisan una vez; leído, el siguiente vuelve a avisar', async () => {
+  await call('c1', 'POST', '/chat/messages', { body: 'Uno' });
+  const id = state.convs[0].id;
+  await call('a1', 'POST', `/admin/chat/conversations/${id}/messages`, { body: 'R1' });
+  await call('a1', 'POST', `/admin/chat/conversations/${id}/messages`, { body: 'R2' });
+  await tick();
+  assert.equal(state.notifs.filter((n) => n.user === 'c1').length, 1);
+  await call('c1', 'POST', '/chat/messages', { body: 'Dos' });
+  await tick();
+  assert.equal(state.notifs.filter((n) => n.user === 'a1').length, 1, 'el personal no leyó el primero: no se repite');
+  await call('c1', 'POST', '/chat/read', { up_to: state.seq });
+  await call('a1', 'POST', `/admin/chat/conversations/${id}/messages`, { body: 'R3' });
+  await tick();
+  assert.equal(state.notifs.filter((n) => n.user === 'c1').length, 2, 'después de leer, la respuesta nueva avisa');
 });

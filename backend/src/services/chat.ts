@@ -6,9 +6,12 @@
 // sólo los mensajes con id mayor al último que ya tiene.
 //
 // Lectura: cada lado guarda el id del último mensaje que leyó. Lo no leído
-// es lo del otro lado con id mayor. El aviso (campana y correo) sale sólo
-// con el PRIMER mensaje no leído de cada tanda: si el otro lado todavía no
-// leyó lo anterior, no se vuelve a avisar.
+// es lo del otro lado con id mayor. El puntero avanza SOLO con /read, que
+// la vista llama hasta el último mensaje que efectivamente recibió. Enviar
+// no lo mueve: un mensaje del otro lado guardado mientras se redactaba no
+// cuenta como leído hasta que llegue a la pantalla (revisión de Codex, T9).
+// El aviso (campana y correo) sale sólo con el PRIMER mensaje no leído de
+// cada tanda: si el otro lado todavía no leyó lo anterior, no se repite.
 // =============================================
 
 import { randomUUID } from "crypto";
@@ -236,12 +239,10 @@ export async function sendCustomerMessage(userId: string, body: string, productI
     const product = await checkProduct(conn, productId);
     const pending = await unreadFor(conn, c.id, "staff", Number(c.staff_last_read_id));
     const id = await insertMessage(conn, c.id, "customer", userId, body, product);
+    // Enviar no mueve el puntero de lectura propio (ver el encabezado)
     await conn.query(
-      `UPDATE chat_conversations
-       SET status = 'open', closed_at = NULL, last_message_at = NOW(),
-           customer_last_read_id = GREATEST(customer_last_read_id, ?)
-       WHERE id = ?`,
-      [id, c.id]
+      "UPDATE chat_conversations SET status = 'open', closed_at = NULL, last_message_at = NOW() WHERE id = ?",
+      [c.id]
     );
     return { conversationId: c.id, message: await insertedMessage(conn, c.id, id), notify: pending === 0, customerId: userId };
   });
@@ -349,7 +350,8 @@ export async function staffConversation(id: string, q: { after?: number; before?
 /**
  * Respuesta del personal. Bloquea la conversación antes de contar lo que el
  * cliente no leyó (un solo aviso por tanda) y la reabre si estaba resuelta.
- * Responder marca como leído lo anterior del cliente.
+ * Responder no marca como leído lo anterior del cliente: eso lo hace la
+ * vista con /read cuando de verdad lo recibió.
  */
 export async function sendStaffMessage(staffId: string, conversationId: string, body: string, productId?: string | null): Promise<SendResult> {
   return withTransaction(async (conn) => {
@@ -358,11 +360,8 @@ export async function sendStaffMessage(staffId: string, conversationId: string, 
     const pending = await unreadFor(conn, c.id, "customer", Number(c.customer_last_read_id));
     const id = await insertMessage(conn, c.id, "staff", staffId, body, product);
     await conn.query(
-      `UPDATE chat_conversations
-       SET status = 'open', closed_at = NULL, last_message_at = NOW(),
-           staff_last_read_id = GREATEST(staff_last_read_id, ?)
-       WHERE id = ?`,
-      [id, c.id]
+      "UPDATE chat_conversations SET status = 'open', closed_at = NULL, last_message_at = NOW() WHERE id = ?",
+      [c.id]
     );
     return { conversationId: c.id, message: await insertedMessage(conn, c.id, id), notify: pending === 0, customerId: c.user_id };
   });

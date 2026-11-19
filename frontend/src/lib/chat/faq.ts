@@ -5,7 +5,8 @@
 // instante, sin esperar a una persona. Si no le alcanza, "Hablar con una
 // persona" lo lleva a la mensajería (T9), que requiere sesión.
 //
-// Los textos usan sólo datos que ya publica el sitio (envíos, retiro,
+// Los textos usan datos que publica el sitio o que confirmó la empresa
+// (dirección del local, garantía de 6 meses) (envíos, retiro,
 // horario, garantía oficial, facturación A por presupuesto, correo de
 // ventas) y sólo prometen lo que el sistema hace hoy: el costo del envío se
 // ve en el checkout y los cambios de estado se avisan en la campana (no por
@@ -33,6 +34,7 @@ export const BOT_GREETING = [
 
 export const STORE_HOURS = "lunes a viernes de 9 a 18 h";
 export const STORE_EMAIL = "ventas@teleimport.com.ar";
+export const STORE_ADDRESS = "Hipermercado Libertad Rodríguez del Busto (Córdoba)";
 
 export const FAQ: FaqItem[] = [
   {
@@ -40,7 +42,7 @@ export const FAQ: FaqItem[] = [
     question: "¿Cuánto cuesta el envío?",
     answer: [
       "Enviamos a todo el país. El costo del envío se muestra en el checkout, antes de pagar.",
-      "Si estás en Córdoba, también podés retirar tu pedido sin costo en el local.",
+      `Si estás en Córdoba, también podés retirar tu pedido sin costo en el local del ${STORE_ADDRESS}.`,
     ],
     links: [{ label: "Ir al carrito", href: "/carrito" }],
   },
@@ -48,7 +50,7 @@ export const FAQ: FaqItem[] = [
     id: "retiro",
     question: "¿Puedo retirar en el local?",
     answer: [
-      "Sí. En el checkout elegí \"Retiro en sucursal\" y no pagás envío.",
+      `Sí. Estamos en el ${STORE_ADDRESS}. En el checkout elegí "Retiro en sucursal" y no pagás envío.`,
       `Cuando el pedido está listo te avisamos en la campana de tu cuenta. Atendemos de ${STORE_HOURS}.`,
     ],
   },

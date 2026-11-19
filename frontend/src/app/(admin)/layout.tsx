@@ -173,9 +173,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         aria-label="Navegación del panel"
         className={cn(
           "fixed inset-y-0 left-0 z-40 w-60 bg-slate-900 text-white flex flex-col flex-shrink-0 overflow-y-auto",
-          "transition-[transform,visibility] duration-200 ease-out motion-reduce:transition-none",
+          "duration-200 ease-out motion-reduce:transition-none",
           "lg:static lg:z-auto lg:translate-x-0 lg:visible",
-          isMenuOpen ? "translate-x-0 visible" : "-translate-x-full invisible"
+          // visibility se anima solo al cerrar (el panel sale deslizando y
+          // después se oculta). Al abrir cambia de inmediato: si no, el panel
+          // sigue oculto cuando se le pasa el foco y focus() no hace nada.
+          isMenuOpen
+            ? "translate-x-0 visible transition-transform"
+            : "-translate-x-full invisible transition-[transform,visibility]"
         )}
       >
         {/* Logo */}

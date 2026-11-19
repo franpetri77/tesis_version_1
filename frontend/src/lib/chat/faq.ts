@@ -73,7 +73,7 @@ export const FAQ: FaqItem[] = [
     id: "garantia",
     question: "¿Los productos tienen garantía?",
     answer: [
-      "Sí, todos los productos tienen garantía oficial. El plazo depende del fabricante de cada producto.",
+      "Sí, todos los productos tienen garantía oficial de 6 meses.",
       "Si tenés un problema con una compra, escribinos con el número de pedido y lo resolvemos.",
     ],
   },

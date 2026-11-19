@@ -9,10 +9,11 @@
 
 import { X, Tag, Search, DollarSign, Star, SlidersHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { Category, CatalogFilters } from "@/types";
+import type { ProductTag, Category, CatalogFilters } from "@/types";
 import { formatPrice } from "@/lib/utils/format";
 
 interface ActiveFilterChipsProps {
+  tags?: ProductTag[];
   currentFilters: CatalogFilters;
   searchParams: Record<string, string | undefined>;
   categories: Category[];
@@ -22,6 +23,7 @@ export function ActiveFilterChips({
   currentFilters,
   searchParams,
   categories,
+  tags = [],
 }: ActiveFilterChipsProps) {
   const router = useRouter();
 
@@ -73,6 +75,8 @@ export function ActiveFilterChips({
       removeKeys: ["precio_max"],
     });
   }
+
+  if (currentFilters.tag) chips.push({label:`Etiqueta: ${tags.find(t=>t.slug===currentFilters.tag)?.name ?? currentFilters.tag}`,Icon:Tag,removeKeys:["etiqueta"]});
 
   if (chips.length === 0) return null;
 

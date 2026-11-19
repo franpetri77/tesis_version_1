@@ -6,7 +6,7 @@
 // =============================================
 
 import { apiGet } from "./client";
-import type { Product, Category, CatalogFilters } from "@/types";
+import type { Product, Category, ProductTag, CatalogFilters } from "@/types";
 
 // -----------------------------------------------
 // MÓDULO: CATEGORÍAS
@@ -37,10 +37,11 @@ export async function getPublicProducts(filters: CatalogFilters = {}): Promise<{
   total: number;
   totalPages: number;
 }> {
-  const { category, search, min_price, max_price, sort, page = 1, limit = 24, featured } = filters;
+  const { tag, category, search, min_price, max_price, sort, page = 1, limit = 24, featured } = filters;
 
   // Construir query string con los filtros presentes
   const params = new URLSearchParams();
+  if (tag) params.set("tag",tag);
   if (category)   params.set("category", category);
   if (search)     params.set("search", search);
   if (min_price !== undefined) params.set("min_price", String(min_price));
@@ -116,4 +117,8 @@ export function getProductImageUrl(
   _options: { width?: number; height?: number; quality?: number } = {}
 ): string {
   return imageUrl;
+}
+
+export async function getTags(): Promise<ProductTag[]> {
+  try { return (await apiGet<ProductTag[]>("/catalog/tags")).data; } catch { return []; }
 }

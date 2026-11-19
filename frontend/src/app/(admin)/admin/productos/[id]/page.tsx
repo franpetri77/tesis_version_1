@@ -18,6 +18,7 @@ import {
 } from "@/lib/api/admin";
 import type { Category, Product } from "@/types";
 import { useCanEdit } from "@/hooks/usePanelRole";
+import { ProductClassificationEditor, type MetadataRows } from "@/components/admin/ProductClassificationEditor";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -36,6 +37,8 @@ export default function EditProductPage() {
   const productId = params.id as string;
 
   // Estado del formulario
+  const [tagsText,setTagsText] = useState("");
+  const [metadata,setMetadata] = useState<MetadataRows>([]);
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
   const [price, setPrice] = useState("");
@@ -87,6 +90,8 @@ export default function EditProductPage() {
   }, [loadData]);
 
   function populateForm(product: Product) {
+    setTagsText((product.tags ?? []).map(t=>t.name).join(", "));
+    setMetadata(Object.entries(product.metadata ?? {}) as MetadataRows);
     setName(product.name ?? "");
     setSku(product.sku ?? "");
     setPrice(String(product.price ?? ""));
@@ -166,6 +171,8 @@ export default function EditProductPage() {
         description: description.trim() || undefined,
         is_active: isActive,
         is_featured: isFeatured,
+        tags: tagsText.split(",").map(t=>t.trim()).filter(Boolean),
+        metadata: Object.fromEntries(metadata.map(([key,value])=>[key.trim(),value])),
         images: validImages,
       });
 
@@ -453,6 +460,8 @@ export default function EditProductPage() {
             />
           </div>
         </div>
+
+        <ProductClassificationEditor tags={tagsText} metadata={metadata} onTags={setTagsText} onMetadata={setMetadata} />
 
         {/* Imágenes */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">

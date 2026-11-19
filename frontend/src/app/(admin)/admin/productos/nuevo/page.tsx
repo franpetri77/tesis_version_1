@@ -13,6 +13,7 @@ import { ArrowLeft, Plus, Trash2, Loader2, AlertCircle } from "lucide-react";
 import { createProduct } from "@/lib/api/admin";
 import type { Category } from "@/types";
 import { useCanEdit } from "@/hooks/usePanelRole";
+import { ProductClassificationEditor, type MetadataRows } from "@/components/admin/ProductClassificationEditor";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -29,6 +30,8 @@ export default function NewProductPage() {
   const router = useRouter();
 
   // Estado del formulario
+  const [tagsText,setTagsText] = useState("");
+  const [metadata,setMetadata] = useState<MetadataRows>([]);
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
   const [price, setPrice] = useState("");
@@ -109,6 +112,8 @@ export default function NewProductPage() {
         description: description.trim() || undefined,
         is_active: isActive,
         is_featured: isFeatured,
+        tags: tagsText.split(",").map(t=>t.trim()).filter(Boolean),
+        metadata: Object.fromEntries(metadata.map(([key,value])=>[key.trim(),value])),
         images: validImages.length > 0 ? validImages : undefined,
       });
 
@@ -306,6 +311,8 @@ export default function NewProductPage() {
             />
           </div>
         </div>
+
+        <ProductClassificationEditor tags={tagsText} metadata={metadata} onTags={setTagsText} onMetadata={setMetadata} />
 
         {/* Imágenes */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">

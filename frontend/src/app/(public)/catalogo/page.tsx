@@ -8,7 +8,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Package, ChevronLeft, ChevronRight, Home } from "lucide-react";
-import { getPublicProducts, getCategories } from "@/lib/api/catalog";
+import { getPublicProducts, getCategories, getTags } from "@/lib/api/catalog";
 import { ProductCard } from "@/components/catalog/ProductCard";
 import { CatalogFilters } from "@/components/catalog/CatalogFilters";
 import { ActiveFilterChips } from "@/components/catalog/ActiveFilterChips";
@@ -26,6 +26,7 @@ const PRODUCTS_PER_PAGE = 24;
 
 interface CatalogPageProps {
   searchParams: {
+    etiqueta?: string;
     categoria?: string;
     buscar?: string;
     precio_min?: string;
@@ -56,6 +57,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const currentPage = searchParams.pagina ? Math.max(1, Number(searchParams.pagina)) : 1;
 
   const filters: Filters = {
+    tag: searchParams.etiqueta,
     category:  searchParams.categoria,
     search:    searchParams.buscar,
     min_price: searchParams.precio_min ? Number(searchParams.precio_min) : undefined,
@@ -66,9 +68,10 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
     featured:  searchParams.destacados === "true" ? true : undefined,
   };
 
-  const [productsResult, categories] = await Promise.all([
+  const [productsResult, categories, tags] = await Promise.all([
     getPublicProducts(filters),
     getCategories(),
+    getTags(),
   ]);
 
   const products       = productsResult.products;
@@ -76,6 +79,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const activeCategory = categories.find((c) => c.slug === filters.category);
 
   const rawParams: Record<string, string | undefined> = {
+    etiqueta: searchParams.etiqueta,
     categoria:  searchParams.categoria,
     buscar:     searchParams.buscar,
     precio_min: searchParams.precio_min,
@@ -172,7 +176,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
         {/* SIDEBAR DESKTOP */}
         <aside className="hidden md:block w-[220px] lg:w-[240px] xl:w-[260px] 2xl:w-[280px] flex-shrink-0">
           <div className="filters-sidebar pr-1">
-            <CatalogFilters
+            <CatalogFilters tags={tags}
               categories={categories}
               currentFilters={filters}
               searchParams={rawParams}
@@ -186,14 +190,14 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
 
           {/* Botón filtros mobile + chips activos */}
           <div className="mb-4 space-y-2.5">
-            <CatalogFilters
+            <CatalogFilters tags={tags}
               categories={categories}
               currentFilters={filters}
               searchParams={rawParams}
               totalProducts={productsResult.total}
               mobileOnly
             />
-            <ActiveFilterChips
+            <ActiveFilterChips tags={tags}
               currentFilters={filters}
               searchParams={rawParams}
               categories={categories}

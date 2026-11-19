@@ -306,6 +306,7 @@ export interface PaginatedResponse<T> {
 // -----------------------------------------------
 
 export interface CatalogFilters {
+  tag?: string;
   category?: string;
   search?: string;
   min_price?: number;

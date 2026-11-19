@@ -12,6 +12,7 @@ import { randomUUID } from "crypto";
 import jwt from "jsonwebtoken";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
+import { attachClassification } from "../services/productClassification";
 import { requireAuth } from "./auth";
 import { dispatch, notifyNewReview } from "../services/notifications";
 import { getRecommendedProducts, type RecommendationContext } from "../services/recommendations";
@@ -128,6 +129,16 @@ catalogRouter.get("/recommendations/personal", (_req, res, next) => {
     : { kind: "history", userId });
 });
 
+// Public vocabulary: only tags attached to products visible in the catalog.
+catalogRouter.get("/tags", async (_req, res) => {
+  try {
+    const [rows] = await db.query<RowDataPacket[]>(`SELECT t.id,t.name,t.slug,COUNT(DISTINCT p.id) AS product_count
+      FROM product_tags t JOIN product_tag_map m ON m.tag_id=t.id JOIN products p ON p.id=m.product_id
+      WHERE p.is_active=1 GROUP BY t.id,t.name,t.slug ORDER BY t.name`);
+    res.json({data:rows});
+  } catch { res.status(500).json({error:"Error al obtener etiquetas"}); }
+});
+
 // -----------------------------------------------
 // GET /catalog/categories
 // Devuelve todas las categorías activas ordenadas por sort_order
@@ -164,7 +175,7 @@ catalogRouter.get("/products/featured", async (req, res) => {
       [limit]
     );
 
-    const data = await Promise.all(rows.map(async (p) => ({ ...p, images: await attachImages(p.id) })));
+    const data = await Promise.all(rows.map(async (p) => ({ ...await attachClassification(db,p), images: await attachImages(p.id) })));
     res.json({ data });
   } catch (error) {
     console.error("[Catalog] Error en GET /products/featured:", error);
@@ -186,6 +197,7 @@ catalogRouter.get("/products", async (req, res) => {
     page = "1",
     limit = "24",
     featured,
+    tag,
   } = req.query as Record<string, string>;
 
   const pageNum = Math.max(1, parseInt(page) || 1);
@@ -205,10 +217,15 @@ catalogRouter.get("/products", async (req, res) => {
     params.push(category);
   }
 
+  if (tag !== undefined) {
+    if (typeof tag !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(tag) || tag.length > 100) { res.status(400).json({error:"Etiqueta inválida"}); return; }
+    conditions.push("EXISTS (SELECT 1 FROM product_tag_map tm JOIN product_tags t ON t.id=tm.tag_id WHERE tm.product_id=p.id AND t.slug=?)");
+    params.push(tag);
+  }
   if (search) {
-    conditions.push("(p.name LIKE ? OR p.description LIKE ? OR p.sku LIKE ? OR p.brand LIKE ?)");
+    conditions.push("(p.name LIKE ? OR p.description LIKE ? OR p.sku LIKE ? OR p.brand LIKE ? OR EXISTS (SELECT 1 FROM product_tag_map sm JOIN product_tags st ON st.id=sm.tag_id WHERE sm.product_id=p.id AND st.name LIKE ?))");
     const like = `%${search}%`;
-    params.push(like, like, like, like);
+    params.push(like, like, like, like, like);
   }
 
   if (min_price) {
@@ -261,7 +278,7 @@ catalogRouter.get("/products", async (req, res) => {
       [...params, limitNum, offset]
     );
 
-    const data = await Promise.all(rows.map(async (p) => ({ ...p, images: await attachImages(p.id) })));
+    const data = await Promise.all(rows.map(async (p) => ({ ...await attachClassification(db,p), images: await attachImages(p.id) })));
 
     res.json({
       data,
@@ -302,7 +319,7 @@ catalogRouter.get("/products/:slug", async (req, res) => {
     }
 
     const images = await attachImages(product.id);
-    res.json({ data: { ...product, images } });
+    res.json({ data: { ...await attachClassification(db,product), images } });
   } catch (error) {
     console.error("[Catalog] Error en GET /products/:slug:", error);
     res.status(500).json({ error: "Error al obtener el producto" });

@@ -28,6 +28,11 @@ import { loginSucceeded, releaseLoginAttempt, reserveLoginAttempt, takeEmailRequ
 
 export const authRouter = Router();
 
+/** Envía un correo sin cortar el flujo: si el proveedor falla, queda en el log (T11). */
+async function mailOrLog(kind: string, send: () => Promise<unknown>): Promise<void> {
+  try { await send(); } catch (error) { console.error(`[Auth] No se pudo enviar el correo de ${kind}:`, error); }
+}
+
 import { JWT_SECRET } from "../config/jwt";
 const JWT_EXPIRES_IN = "7d"; // Token válido por 7 días
 const FRONTEND_URL = (process.env.FRONTEND_URL ?? "http://localhost:3000").replace(/\/$/, "");
@@ -382,7 +387,7 @@ authRouter.post("/resend-verification", async (req, res) => {
     const user = rows[0];
     if (user && !user.email_verified) {
       const verifyToken = await createAuthToken(user.id, "verify_email", 24 * 60);
-      await sendVerificationEmail(normalizedEmail, verifyToken, user.first_name);
+      await mailOrLog("verificación", () => sendVerificationEmail(normalizedEmail, verifyToken, user.first_name));
     }
     res.json({ data: { sent: true } });
   } catch (error) {
@@ -415,7 +420,9 @@ authRouter.post("/forgot-password", async (req, res) => {
     const user = rows[0];
     if (user) {
       const resetToken = await createAuthToken(user.id, "reset_password", 60);
-      await sendPasswordResetEmail(normalizedEmail, resetToken, user.first_name);
+      // Un fallo del proveedor no cambia la respuesta: un 500 sólo cuando la
+      // cuenta existe revelaría qué correos están registrados (T11)
+      await mailOrLog("recuperación de contraseña", () => sendPasswordResetEmail(normalizedEmail, resetToken, user.first_name));
     }
     // Respuesta uniforme exista o no la cuenta
     res.json({ data: { sent: true } });

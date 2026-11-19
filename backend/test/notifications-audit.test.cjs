@@ -93,7 +93,7 @@ test('email al encargado: con MANAGER_EMAIL y sin SMTP queda registrado en el lo
     on('o.user_id, o.total', () => [{ ...order, delivery_method: 'shipping', shipping_address: JSON.stringify({ street: 'Colón', number: '1', city: 'Córdoba', postal_code: '5000' }) }]);
     on('FROM order_items oi LEFT JOIN products p', () => [{ product_id: 'p1', quantity: 1, total_price: 99800, name: 'Auriculares', sku: 'AUR' }]);
     await n.notifyOrderPaid('o1');
-    const log = logs.find(l => l.includes('SMTP no configurado'));
+    const log = logs.find(l => l.includes('Sin proveedor de correo'));
     assert.ok(log, 'debe registrar el correo no enviado');
     assert.match(log, /encargado@example\.invalid/);
     assert.match(log, /Nuevo pedido TI-1/);

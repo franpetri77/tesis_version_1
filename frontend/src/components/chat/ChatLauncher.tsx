@@ -16,7 +16,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { MessageCircle, X, Maximize2, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { chatApi } from "@/lib/api/chat";
@@ -37,32 +37,35 @@ export function ChatLauncher() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { open, mode, openChat, setMode, closeChat } = useChatStore();
   const openModal = useModalStore((s) => s.openModal);
-  const queryClient = useQueryClient();
   const [mounted, setMounted] = useState(false);
   const [teaser, setTeaser] = useState(false);
-  const [unreadAtOpen, setUnreadAtOpen] = useState(0);
   const buttonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { setMounted(true); }, []);
 
   const isCustomer = isAuthenticated && user?.role === "customer";
   const hidden = !mounted || HIDDEN_ON.some((p) => pathname.startsWith(p)) || (isAuthenticated && user?.role !== "customer");
 
-  // Globo de no leídos con el panel cerrado (con el panel abierto manda la conversación)
+  // No leídos: con el panel cerrado (globo del botón) y también con el
+  // asistente abierto, para avisar una respuesta que llegue mientras se leen
+  // las preguntas frecuentes. Sólo la conversación los marca como leídos (T9),
+  // así que abrir el panel o el asistente no los pone en cero. Al volver de la
+  // conversación, la consulta se reactiva y se repite sola (dato vencido).
+  const human = mode === "human";
+  const watching = !hidden && isCustomer && (!open || !human);
   const { data: unread = 0 } = useQuery({
     queryKey: ["chat-unread", user?.id],
     queryFn: chatApi.unread,
-    enabled: !hidden && isCustomer && !open,
-    refetchInterval: 30_000,
-    staleTime: 10_000,
+    enabled: watching,
+    refetchInterval: open ? 10_000 : 30_000,
+    staleTime: 5_000,
   });
 
   useEffect(() => {
     if (!open) return;
-    queryClient.setQueryData(["chat-unread", user?.id], 0);
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") { closeChat(); buttonRef.current?.focus(); } }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, closeChat, queryClient, user?.id]);
+  }, [open, closeChat]);
 
   // Al cerrar sesión o cambiar de página a una oculta, el panel se cierra
   useEffect(() => { if (hidden && open) closeChat(); }, [hidden, open, closeChat]);
@@ -73,7 +76,11 @@ export function ChatLauncher() {
     let seen = false;
     try { seen = sessionStorage.getItem(TEASER_KEY) === "1"; } catch { seen = true; }
     if (seen) return;
-    const t = window.setTimeout(() => setTeaser(true), TEASER_DELAY_MS);
+    const t = window.setTimeout(() => {
+      setTeaser(true);
+      // Se marca visto al mostrarse: una recarga no lo vuelve a mostrar
+      try { sessionStorage.setItem(TEASER_KEY, "1"); } catch { /* sin persistencia */ }
+    }, TEASER_DELAY_MS);
     return () => window.clearTimeout(t);
   }, [hidden, open]);
   const dismissTeaser = () => {
@@ -83,15 +90,12 @@ export function ChatLauncher() {
 
   function launch() {
     dismissTeaser();
-    // Con respuestas del equipo sin leer, directo a la conversación (y ya quedan vistas)
-    const direct = isCustomer && unread > 0;
-    setUnreadAtOpen(direct ? 0 : unread);
-    openChat(undefined, direct ? "human" : "bot");
+    // Con respuestas del equipo sin leer, directo a la conversación
+    openChat(undefined, isCustomer && unread > 0 ? "human" : "bot");
   }
 
   if (hidden) return null;
 
-  const human = mode === "human";
   const close = () => { closeChat(); buttonRef.current?.focus(); };
 
   return (
@@ -150,8 +154,8 @@ export function ChatLauncher() {
           {!human ? (
             <FaqBot
               className="flex-1"
-              onHuman={() => { setUnreadAtOpen(0); setMode("human"); }}
-              unread={isCustomer ? unreadAtOpen : 0}
+              onHuman={() => setMode("human")}
+              unread={isCustomer ? unread : 0}
               humanHint={isCustomer ? undefined : "Para hablar con una persona te pedimos iniciar sesión: así guardamos la conversación y te avisamos la respuesta."}
               onNavigate={closeChat}
             />

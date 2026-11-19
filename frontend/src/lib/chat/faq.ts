@@ -7,7 +7,9 @@
 //
 // Los textos usan sólo datos que ya publica el sitio (envíos, retiro,
 // horario, garantía oficial, facturación A por presupuesto, correo de
-// ventas). Para cambiarlos alcanza con editar este archivo.
+// ventas) y sólo prometen lo que el sistema hace hoy: el costo del envío se
+// ve en el checkout y los cambios de estado se avisan en la campana (no por
+// correo al cliente). Para cambiarlos alcanza con editar este archivo.
 // =============================================
 
 export interface FaqLink { label: string; href: string }
@@ -37,7 +39,7 @@ export const FAQ: FaqItem[] = [
     id: "envios",
     question: "¿Cuánto cuesta el envío?",
     answer: [
-      "Enviamos a todo el país. El costo se calcula en el checkout según la dirección de entrega, y lo ves antes de pagar.",
+      "Enviamos a todo el país. El costo del envío se muestra en el checkout, antes de pagar.",
       "Si estás en Córdoba, también podés retirar tu pedido sin costo en el local.",
     ],
     links: [{ label: "Ir al carrito", href: "/carrito" }],
@@ -47,7 +49,7 @@ export const FAQ: FaqItem[] = [
     question: "¿Puedo retirar en el local?",
     answer: [
       "Sí. En el checkout elegí \"Retiro en sucursal\" y no pagás envío.",
-      `Te avisamos en tu cuenta y por correo cuando el pedido está listo. Atendemos de ${STORE_HOURS}.`,
+      `Cuando el pedido está listo te avisamos en la campana de tu cuenta. Atendemos de ${STORE_HOURS}.`,
     ],
   },
   {
@@ -63,7 +65,7 @@ export const FAQ: FaqItem[] = [
     question: "¿Cómo sigo mi pedido?",
     answer: [
       "En \"Mis pedidos\" ves el estado de cada compra: pago confirmado, en preparación, listo, enviado y entregado.",
-      "Además te avisamos en la campana y por correo cada vez que cambia.",
+      "Además te avisamos en la campana de tu cuenta cada vez que cambia.",
     ],
     links: [{ label: "Ver mis pedidos", href: "/perfil/pedidos" }],
   },
@@ -79,8 +81,8 @@ export const FAQ: FaqItem[] = [
     id: "devoluciones",
     question: "¿Puedo cambiar o devolver un producto?",
     answer: [
-      "Por la Ley de Defensa del Consumidor (24.240) tenés 10 días corridos desde que recibís el producto para arrepentirte de una compra a distancia.",
-      "El producto tiene que estar sin uso y con su embalaje. Escribinos con el número de pedido y te indicamos cómo seguir.",
+      "Por la Ley de Defensa del Consumidor (24.240), en las compras a distancia tenés 10 días corridos desde que recibís el producto para arrepentirte de la compra.",
+      "Escribinos con el número de pedido y te indicamos cómo seguir.",
     ],
   },
   {

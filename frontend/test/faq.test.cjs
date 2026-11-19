@@ -58,3 +58,10 @@ test('sólo datos que ya publica el sitio: horario y correo coinciden con el pie
   assert.match(all, /ventas@teleimport\.com\.ar/);
   assert.match(all, /lunes a viernes de 9 a 18 h/);
 });
+
+test('no promete funciones que no existen: costo por dirección ni correos de estado al cliente', () => {
+  const all = FAQ.flatMap((f) => f.answer).join(' ');
+  assert.doesNotMatch(all, /según (la|tu) dirección/i, 'el costo de envío por dirección llega con T12');
+  assert.doesNotMatch(all, /por correo/i, 'los cambios de estado se avisan en la campana, no por correo al cliente');
+  assert.doesNotMatch(all, /embalaje/i, 'condición no respaldada por la entrega');
+});

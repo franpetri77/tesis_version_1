@@ -91,7 +91,8 @@ app.use((req, res, next) => {
   if (req.path.startsWith("/webhooks")) {
     express.raw({ type: "application/json" })(req, res, next);
   } else {
-    express.json()(req, res, next);
+    // La importación CSV viaja como texto dentro del JSON: admite archivos de hasta 2 MB
+    express.json({ limit: req.path.startsWith("/admin/products/import") ? "5mb" : "100kb" })(req, res, next);
   }
 });
 

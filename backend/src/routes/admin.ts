@@ -13,10 +13,10 @@ import { requireAuth } from "./auth";
 import { requirePanelAccess } from "../middleware/roles";
 import { OrderStatusError, allowedTransitions, changeOrderStatus, ORDER_STATUS_LABELS } from "../services/orderStatus";
 import { promotionsRouter } from "./promotions";
-import { adminChatRouter } from "./chat";
 import { diffFields, logAudit, withTransaction } from "../services/audit";
 import type { PoolConnection } from "mysql2/promise";
 import { dispatch, notifyLowStock, notifyNewProduct, notifyPriceDrop } from "../services/notifications";
+import { adminChatRouter } from "./chat";
 
 const actorOf = (req: Request) => ({ userId: (req as unknown as AuthRequest).user?.userId ?? null, ip: req.ip ?? null });
 
@@ -37,8 +37,6 @@ interface AuthRequest extends Request {
 adminRouter.use(requireAuth as unknown as (req: Request, res: Response, next: NextFunction) => void);
 adminRouter.use(requirePanelAccess);
 adminRouter.use("/promotions", promotionsRouter);
-// T9: bandeja de mensajes de clientes
-adminRouter.use("/chat", adminChatRouter);
 
 // -----------------------------------------------
 // Función auxiliar: genera un slug desde un texto
@@ -976,3 +974,6 @@ adminRouter.get("/audit-logs", async (req, res) => {
     res.status(500).json({ error: "Error al obtener los registros de auditoría" });
   }
 });
+
+// T9: bandeja de mensajes de clientes (/admin/chat/...)
+adminRouter.use("/chat", adminChatRouter);

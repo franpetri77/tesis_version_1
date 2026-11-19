@@ -174,3 +174,33 @@ export async function sendNewOrderEmail(order: {
     return false;
   }
 }
+
+// -----------------------------------------------
+// T9: aviso de mensaje nuevo en la mensajería de la tienda.
+//   staff:    al encargado (MANAGER_EMAIL), con el nombre del cliente.
+//   customer: al cliente, cuando el personal le responde.
+// El texto se escapa: lo escribió un usuario.
+// -----------------------------------------------
+export async function sendChatEmail(opts: {
+  to: string; kind: "staff" | "customer"; name: string; staffName?: string | null; body: string; path: string;
+}): Promise<boolean> {
+  const url = `${FRONTEND_URL.replace(/\/$/, "")}${opts.path}`;
+  const excerpt = opts.body.length > 600 ? `${opts.body.slice(0, 597)}...` : opts.body;
+  const staff = opts.kind === "staff";
+  const subject = staff ? `Mensaje nuevo de ${opts.name}` : "Te respondimos — Tele Import";
+  const intro = staff
+    ? `${esc(opts.name)} escribió por la mensajería de la tienda:`
+    : `${opts.name ? `Hola ${esc(opts.name)}, ` : ""}${opts.staffName ? esc(opts.staffName) : "el equipo"} de Tele Import respondió tu consulta:`;
+  const quote = `<blockquote style="margin:12px 0 0;padding:10px 14px;border-left:3px solid #e2e8f0;color:#0f172a;white-space:pre-wrap;">${esc(excerpt)}</blockquote>`;
+  try {
+    return await sendMail({
+      to: opts.to,
+      subject,
+      html: baseTemplate(staff ? "Mensaje nuevo" : "Tenés una respuesta", `${intro}${quote}`, staff ? "Responder en el panel" : "Ver la conversación", url),
+      text: `${staff ? `${opts.name} escribió` : "Te respondimos"}:\n\n${excerpt}\n\n${staff ? "Responder" : "Ver la conversación"}: ${url}`,
+    });
+  } catch (error) {
+    console.error("[Mailer] No se pudo enviar el aviso de mensaje nuevo:", error);
+    return false;
+  }
+}

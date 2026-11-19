@@ -95,6 +95,20 @@ export function takeEmailRequest(kind: string, email: string, ip: string, now = 
   return wait;
 }
 
+/**
+ * Cupo genérico por clave, con ventana propia (T9: mensajes del chat por
+ * cliente). Devuelve segundos de espera si ya se alcanzó el límite; si no,
+ * cuenta el uso y devuelve null.
+ */
+export function takeQuota(key: string, limit: number, windowMs: number, now = Date.now()): number | null {
+  const wait = retryAfter(key, limit, now);
+  if (wait !== null) return wait;
+  const b = current(key, now);
+  if (b) b.count += 1;
+  else buckets.set(key, { count: 1, resetAt: now + windowMs });
+  return null;
+}
+
 /** Sólo para pruebas. */
 export function resetRateLimits(): void {
   buckets.clear();

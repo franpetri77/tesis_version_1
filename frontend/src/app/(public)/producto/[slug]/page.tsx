@@ -12,6 +12,7 @@ import { Tag, ChevronRight, CheckCircle2, XCircle, Truck, Store } from "lucide-r
 import { getProductBySlug, getProductImageUrl } from "@/lib/api/catalog";
 import { formatPrice, calculateDiscount } from "@/lib/utils/format";
 import { AddToCartButton } from "@/components/product/AddToCartButton";
+import { AskAboutProduct } from "@/components/product/AskAboutProduct";
 import { ProductImageGallery } from "@/components/product/ProductImageGallery";
 import { ProductReviews } from "@/components/product/ProductReviews";
 import { ProductViewTracker } from "@/components/product/ProductViewTracker";
@@ -181,6 +182,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           {/* Botón agregar al carrito (componente client) */}
           <AddToCartButton product={product} />
+
+          {/* Consulta por la mensajería de la tienda (T9) */}
+          <AskAboutProduct product={product} />
 
           {/* Beneficios de entrega */}
           <div className="grid grid-cols-2 gap-3 pt-1">

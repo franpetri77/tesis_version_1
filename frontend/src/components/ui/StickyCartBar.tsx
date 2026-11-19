@@ -30,6 +30,13 @@ export function StickyCartBar() {
     dismissed ||
     HIDDEN_ON.some((p) => pathname.startsWith(p));
 
+  // T9: avisa que la barra está visible para que el botón del chat se ubique encima
+  useEffect(() => {
+    if (hide) return;
+    document.body.dataset.stickyCart = "1";
+    return () => { delete document.body.dataset.stickyCart; };
+  }, [hide]);
+
   if (hide) return null;
 
   const firstName = items[0]?.product?.name ?? "";

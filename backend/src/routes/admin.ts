@@ -8,11 +8,13 @@ import { Router, Request, Response, NextFunction } from "express";
 import { randomUUID } from "crypto";
 import type { RowDataPacket } from "mysql2";
 import db from "../db/database";
-import { classificationInput, saveClassification, attachClassification, productTags, parseMetadata } from "../services/productClassification";
+import { classificationInput, saveClassification, attachClassification } from "../services/productClassification";
+import { productSnapshot } from "../services/productSnapshot";
 import { requireAuth } from "./auth";
 import { requirePanelAccess } from "../middleware/roles";
 import { OrderStatusError, allowedTransitions, changeOrderStatus, ORDER_STATUS_LABELS } from "../services/orderStatus";
 import { promotionsRouter } from "./promotions";
+import { productCsvRouter } from "./productCsv";
 import { diffFields, logAudit, withTransaction } from "../services/audit";
 import type { PoolConnection } from "mysql2/promise";
 import { dispatch, notifyLowStock, notifyNewProduct, notifyPriceDrop } from "../services/notifications";
@@ -36,6 +38,8 @@ interface AuthRequest extends Request {
 adminRouter.use(requireAuth as unknown as (req: Request, res: Response, next: NextFunction) => void);
 adminRouter.use(requirePanelAccess);
 adminRouter.use("/promotions", promotionsRouter);
+// Importar/exportar CSV (T6b): antes de /products/:id para que "export" no se tome como id
+adminRouter.use("/products", productCsvRouter);
 
 // -----------------------------------------------
 // Función auxiliar: genera un slug desde un texto
@@ -87,29 +91,8 @@ interface ImageInput {
   alt?: string;
 }
 
-// Todo lo que el panel puede editar de un producto, más sus imágenes en orden.
-// La auditoría compara estas "fotos": cambiar sólo la marca, la descripción o
-// las imágenes también deja registro.
-const AUDITED_PRODUCT_FIELDS = [
-  "name", "slug", "sku", "price", "compare_price", "category_id", "stock_quantity",
-  "brand", "model", "description", "short_description", "is_featured", "is_active",
-] as const;
-
-async function productSnapshot(conn: PoolConnection, id: string, lock = false): Promise<Record<string, unknown> | null> {
-  const [rows] = await conn.query<DbProduct[]>(`SELECT * FROM products WHERE id = ?${lock ? " FOR UPDATE" : ""}`, [id]);
-  const row = rows[0];
-  if (!row) return null;
-  const [images] = await conn.query<DbImage[]>(
-    "SELECT image_url, alt_text FROM product_images WHERE product_id = ? ORDER BY sort_order ASC", [id]
-  );
-  const snap: Record<string, unknown> = Object.fromEntries(AUDITED_PRODUCT_FIELDS.map((f) => [f, row[f]]));
-  snap.is_active = Boolean(row.is_active);
-  snap.is_featured = Boolean(row.is_featured);
-  snap.tags = (await productTags(conn,id)).map(t => t.slug);
-  snap.metadata = parseMetadata(row.metadata);
-  snap.images = images.map((i) => ({ url: i.image_url, alt: i.alt_text ?? null }));
-  return snap;
-}
+// La foto de auditoría de un producto vive en services/productSnapshot.ts,
+// compartida con la importación CSV (T6b).
 
 // =============================================
 // SECCIÓN: GESTIÓN DE USUARIOS

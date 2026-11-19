@@ -15,6 +15,8 @@ import { AddToCartButton } from "@/components/product/AddToCartButton";
 import { ProductImageGallery } from "@/components/product/ProductImageGallery";
 import { ProductReviews } from "@/components/product/ProductReviews";
 import { ProductViewTracker } from "@/components/product/ProductViewTracker";
+import { ShareButtons } from "@/components/product/ShareButtons";
+import { productUrl, productShareText } from "@/lib/utils/share";
 import { RecommendationSection } from "@/components/catalog/RecommendationSection";
 
 interface ProductPageProps {
@@ -26,15 +28,34 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const product = await getProductBySlug(params.slug);
   if (!product) return { title: "Producto no encontrado" };
 
+  const summary = product.short_description ?? product.description?.slice(0, 160);
+  // El precio va al frente para que la vista previa del enlace lo muestre
+  const shareDescription = [formatPrice(product.price), summary].filter(Boolean).join(" · ");
+  const firstImage = [...(product.images ?? [])].sort((a, b) => a.sort_order - b.sort_order)[0];
+  const images = firstImage
+    ? [{ url: getProductImageUrl(firstImage.image_url, { width: 800, height: 800 }), alt: firstImage.alt_text ?? product.name }]
+    : [];
+  const path = `/producto/${encodeURIComponent(product.slug)}`;
+
   return {
     title: product.name,
-    description: product.short_description ?? product.description?.slice(0, 160),
+    description: summary,
+    alternates: { canonical: path },
     openGraph: {
+      // Next no combina este objeto con el del layout: se repiten sitio e idioma
+      type: "website",
+      siteName: "Tele Import S.A.",
+      locale: "es_AR",
+      url: path,
       title: product.name,
-      description: product.short_description,
-      images: product.images?.[0]
-        ? [getProductImageUrl(product.images[0].image_url, { width: 800, height: 800 })]
-        : [],
+      description: shareDescription,
+      images,
+    },
+    twitter: {
+      card: images.length > 0 ? "summary_large_image" : "summary",
+      title: product.name,
+      description: shareDescription,
+      images: images.map((i) => i.url),
     },
   };
 }
@@ -172,6 +193,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
               Retiro en sucursal
             </div>
           </div>
+
+          {/* Compartir en redes (componente client) */}
+          <ShareButtons
+            url={productUrl(product.slug)}
+            text={productShareText(product.name, formatPrice(product.price))}
+            title={product.name}
+          />
 
           {/* Tags */}
           {product.tags && product.tags.length > 0 && (

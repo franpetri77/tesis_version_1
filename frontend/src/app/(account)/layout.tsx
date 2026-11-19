@@ -10,7 +10,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { User, ShoppingBag, MapPin, LogOut, ChevronRight } from "lucide-react";
+import { User, ShoppingBag, MapPin, MessageCircle, LogOut, ChevronRight } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils/cn";
 
@@ -18,6 +18,7 @@ const accountNavLinks = [
   { href: "/perfil",              label: "Mi perfil",   icon: User,        exact: true  },
   { href: "/perfil/pedidos",      label: "Mis pedidos", icon: ShoppingBag, exact: false },
   { href: "/perfil/direcciones",  label: "Direcciones", icon: MapPin,      exact: false },
+  { href: "/perfil/mensajes",     label: "Mensajes",    icon: MessageCircle, exact: false },
 ];
 
 export default function AccountLayout({

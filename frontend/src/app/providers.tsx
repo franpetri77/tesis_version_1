@@ -11,6 +11,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useState } from "react";
 import { AuthModals } from "@/components/auth/AuthModals";
 import { AuthFormModal } from "@/components/auth/AuthFormModal";
+import { ChatLauncher } from "@/components/chat/ChatLauncher";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   // Crear el QueryClient por componente para evitar compartir estado entre requests en SSR
@@ -32,6 +33,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       {/* Modales de autenticación — siempre montados, controlados por modalStore */}
       <AuthFormModal />
       <AuthModals />
+      {/* Chat con la tienda (T9): se oculta en el panel y para el personal */}
+      <ChatLauncher />
       {/* Solo visible en desarrollo */}
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>

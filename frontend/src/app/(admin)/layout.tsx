@@ -9,7 +9,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Zap, LayoutDashboard, Package, ShoppingBag, Warehouse, BarChart3, Users, Tag, MessageSquare, ClipboardList, FileText, ArrowLeft, ShieldAlert } from "lucide-react";
+import { Zap, LayoutDashboard, Package, ShoppingBag, Warehouse, BarChart3, Users, Tag, MessageSquare, MessagesSquare, ClipboardList, FileText, ArrowLeft, ShieldAlert } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { staffChatApi } from "@/lib/api/chat";
 import { cn } from "@/lib/utils/cn";
 import { getMe } from "@/lib/api/auth";
 import { useAuthStore } from "@/stores/authStore";
@@ -19,6 +21,7 @@ const adminNavLinks = [
   { href: "/admin",              label: "Dashboard",   icon: LayoutDashboard },
   { href: "/admin/productos",    label: "Productos",   icon: Package },
   { href: "/admin/pedidos",      label: "Pedidos",     icon: ShoppingBag },
+  { href: "/admin/mensajes",     label: "Mensajes",    icon: MessagesSquare },
   { href: "/admin/stock",        label: "Stock",       icon: Warehouse },
   { href: "/admin/reportes",     label: "Reportes",    icon: BarChart3 },
   { href: "/admin/usuarios",     label: "Usuarios",    icon: Users },
@@ -35,6 +38,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const clearUser = useAuthStore((s) => s.clearUser);
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const canEdit = useCanEdit();
+  // T9: conversaciones con mensajes sin leer, para el contador del menú
+  const { data: chatUnread } = useQuery({
+    queryKey: ["staff-chat", "unread"],
+    queryFn: staffChatApi.unread,
+    enabled: !isCheckingAccess,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -121,6 +132,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
                 {label}
+                {href === "/admin/mensajes" && (chatUnread?.conversations ?? 0) > 0 && (
+                  <span
+                    className={cn(
+                      "ml-auto min-w-[1.25rem] rounded-full px-1.5 py-0.5 text-center text-[10px] font-bold leading-none",
+                      isActive ? "bg-white text-brand-700" : "bg-brand-600 text-white"
+                    )}
+                    aria-label={`${chatUnread?.conversations} con mensajes sin leer`}
+                  >
+                    {chatUnread!.conversations > 99 ? "99+" : chatUnread!.conversations}
+                  </span>
+                )}
               </Link>
             );
           })}

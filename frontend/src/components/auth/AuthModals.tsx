@@ -93,7 +93,7 @@ function LoginSuccessModal({ isOpen, firstName, onClose }: LoginSuccessModalProp
       <div className="px-7 py-8 text-center">
         {/* Ícono animado */}
         <div className="relative mb-5 flex items-center justify-center">
-          <div className="absolute w-20 h-20 rounded-full bg-emerald-100 animate-pulse opacity-60" />
+          <div className="absolute w-20 h-20 rounded-full bg-emerald-100 opacity-60" />
           <div className="relative w-16 h-16 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
             <CheckCircle2 className="w-8 h-8 text-white" strokeWidth={2} />
           </div>
@@ -254,7 +254,7 @@ function SessionExpiredModal({ isOpen, onClose }: SessionExpiredModalProps) {
       <div className="px-7 py-8 text-center">
         {/* Ícono */}
         <div className="relative mb-5 flex items-center justify-center">
-          <div className="absolute w-20 h-20 rounded-full bg-amber-50 animate-pulse opacity-70" />
+          <div className="absolute w-20 h-20 rounded-full bg-amber-50 opacity-70" />
           <div className="relative w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center">
             <ShieldAlert className="w-8 h-8 text-amber-600" strokeWidth={1.75} />
           </div>
@@ -309,7 +309,7 @@ function LogoutSuccessModal({ isOpen, firstName, onClose }: LogoutSuccessModalPr
       <div className="px-7 py-8 text-center">
         {/* Ícono */}
         <div className="relative mb-5 flex items-center justify-center">
-          <div className="absolute w-20 h-20 rounded-full bg-slate-100 animate-pulse opacity-60" />
+          <div className="absolute w-20 h-20 rounded-full bg-slate-100 opacity-60" />
           <div className="relative w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center shadow-md">
             <HandMetal className="w-7 h-7 text-white" strokeWidth={1.75} />
           </div>

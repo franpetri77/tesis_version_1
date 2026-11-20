@@ -5,6 +5,7 @@
 // =============================================
 
 import { cn } from "@/lib/utils/cn";
+import type { ReactNode } from "react";
 
 interface SkeletonProps {
   className?: string;
@@ -14,18 +15,29 @@ interface SkeletonProps {
 export function Skeleton({ className }: SkeletonProps) {
   return (
     <div
+      aria-hidden="true"
       className={cn(
-        "animate-pulse rounded-lg bg-slate-100",
+        "skeleton-loading max-w-full rounded bg-paper-200",
         className
       )}
     />
   );
 }
 
+/** Un solo aviso accesible para todo el bloque, no uno por cada silueta. */
+export function LoadingState({ children, label, className }: { children: ReactNode; label: string; className?: string }) {
+  return (
+    <div role="status" className={className}>
+      <span className="sr-only">{label}</span>
+      <div aria-hidden="true">{children}</div>
+    </div>
+  );
+}
+
 // Skeleton para una fila de pedido en la lista
 export function OrderRowSkeleton() {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-card p-5 animate-pulse">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-card p-5">
       <div className="flex justify-between items-start">
         <div className="space-y-2">
           <Skeleton className="h-4 w-32" />
@@ -45,7 +57,7 @@ export function OrderRowSkeleton() {
 // Skeleton para el detalle completo de un pedido
 export function OrderDetailSkeleton() {
   return (
-    <div className="space-y-4 animate-pulse">
+    <div className="space-y-4">
       {/* Encabezado */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-card p-5">
         <div className="flex justify-between items-start">
@@ -83,7 +95,7 @@ export function OrderDetailSkeleton() {
 // Skeleton para una tarjeta de dirección
 export function AddressCardSkeleton() {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-card p-4 animate-pulse">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-card p-4">
       <div className="flex justify-between items-start mb-3">
         <Skeleton className="h-4 w-40" />
         <Skeleton className="h-5 w-20 rounded-full" />

@@ -45,7 +45,7 @@ export function AuthFormModal() {
   return (
     <Modal isOpen={isOpen} onClose={closeModal} maxWidth="max-w-md">
       {/* Franja de acento superior */}
-      <div className="h-1.5 w-full bg-gradient-to-r from-brand-700 via-brand-500 to-emerald-500 rounded-t-2xl" />
+      <div className="h-px w-full bg-paper-300" />
 
       {/* ─── Tabs (ocultas en modo "olvidé mi contraseña") ─── */}
       {mode !== "forgot" && (
@@ -59,7 +59,7 @@ export function AuthFormModal() {
         </div>
       )}
 
-      <div className="px-7 pb-7 pt-5">
+      <div key={mode} className="ui-enter px-7 pb-7 pt-5">
         {mode === "login" && (
           <LoginForm
             initialEmail={sharedEmail}

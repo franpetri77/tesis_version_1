@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useAuthStore } from "@/stores/authStore";
 import { formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
+import { LoadingState, Skeleton } from "@/components/ui/Skeleton";
 import type { ProductReview } from "@/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -174,16 +175,20 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
         {/* ── Lista de reseñas ── */}
         <div className="lg:col-span-2 space-y-4">
           {isLoading ? (
-            [...Array(2)].map((_, i) => (
-              <div key={i} className="animate-pulse bg-white rounded-2xl border border-slate-100 p-5 space-y-3">
-                <div className="flex gap-2">
-                  <div className="h-3 bg-slate-100 rounded w-28" />
-                  <div className="h-3 bg-slate-100 rounded w-20" />
+            <LoadingState label="Cargando reseñas…">
+              <div className="space-y-4">
+                {[0, 1].map((i) => (
+                  <div key={i} className="rounded-2xl border border-paper-300 bg-paper-50 p-5 space-y-3">
+                    <div className="flex gap-2">
+                      <Skeleton className="h-3 w-28" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-3/4" />
+                  </div>
+                ))}
                 </div>
-                <div className="h-3 bg-slate-100 rounded w-full" />
-                <div className="h-3 bg-slate-100 rounded w-3/4" />
-              </div>
-            ))
+            </LoadingState>
           ) : reviews.length === 0 ? (
             <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-100">
               <MessageSquare className="w-8 h-8 text-slate-300 mx-auto mb-2" />

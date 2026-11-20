@@ -107,7 +107,7 @@ export function ChatLauncher() {
           className={cn(
             "fixed z-50 flex flex-col overflow-hidden rounded-2xl border border-paper-300 bg-white shadow-dropdown",
             "inset-x-3 bottom-3 top-20 sm:inset-x-auto sm:top-auto sm:right-5 sm:bottom-5 sm:h-[34rem] sm:max-h-[calc(100vh-6rem)] sm:w-[23rem]",
-            "motion-safe:animate-fade-in"
+            "ui-enter"
           )}
         >
           <div className="flex items-center justify-between gap-2 border-b border-paper-300 px-3 py-3">

@@ -11,11 +11,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useModalStore } from "@/stores/modalStore";
 import { LoginForm } from "@/components/auth/AuthForms";
+import { safeInternalRedirect } from "@/lib/routes";
 
 /** Solo rutas internas: evita redirecciones abiertas a otros sitios. */
 function safeRedirect(): string {
   const target = new URLSearchParams(window.location.search).get("redirect");
-  return target && target.startsWith("/") && !target.startsWith("//") ? target : "/";
+  return safeInternalRedirect(target, window.location.origin);
 }
 
 export default function LoginPage() {

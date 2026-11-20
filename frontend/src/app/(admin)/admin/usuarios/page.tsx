@@ -201,7 +201,7 @@ export default function AdminUsersPage() {
                   <th scope="col" className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Registrado
                   </th>
-                  <th scope="col" className={canEdit ? "text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider" : "p-0"}>
+                  <th scope="col" className={canEdit ? "text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider" : "relative p-0"}>
                     <span className={canEdit ? undefined : "sr-only"}>Acciones</span>
                   </th>
                 </tr>

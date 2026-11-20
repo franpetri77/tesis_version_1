@@ -201,6 +201,7 @@ export default function AdminStockPage() {
                 type="submit"
                 variant="primary"
                 fullWidth
+                className="h-9 py-0"
                 isLoading={registerMovement.isPending}
               >
                 Registrar movimiento

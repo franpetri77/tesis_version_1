@@ -11,6 +11,7 @@ import Link from "next/link";
 import { ArrowLeft, AlertCircle, CheckCircle2, Download, FileUp, Loader2 } from "lucide-react";
 import { useCanEdit } from "@/hooks/usePanelRole";
 import { cn } from "@/lib/utils/cn";
+import { adminButton, adminIconButton } from "@/components/admin/adminUi";
 import {
   COLUMN_LABELS, MAX_CSV_BYTES, confirmProductImport, downloadProductsCsv, previewProductImport, readCsvFile,
   type ImportPlan, type ImportRow,
@@ -18,8 +19,7 @@ import {
 
 const card = "bg-white rounded-xl border border-slate-200 p-5 space-y-4";
 const cardTitle = "text-sm font-semibold text-slate-700 pb-2 border-b border-slate-100";
-const secondary =
-  "inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:opacity-60 motion-reduce:transition-none";
+const secondary = adminButton("secondary", "md");
 
 const ACTION_LABEL: Record<ImportRow["action"], string> = {
   create: "Se crea",
@@ -102,9 +102,9 @@ export default function ImportProductsPage() {
         <Link
           href="/admin/productos"
           aria-label="Volver al listado de productos"
-          className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-700 transition-colors"
+          className={adminIconButton("secondary", "h-9 w-9")}
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-4 h-4" aria-hidden="true" />
         </Link>
         <div>
           <h1 className="text-xl font-bold text-slate-900">Importar productos</h1>
@@ -254,7 +254,8 @@ export default function ImportProductsPage() {
                   type="button"
                   onClick={handleConfirm}
                   disabled={blocked || status !== "idle"}
-                  className="inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-700 transition-colors shadow-sm disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
+                  aria-busy={status === "confirming"}
+                  className={adminButton("primary", "md")}
                 >
                   {status === "confirming" ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <FileUp className="h-4 w-4" aria-hidden="true" />}
                   Confirmar importación{pending > 0 ? ` (${pending} ${pending === 1 ? "producto" : "productos"})` : ""}

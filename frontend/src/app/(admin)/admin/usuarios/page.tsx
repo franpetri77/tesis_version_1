@@ -4,11 +4,14 @@
 // PÁGINA ADMIN: GESTIÓN DE USUARIOS
 // Lista de usuarios con cambio de rol inline y eliminación.
 // Requiere token JWT con rol admin para las acciones.
+// Columnas de ancho fijo: al editar un rol, el selector ocupa el lugar del
+// badge y Guardar/Cancelar el de Cambiar rol/Eliminar, sin mover la tabla.
 // =============================================
 
 import { useState, useEffect } from "react";
 import { Users, AlertCircle, Loader2, ShieldCheck, UserCircle, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { adminButton } from "@/components/admin/adminUi";
 import { formatDate } from "@/lib/utils/format";
 import { getAdminUsers, updateUserRole, deleteUser } from "@/lib/api/admin";
 import { useAuthStore } from "@/stores/authStore";
@@ -31,10 +34,16 @@ const ROLE_LABEL: Record<UserRole, string> = {
 };
 
 const ROLE_ICON: Record<UserRole, React.ReactNode> = {
-  admin: <ShieldCheck className="w-3 h-3" />,
-  customer: <UserCircle className="w-3 h-3" />,
-  readonly: <Eye className="w-3 h-3" />,
+  admin: <ShieldCheck className="w-3 h-3" aria-hidden="true" />,
+  customer: <UserCircle className="w-3 h-3" aria-hidden="true" />,
+  readonly: <Eye className="w-3 h-3" aria-hidden="true" />,
 };
+
+// Mismo ancho para cada par de botones que se reemplazan entre sí
+const PRIMARY_SLOT = "w-[6.5rem]";   // Cambiar rol ↔ Guardar
+const SECONDARY_SLOT = "w-[5.75rem]"; // Eliminar ↔ Cancelar
+
+const roleButtonId = (userId: string) => `cambiar-rol-${userId}`;
 
 export default function AdminUsersPage() {
   const currentUser = useAuthStore((s) => s.user);
@@ -48,6 +57,8 @@ export default function AdminUsersPage() {
   const [editingRole, setEditingRole] = useState<Record<string, UserRole>>({});
   const [savingRole, setSavingRole] = useState<Record<string, boolean>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Al terminar de editar, el foco vuelve al botón "Cambiar rol" de esa fila
+  const [returnFocusTo, setReturnFocusTo] = useState<string | null>(null);
 
   // -----------------------------------------------
   // Cargar usuarios al montar
@@ -55,6 +66,12 @@ export default function AdminUsersPage() {
   useEffect(() => {
     void loadUsers();
   }, []);
+
+  useEffect(() => {
+    if (!returnFocusTo) return;
+    document.getElementById(roleButtonId(returnFocusTo))?.focus();
+    setReturnFocusTo(null);
+  }, [returnFocusTo]);
 
   async function loadUsers() {
     setLoading(true);
@@ -82,6 +99,7 @@ export default function AdminUsersPage() {
       delete updated[userId];
       return updated;
     });
+    setReturnFocusTo(userId);
   }
 
   // -----------------------------------------------
@@ -139,15 +157,15 @@ export default function AdminUsersPage() {
             {loading ? "Cargando..." : `${users.length} usuario${users.length !== 1 ? "s" : ""} registrado${users.length !== 1 ? "s" : ""}`}
           </p>
         </div>
-        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center" aria-hidden="true">
           <Users className="w-5 h-5 text-slate-500" />
         </div>
       </div>
 
       {/* Mensaje de error */}
       {error && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+        <div role="alert" className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" aria-hidden="true" />
           <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
@@ -156,28 +174,35 @@ export default function AdminUsersPage() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
+            <Loader2 className="w-5 h-5 text-brand-500 motion-safe:animate-spin" aria-hidden="true" />
             <span className="ml-2 text-sm text-slate-500">Cargando usuarios...</span>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[760px] table-fixed text-sm">
+              <colgroup>
+                <col />
+                <col />
+                <col className="w-36" />
+                <col className="w-36" />
+                <col className={canEdit ? "w-[15rem]" : "w-0"} />
+              </colgroup>
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <th scope="col" className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Usuario
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <th scope="col" className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Email
                   </th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <th scope="col" className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Rol
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <th scope="col" className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Registrado
                   </th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Acciones
+                  <th scope="col" className={canEdit ? "text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider" : "p-0"}>
+                    <span className={canEdit ? undefined : "sr-only"}>Acciones</span>
                   </th>
                 </tr>
               </thead>
@@ -187,120 +212,133 @@ export default function AdminUsersPage() {
                   const isSaving = Boolean(savingRole[user.id]);
                   const isDeleting = deletingId === user.id;
                   const isCurrentUser = user.id === currentUser?.id;
+                  const fullName = `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.email;
 
                   return (
                     <tr
                       key={user.id}
-                      className={`hover:bg-slate-50/60 transition-colors ${isCurrentUser ? "bg-blue-50/30" : ""}`}
+                      className={`h-14 transition-colors motion-reduce:transition-none ${isEditing ? "bg-brand-50/40" : isCurrentUser ? "bg-blue-50/30" : "hover:bg-slate-50/60"}`}
                     >
                       {/* Avatar y nombre */}
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
+                      <td className="px-4 py-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0" aria-hidden="true">
                             <span className="text-[11px] font-bold text-slate-500">
                               {(user.first_name?.[0] ?? "?").toUpperCase()}
                             </span>
                           </div>
-                          <div>
-                            <span className="font-medium text-slate-800">
-                              {user.first_name} {user.last_name}
+                          <span className="truncate font-medium text-slate-800" title={fullName}>
+                            {fullName}
+                          </span>
+                          {isCurrentUser && (
+                            <span className="flex-shrink-0 text-[10px] bg-blue-100 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-full font-semibold">
+                              Vos
                             </span>
-                            {isCurrentUser && (
-                              <span className="ml-2 text-[10px] bg-blue-100 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-full font-semibold">
-                                Vos
-                              </span>
-                            )}
-                          </div>
+                          )}
                         </div>
                       </td>
 
                       {/* Email */}
-                      <td className="px-4 py-3 text-slate-500 text-xs">
-                        {user.email}
+                      <td className="px-4 py-2 text-slate-500 text-xs">
+                        <span className="block truncate" title={user.email}>{user.email}</span>
                       </td>
 
-                      {/* Rol (con edición inline) */}
-                      <td className="px-4 py-3">
+                      {/* Rol: el selector reemplaza al badge en el mismo lugar */}
+                      <td className="px-4 py-2 text-center">
                         {isEditing ? (
-                          <div className="flex items-center gap-2 justify-center">
-                            <select
-                              value={editingRole[user.id]}
-                              onChange={(e) =>
-                                setEditingRole((prev) => ({
-                                  ...prev,
-                                  [user.id]: e.target.value as UserRole,
-                                }))
-                              }
-                              className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
-                            >
-                              <option value="admin">Admin</option>
-                              <option value="customer">Cliente</option>
-                              <option value="readonly">Solo lectura</option>
-                            </select>
-                            <button
-                              onClick={() => handleSaveRole(user.id)}
-                              disabled={isSaving}
-                              className="text-xs text-emerald-700 font-semibold hover:text-emerald-800 disabled:opacity-50 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg transition-colors"
-                            >
-                              {isSaving ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                "Guardar"
-                              )}
-                            </button>
-                            <button
-                              onClick={() => cancelEditRole(user.id)}
-                              disabled={isSaving}
-                              className="text-xs text-slate-500 hover:text-slate-700 font-semibold"
-                            >
-                              ✕
-                            </button>
-                          </div>
+                          <select
+                            autoFocus
+                            aria-label={`Rol de ${fullName}`}
+                            value={editingRole[user.id]}
+                            disabled={isSaving}
+                            onChange={(e) =>
+                              setEditingRole((prev) => ({
+                                ...prev,
+                                [user.id]: e.target.value as UserRole,
+                              }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") { e.preventDefault(); cancelEditRole(user.id); }
+                              if (e.key === "Enter") { e.preventDefault(); void handleSaveRole(user.id); }
+                            }}
+                            className="h-8 w-full max-w-[9rem] rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:opacity-60"
+                          >
+                            <option value="admin">Admin</option>
+                            <option value="customer">Cliente</option>
+                            <option value="readonly">Solo lectura</option>
+                          </select>
                         ) : (
-                          <div className="flex items-center justify-center gap-1.5">
-                            <Badge variant={ROLE_VARIANT[user.role]}>
-                              <span className="flex items-center gap-1">
-                                {ROLE_ICON[user.role]}
-                                {ROLE_LABEL[user.role]}
-                              </span>
-                            </Badge>
-                          </div>
+                          <Badge variant={ROLE_VARIANT[user.role]}>
+                            <span className="flex items-center gap-1">
+                              {ROLE_ICON[user.role]}
+                              {ROLE_LABEL[user.role]}
+                            </span>
+                          </Badge>
                         )}
                       </td>
 
                       {/* Fecha de registro */}
-                      <td className="px-4 py-3 text-slate-400 text-xs">
+                      <td className="px-4 py-2 text-slate-400 text-xs whitespace-nowrap">
                         {user.created_at ? formatDate(user.created_at) : "—"}
                       </td>
 
-                      {/* Acciones */}
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-3">
-                          {/* Cambiar rol (sólo administrador) */}
-                          {canEdit && !isEditing && (
-                            <button
-                              onClick={() => startEditRole(user.id, user.role)}
-                              className="text-xs text-brand-600 hover:text-brand-700 font-semibold transition-colors"
-                            >
-                              Cambiar rol
-                            </button>
-                          )}
-
-                          {/* Eliminar (no mostrar para el usuario logueado ni a solo lectura) */}
-                          {canEdit && !isCurrentUser && (
-                            <button
-                              onClick={() => handleDelete(user)}
-                              disabled={isDeleting}
-                              className="text-xs text-red-500 hover:text-red-700 font-semibold transition-colors disabled:opacity-50"
-                            >
-                              {isDeleting ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                "Eliminar"
-                              )}
-                            </button>
-                          )}
-                        </div>
+                      {/* Acciones: cada par de botones comparte el mismo ancho */}
+                      <td className={canEdit ? "px-4 py-2" : "p-0"}>
+                        {canEdit && (
+                          <div className="flex items-center justify-end gap-2">
+                            {isEditing ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveRole(user.id)}
+                                  disabled={isSaving}
+                                  aria-busy={isSaving}
+                                  className={adminButton("primary", "sm", PRIMARY_SLOT)}
+                                >
+                                  {isSaving && <Loader2 className="w-3.5 h-3.5 motion-safe:animate-spin" aria-hidden="true" />}
+                                  Guardar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => cancelEditRole(user.id)}
+                                  disabled={isSaving}
+                                  className={adminButton("secondary", "sm", SECONDARY_SLOT)}
+                                >
+                                  Cancelar
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  id={roleButtonId(user.id)}
+                                  type="button"
+                                  onClick={() => startEditRole(user.id, user.role)}
+                                  disabled={isDeleting}
+                                  aria-label={`Cambiar rol de ${fullName}`}
+                                  className={adminButton("secondary", "sm", PRIMARY_SLOT)}
+                                >
+                                  Cambiar rol
+                                </button>
+                                {/* El usuario logueado no puede eliminarse: se deja el lugar vacío para alinear */}
+                                {isCurrentUser ? (
+                                  <span className={SECONDARY_SLOT} aria-hidden="true" />
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDelete(user)}
+                                    disabled={isDeleting}
+                                    aria-busy={isDeleting}
+                                    aria-label={`Eliminar a ${fullName}`}
+                                    className={adminButton("danger", "sm", SECONDARY_SLOT)}
+                                  >
+                                    {isDeleting && <Loader2 className="w-3.5 h-3.5 motion-safe:animate-spin" aria-hidden="true" />}
+                                    Eliminar
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );

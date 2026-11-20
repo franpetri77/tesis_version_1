@@ -10,9 +10,9 @@ import Link from "next/link";
 import { Download, Upload, Loader2 } from "lucide-react";
 import { downloadProductsCsv } from "@/lib/api/productCsv";
 import { useCanEdit } from "@/hooks/usePanelRole";
+import { adminButton } from "@/components/admin/adminUi";
 
-const secondary =
-  "inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:opacity-60 motion-reduce:transition-none";
+const secondary = adminButton("secondary", "md");
 
 export function ProductCsvActions() {
   const canEdit = useCanEdit();

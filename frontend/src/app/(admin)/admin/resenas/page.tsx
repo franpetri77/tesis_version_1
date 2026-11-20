@@ -12,6 +12,7 @@ import { useCanEdit } from "@/hooks/usePanelRole";
 import { Star, CheckCircle2, XCircle, Trash2, MessageSquare } from "lucide-react";
 import { formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
+import { adminFilterTab, adminIconButton } from "@/components/admin/adminUi";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -128,13 +129,10 @@ export default function AdminResenasPage() {
         {(["all", "pending", "approved"] as const).map((f) => (
           <button
             key={f}
+            type="button"
             onClick={() => setFilter(f)}
-            className={cn(
-              "px-4 py-1.5 rounded-lg text-sm font-medium transition-colors",
-              filter === f
-                ? "bg-brand-600 text-white"
-                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-            )}
+            aria-pressed={filter === f}
+            className={adminFilterTab(filter === f)}
           >
             {f === "all" ? "Todas" : f === "pending" ? "Pendientes" : "Aprobadas"}
           </button>
@@ -220,19 +218,21 @@ export default function AdminResenasPage() {
                     <td className="px-4 py-3">
                       {canEdit ? <div className="flex items-center justify-center gap-2">
                         <button
+                          type="button"
                           onClick={() => toggleApprove.mutate(review.id)}
                           disabled={toggleApprove.isPending}
                           title={review.is_approved ? "Rechazar" : "Aprobar"}
-                          className={cn(
-                            "p-1.5 rounded-lg transition-colors",
+                          aria-label={`${review.is_approved ? "Rechazar" : "Aprobar"} la reseña de ${review.user_name ?? "este cliente"}`}
+                          className={adminIconButton(
+                            "ghost",
                             review.is_approved
-                              ? "text-amber-500 hover:bg-amber-50"
-                              : "text-emerald-600 hover:bg-emerald-50"
+                              ? "text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                              : "text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
                           )}
                         >
                           {review.is_approved
-                            ? <XCircle className="w-4 h-4" />
-                            : <CheckCircle2 className="w-4 h-4" />
+                            ? <XCircle className="w-4 h-4" aria-hidden="true" />
+                            : <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
                           }
                         </button>
                         <button
@@ -241,11 +241,13 @@ export default function AdminResenasPage() {
                               deleteReview.mutate(review.id);
                             }
                           }}
+                          type="button"
                           disabled={deleteReview.isPending}
                           title="Eliminar"
-                          className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition-colors"
+                          aria-label={`Eliminar la reseña de ${review.user_name ?? "este cliente"}`}
+                          className={adminIconButton("ghost", "text-red-500 hover:bg-red-50 hover:text-red-700")}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" aria-hidden="true" />
                         </button>
                       </div> : <span className="block text-center text-xs text-slate-400">—</span>}
                     </td>

@@ -12,6 +12,7 @@ import { useCanEdit } from "@/hooks/usePanelRole";
 import { FileText, Mail, Phone, Building2, Hash, Package } from "lucide-react";
 import { formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
+import { adminFilterTab } from "@/components/admin/adminUi";
 import {
   getQuoteRequests, updateQuoteStatus,
   type QuoteRequest, type QuoteStatus,
@@ -70,13 +71,10 @@ export default function AdminPresupuestosPage() {
         {FILTROS.map((f) => (
           <button
             key={f.valor}
+            type="button"
             onClick={() => setFiltro(f.valor)}
-            className={cn(
-              "px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors duration-150",
-              filtro === f.valor
-                ? "bg-slate-900 text-white"
-                : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300"
-            )}
+            aria-pressed={filtro === f.valor}
+            className={adminFilterTab(filtro === f.valor)}
           >
             {f.etiqueta}
           </button>

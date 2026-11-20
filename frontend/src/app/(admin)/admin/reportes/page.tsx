@@ -34,6 +34,7 @@ import {
 } from "@/lib/api/admin";
 import type { Product } from "@/types";
 import { TendenciasCompra } from "./TendenciasCompra";
+import { adminButton } from "@/components/admin/adminUi";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -276,9 +277,10 @@ export default function AdminReportsPage() {
           </div>
           <button
             onClick={() => refetchSales()}
-            className="flex items-center gap-2 bg-brand-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-brand-700 transition-colors"
+            type="button"
+            className={adminButton("primary", "md")}
           >
-            <RefreshCcw className="w-3.5 h-3.5" />
+            <RefreshCcw className="w-3.5 h-3.5" aria-hidden="true" />
             Actualizar
           </button>
         </div>
@@ -567,10 +569,10 @@ export default function AdminReportsPage() {
             />
             <button
               onClick={() => refetchVisits()}
-              className="flex items-center gap-1 bg-brand-600 text-white px-3 py-1.5 rounded-lg
-                         text-xs font-semibold hover:bg-brand-700 transition-colors"
+              type="button"
+              className={adminButton("primary", "sm")}
             >
-              <RefreshCcw className="w-3 h-3" />
+              <RefreshCcw className="w-3 h-3" aria-hidden="true" />
               Ver
             </button>
           </div>

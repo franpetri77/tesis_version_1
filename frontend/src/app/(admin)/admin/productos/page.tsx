@@ -10,6 +10,7 @@ import { Plus, Package } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { AdminOnly } from "@/components/admin/AdminOnly";
 import { ProductCsvActions } from "@/components/admin/ProductCsvActions";
+import { adminButton } from "@/components/admin/adminUi";
 import { formatPrice } from "@/lib/utils/format";
 import type { Product } from "@/types";
 
@@ -63,7 +64,7 @@ export default async function AdminProductsPage() {
           <AdminOnly>
             <Link
               href="/admin/productos/nuevo"
-              className="inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-700 transition-colors shadow-sm"
+              className={adminButton("primary", "md")}
             >
               <Plus className="w-4 h-4" />
               Nuevo producto

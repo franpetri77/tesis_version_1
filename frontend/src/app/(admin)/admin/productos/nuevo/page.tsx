@@ -13,6 +13,7 @@ import { ArrowLeft, Plus, Trash2, Loader2, AlertCircle } from "lucide-react";
 import { createProduct } from "@/lib/api/admin";
 import type { Category } from "@/types";
 import { useCanEdit } from "@/hooks/usePanelRole";
+import { adminButton, adminIconButton } from "@/components/admin/adminUi";
 import { ProductClassificationEditor, type MetadataRows } from "@/components/admin/ProductClassificationEditor";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -139,9 +140,10 @@ export default function NewProductPage() {
       <div className="flex items-center gap-3">
         <Link
           href="/admin/productos"
-          className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-700 transition-colors"
+          aria-label="Volver al listado de productos"
+          className={adminIconButton("secondary", "h-9 w-9")}
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-4 h-4" aria-hidden="true" />
         </Link>
         <div>
           <h1 className="text-xl font-bold text-slate-900">Nuevo producto</h1>
@@ -343,9 +345,11 @@ export default function NewProductPage() {
                   <button
                     type="button"
                     onClick={() => removeImageField(idx)}
-                    className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    aria-label={`Quitar imagen ${idx + 1}`}
+                    title="Quitar imagen"
+                    className={adminIconButton("ghost", "mt-1 text-red-500 hover:bg-red-50 hover:text-red-700")}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -356,7 +360,7 @@ export default function NewProductPage() {
             <button
               type="button"
               onClick={addImageField}
-              className="flex items-center gap-2 text-sm text-brand-600 hover:text-brand-700 font-semibold transition-colors"
+              className={adminButton("secondary", "sm")}
             >
               <Plus className="w-4 h-4" />
               Agregar imagen
@@ -400,14 +404,15 @@ export default function NewProductPage() {
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 bg-brand-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-brand-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+            aria-busy={saving}
+            className={adminButton("primary", "md", "min-w-[9.5rem]")}
           >
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+            {saving && <Loader2 className="w-4 h-4 motion-safe:animate-spin" aria-hidden="true" />}
             {saving ? "Guardando..." : "Crear producto"}
           </button>
           <Link
             href="/admin/productos"
-            className="text-sm font-semibold text-slate-500 hover:text-slate-700 transition-colors px-3 py-2.5"
+            className={adminButton("ghost", "md")}
           >
             Cancelar
           </Link>

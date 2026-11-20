@@ -10,9 +10,12 @@ import { Providers } from "./providers";
 import { CartToast } from "@/components/ui/CartToast";
 import { StickyCartBar } from "@/components/ui/StickyCartBar";
 import { SplashScreen } from "@/components/ui/SplashScreen";
+import { siteUrl } from "@/lib/utils/share";
 
 // Metadata base del sitio (puede ser sobreescrita por cada página)
 export const metadata: Metadata = {
+  // Base para que las URL relativas de Open Graph y canonical salgan absolutas
+  metadataBase: new URL(siteUrl()),
   title: {
     template: "%s | Tele Import S.A.",
     default: "Tele Import S.A. — Insumos Electrónicos y de Computación",

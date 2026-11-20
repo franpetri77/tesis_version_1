@@ -9,6 +9,7 @@ import Image from "next/image";
 import { Plus, Package } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { AdminOnly } from "@/components/admin/AdminOnly";
+import { ProductCsvActions } from "@/components/admin/ProductCsvActions";
 import { formatPrice } from "@/lib/utils/format";
 import type { Product } from "@/types";
 
@@ -56,15 +57,19 @@ export default async function AdminProductsPage() {
             )}
           </p>
         </div>
-        <AdminOnly>
-          <Link
-            href="/admin/productos/nuevo"
-            className="inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-700 transition-colors shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Nuevo producto
-          </Link>
-        </AdminOnly>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {/* Importar y exportar CSV (T6b) */}
+          <ProductCsvActions />
+          <AdminOnly>
+            <Link
+              href="/admin/productos/nuevo"
+              className="inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-700 transition-colors shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Nuevo producto
+            </Link>
+          </AdminOnly>
+        </div>
       </div>
 
       {/* Tabla */}
@@ -122,7 +127,7 @@ export default async function AdminProductsPage() {
                       <span className="font-medium text-slate-900 line-clamp-1">
                         {product.name}
                       </span>
-                      {product.is_featured && (
+                      {Boolean(product.is_featured) && (
                         <span className="ml-2 text-[10px] bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-full font-semibold">
                           Destacado
                         </span>

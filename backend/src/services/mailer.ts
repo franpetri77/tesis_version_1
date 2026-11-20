@@ -1,73 +1,116 @@
 // =============================================
-// SERVICIO DE ENVÍO DE EMAILS (nodemailer)
-// Envía correos transaccionales: verificación de cuenta
-// y recuperación de contraseña.
+// SERVICIO DE ENVÍO DE EMAILS
+// Envía correos transaccionales: verificación de cuenta, recuperación de
+// contraseña, pedido nuevo al encargado y avisos de la mensajería.
 //
-// Configuración por variables de entorno (.env):
-//   SMTP_HOST      - host del servidor SMTP (ej: smtp.gmail.com)
-//   SMTP_PORT      - puerto (587 STARTTLS, 465 SSL)
-//   SMTP_USER      - usuario / dirección de la casilla
-//   SMTP_PASS      - contraseña o "app password" (Gmail)
-//   SMTP_FROM      - remitente visible (ej: "Tele Import <no-reply@teleimport.com>")
+// Proveedor (T11), por orden de prioridad:
+//   1. Brevo por API HTTPS, si está BREVO_API_KEY. Railway bloquea el
+//      SMTP saliente (puertos 25, 465 y 587) en los planes Free, Trial y
+//      Hobby: la API va por HTTPS (443) y no tiene ese bloqueo.
+//   2. SMTP (nodemailer), si están SMTP_HOST, SMTP_USER y SMTP_PASS.
+//   3. Ninguno: el correo se registra en el log y el flujo sigue.
+//
+// Variables de entorno:
+//   BREVO_API_KEY  - clave de la API de Brevo (Transactional)
+//   MAIL_FROM      - remitente visible, "Nombre <correo>"; el correo debe
+//                    estar verificado en el proveedor. Si falta, SMTP_FROM.
+//   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM - transporte SMTP
 //   FRONTEND_URL   - base para construir los links de los correos
 //
-// Si SMTP no está configurado, NO se rompe: se registra el link en
-// consola (modo desarrollo) para poder continuar el flujo igual.
+// Cada envío tiene un tiempo máximo (10 s en la API, 10 s de conexión SMTP):
+// un proveedor caído no deja colgada la respuesta al usuario.
 // =============================================
 
 import nodemailer, { type Transporter } from "nodemailer";
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:3000";
-const SMTP_FROM = process.env.SMTP_FROM ?? "Tele Import <no-reply@teleimport.com>";
+const DEFAULT_FROM = "Tele Import <no-reply@teleimport.com>";
+const BREVO_URL = "https://api.brevo.com/v3/smtp/email";
+export const MAIL_TIMEOUT_MS = 10_000;
 
 let cachedTransporter: Transporter | null = null;
 
-/** Indica si hay configuración SMTP suficiente para enviar correos reales. */
-export function isMailerConfigured(): boolean {
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+type Provider = "brevo" | "smtp" | null;
+
+/** Proveedor vigente según el entorno (se lee en cada envío). */
+export function mailProvider(): Provider {
+  if (process.env.BREVO_API_KEY) return "brevo";
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) return "smtp";
+  return null;
 }
 
-/** Crea (y cachea) el transporter de nodemailer a partir del entorno. */
-function getTransporter(): Transporter | null {
-  if (!isMailerConfigured()) return null;
-  if (cachedTransporter) return cachedTransporter;
+/** Indica si hay un proveedor configurado para enviar correos reales. */
+export function isMailerConfigured(): boolean {
+  return mailProvider() !== null;
+}
 
+/** "Nombre <correo>" → { name, email }. Sin ángulos, todo es el correo. */
+export function parseSender(from: string): { name?: string; email: string } {
+  const m = from.match(/^\s*"?([^"<]*?)"?\s*<\s*([^>]+?)\s*>\s*$/);
+  if (m) return m[1] ? { name: m[1].trim(), email: m[2] } : { email: m[2] };
+  return { email: from.trim() };
+}
+
+const fromAddress = () => process.env.MAIL_FROM ?? process.env.SMTP_FROM ?? DEFAULT_FROM;
+
+/** Crea (y cachea) el transporter SMTP a partir del entorno. */
+function getTransporter(): Transporter {
+  if (cachedTransporter) return cachedTransporter;
   const port = Number(process.env.SMTP_PORT ?? 587);
   cachedTransporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port,
     secure: port === 465, // 465 = SSL; 587 = STARTTLS
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    connectionTimeout: MAIL_TIMEOUT_MS,
+    greetingTimeout: MAIL_TIMEOUT_MS,
+    socketTimeout: MAIL_TIMEOUT_MS,
   });
   return cachedTransporter;
 }
 
-/**
- * Envía un correo. Si SMTP no está configurado, registra el contenido en
- * consola y devuelve false (para que el caller decida cómo seguir).
- */
-async function sendMail(opts: { to: string; subject: string; html: string; text: string }): Promise<boolean> {
-  const transporter = getTransporter();
+type Mail = { to: string; subject: string; html: string; text: string };
 
-  if (!transporter) {
+async function sendWithBrevo(opts: Mail): Promise<void> {
+  const res = await fetch(BREVO_URL, {
+    method: "POST",
+    headers: { "api-key": String(process.env.BREVO_API_KEY), "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({
+      sender: parseSender(fromAddress()),
+      to: [{ email: opts.to }],
+      subject: opts.subject,
+      htmlContent: opts.html,
+      textContent: opts.text,
+    }),
+    signal: AbortSignal.timeout(MAIL_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    // El cuerpo de error de Brevo no incluye la clave; se recorta por las dudas
+    const detail = (await res.text().catch(() => "")).slice(0, 300);
+    throw new Error(`Brevo respondió ${res.status}: ${detail}`);
+  }
+}
+
+/**
+ * Envía un correo con el proveedor configurado. Sin proveedor, registra el
+ * contenido en el log y devuelve false. Si el proveedor falla, lanza el
+ * error: cada llamador decide (ninguno debe cortar el flujo del usuario).
+ */
+async function sendMail(opts: Mail): Promise<boolean> {
+  const provider = mailProvider();
+  if (!provider) {
     console.warn(
-      `[Mailer] SMTP no configurado — no se envió el correo a ${opts.to}.\n` +
+      `[Mailer] Sin proveedor de correo — no se envió el correo a ${opts.to}.\n` +
       `[Mailer] Asunto: ${opts.subject}\n` +
       `[Mailer] Contenido (texto):\n${opts.text}`
     );
     return false;
   }
-
-  await transporter.sendMail({
-    from: SMTP_FROM,
-    to: opts.to,
-    subject: opts.subject,
-    text: opts.text,
-    html: opts.html,
-  });
+  if (provider === "brevo") {
+    await sendWithBrevo(opts);
+  } else {
+    await getTransporter().sendMail({ from: fromAddress(), to: opts.to, subject: opts.subject, text: opts.text, html: opts.html });
+  }
   return true;
 }
 
@@ -171,6 +214,36 @@ export async function sendNewOrderEmail(order: {
     return await sendMail({ to, subject: `Nuevo pedido ${order.orderNumber}`, html, text });
   } catch (error) {
     console.error(`[Mailer] No se pudo enviar el aviso del pedido ${order.orderNumber}:`, error);
+    return false;
+  }
+}
+
+// -----------------------------------------------
+// T9: aviso de mensaje nuevo en la mensajería de la tienda.
+//   staff:    al encargado (MANAGER_EMAIL), con el nombre del cliente.
+//   customer: al cliente, cuando el personal le responde.
+// El texto se escapa: lo escribió un usuario.
+// -----------------------------------------------
+export async function sendChatEmail(opts: {
+  to: string; kind: "staff" | "customer"; name: string; staffName?: string | null; body: string; path: string;
+}): Promise<boolean> {
+  const url = `${FRONTEND_URL.replace(/\/$/, "")}${opts.path}`;
+  const excerpt = opts.body.length > 600 ? `${opts.body.slice(0, 597)}...` : opts.body;
+  const staff = opts.kind === "staff";
+  const subject = staff ? `Mensaje nuevo de ${opts.name}` : "Te respondimos — Tele Import";
+  const intro = staff
+    ? `${esc(opts.name)} escribió por la mensajería de la tienda:`
+    : `${opts.name ? `Hola ${esc(opts.name)}, ` : ""}${opts.staffName ? esc(opts.staffName) : "el equipo"} de Tele Import respondió tu consulta:`;
+  const quote = `<blockquote style="margin:12px 0 0;padding:10px 14px;border-left:3px solid #e2e8f0;color:#0f172a;white-space:pre-wrap;">${esc(excerpt)}</blockquote>`;
+  try {
+    return await sendMail({
+      to: opts.to,
+      subject,
+      html: baseTemplate(staff ? "Mensaje nuevo" : "Tenés una respuesta", `${intro}${quote}`, staff ? "Responder en el panel" : "Ver la conversación", url),
+      text: `${staff ? `${opts.name} escribió` : "Te respondimos"}:\n\n${excerpt}\n\n${staff ? "Responder" : "Ver la conversación"}: ${url}`,
+    });
+  } catch (error) {
+    console.error("[Mailer] No se pudo enviar el aviso de mensaje nuevo:", error);
     return false;
   }
 }

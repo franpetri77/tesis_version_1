@@ -16,6 +16,8 @@ interface CartToast {
 }
 
 interface CartState extends Cart {
+  /** Cuenta a la que pertenece el carrito; null mientras es de invitado. */
+  ownerId: string | null;
   total_items: number;
   subtotal: number;
   total: number;
@@ -28,6 +30,7 @@ interface CartState extends Cart {
   removePromotion: () => void;
   clearCart: () => void;
   dismissToast: () => void;
+  syncOwner: (userId: string | null) => void;
 }
 
 const initialState: Cart = {
@@ -46,10 +49,24 @@ export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       ...initialState,
+      ownerId: null,
       total_items: 0,
       subtotal: 0,
       total: 0,
       toast: initialToast,
+
+      // Sólo un carrito de invitado puede pasar a una cuenta. Al salir o
+      // cambiar de usuario, se borran también cupón, totales y notificación.
+      syncOwner: (userId) => {
+        const previous = get().ownerId;
+        if (previous === userId) return;
+        if (previous === null && userId !== null) {
+          set({ ownerId: userId, toast: initialToast });
+        } else {
+          get().clearCart();
+          set({ ownerId: userId });
+        }
+      },
 
       // Agrega un producto al carrito. Si ya existe, incrementa la cantidad.
       // Respeta el stock disponible y activa el toast de confirmación.
@@ -190,11 +207,20 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: "tele-import-cart",
+      version: 1,
+      // El carrito anterior era global: no se puede atribuir con seguridad
+      // a la cuenta actual. Se descarta una sola vez al actualizar.
+      migrate: (): Cart & { ownerId: string | null } => ({ ...initialState, ownerId: null }),
       partialize: (state) => ({
+        ownerId: state.ownerId,
         items: state.items,
         coupon_code: state.coupon_code,
         discount_amount: state.discount_amount,
       }),
+      merge: (persisted, current) => {
+        const restored = { ...current, ...(persisted as Partial<CartState>) };
+        return { ...restored, ...computeCartTotals(restored), toast: initialToast };
+      },
     }
   )
 );

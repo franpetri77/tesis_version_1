@@ -19,6 +19,7 @@ import { catalogRouter } from "./routes/catalog";
 import { authRouter } from "./routes/auth";
 import { adminRouter } from "./routes/admin";
 import { quotesRouter } from "./routes/quotes";
+import { chatRouter } from "./routes/chat";
 import { startReservationExpiry } from "./services/orderStock";
 
 const app = express();
@@ -91,7 +92,8 @@ app.use((req, res, next) => {
   if (req.path.startsWith("/webhooks")) {
     express.raw({ type: "application/json" })(req, res, next);
   } else {
-    express.json()(req, res, next);
+    // La importación CSV viaja como texto dentro del JSON: admite archivos de hasta 2 MB
+    express.json({ limit: req.path.startsWith("/admin/products/import") ? "5mb" : "100kb" })(req, res, next);
   }
 });
 
@@ -113,6 +115,9 @@ app.use("/reports", reportsRouter);
 
 // Solicitudes de presupuesto (alta pública; listado y gestión sólo admin)
 app.use("/quotes", quotesRouter);
+
+// Mensajería del cliente con la tienda (T9); el personal responde en /admin/chat
+app.use("/chat", chatRouter);
 
 // Rutas de administración (requieren rol admin)
 app.use("/admin", adminRouter);

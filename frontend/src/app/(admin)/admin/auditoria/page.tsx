@@ -11,7 +11,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ClipboardList, ArrowDownCircle, ArrowUpCircle, ChevronLeft, ChevronRight,
-  Package, UserCog, UserX, PackagePlus, PackageX, Pencil, Power, MessageSquare, Tag,
+  Package, UserCog, UserX, PackagePlus, PackageX, Pencil, Power, MessageSquare, Tag, FileUp
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
@@ -49,6 +49,7 @@ const ACTION_META: Record<string, { label: string; color: string; Icon: React.El
   order_status:   { label: "Estado de pedido",   color: "text-slate-700 bg-paper-100",     Icon: Package },
   product_create: { label: "Alta de producto",   color: "text-slate-700 bg-paper-100", Icon: PackagePlus },
   product_update: { label: "Edición de producto", color: "text-slate-700 bg-paper-100",   Icon: Pencil },
+  product_import: { label: "Importación CSV",    color: "text-slate-700 bg-paper-100",   Icon: FileUp },
   product_toggle: { label: "Activación",         color: "text-slate-700 bg-paper-100",    Icon: Power },
   product_delete: { label: "Baja de producto",   color: "text-slate-900 bg-paper-200",         Icon: PackageX },
   user_role:      { label: "Cambio de rol",      color: "text-slate-700 bg-paper-100",     Icon: UserCog },

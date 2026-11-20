@@ -10,10 +10,10 @@ import { randomUUID } from "crypto";
 import type { RowDataPacket } from "mysql2";
 import type { PoolConnection } from "mysql2/promise";
 import db from "../db/database";
-import { sendNewOrderEmail } from "./mailer";
+import { sendChatEmail, sendNewOrderEmail } from "./mailer";
 import { withTransaction } from "./audit";
 
-type NotificationType = "order_new" | "order_status" | "stock_low" | "review_new" | "product_new" | "price_drop" | "offer";
+type NotificationType = "order_new" | "order_status" | "stock_low" | "review_new" | "product_new" | "price_drop" | "offer" | "chat_message";
 const LOW_STOCK_THRESHOLD = 5;
 const MAX_AUDIENCE = 500;
 
@@ -202,4 +202,38 @@ export async function notifyNewReview(productName: string): Promise<number> {
     message: `Nueva reseña en ${productName}.`,
     link: "/admin/resenas",
   })));
+}
+
+// -----------------------------------------------
+// T9: mensajería. Se llama sólo con el primer mensaje no leído de cada
+// tanda (lo decide services/chat.ts), así no se repite un aviso por mensaje.
+// -----------------------------------------------
+const preview = (body: string) => (body.length > 120 ? `${body.slice(0, 117).trimEnd()}...` : body);
+
+/** Mensaje de un cliente: campana de cada administrador y correo al encargado. */
+export async function notifyChatToStaff(conversationId: string, customerId: string, body: string): Promise<number> {
+  const [rows] = await db.query<RowDataPacket[]>("SELECT first_name, last_name, email FROM users WHERE id = ?", [customerId]);
+  const u = rows[0];
+  const name = u ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || String(u.email) : "Un cliente";
+  const link = `/admin/mensajes?c=${encodeURIComponent(conversationId)}`;
+  const admins = await adminIds();
+  const total = await insertMany(admins.map((userId) => ({
+    userId, type: "chat_message" as const, title: `Mensaje de ${name}`, message: preview(body), link,
+  })));
+  const to = process.env.MANAGER_EMAIL;
+  if (to) await sendChatEmail({ to, kind: "staff", name, body, path: link });
+  else console.warn("[Mailer] MANAGER_EMAIL no configurado: no se avisó al encargado del mensaje nuevo.");
+  return total;
+}
+
+/** Respuesta del personal: campana y correo al cliente. */
+export async function notifyChatToCustomer(customerId: string, staffName: string | null, body: string): Promise<number> {
+  const [rows] = await db.query<RowDataPacket[]>("SELECT first_name, email FROM users WHERE id = ? AND role = 'customer'", [customerId]);
+  const u = rows[0];
+  if (!u) return 0;
+  const total = await insertMany([{
+    userId: customerId, type: "chat_message", title: "Te respondimos", message: preview(body), link: "/perfil/mensajes",
+  }]);
+  await sendChatEmail({ to: String(u.email), kind: "customer", name: u.first_name ? String(u.first_name) : "", staffName, body, path: "/perfil/mensajes" });
+  return total;
 }

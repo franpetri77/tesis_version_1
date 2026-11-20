@@ -303,7 +303,7 @@ export async function initSchema(pool: Pool): Promise<void> {
       CREATE TABLE IF NOT EXISTS notifications (
         id         VARCHAR(50)   NOT NULL,
         user_id    VARCHAR(50)   NOT NULL,
-        type       ENUM('order_new','order_status','stock_low','review_new','product_new','price_drop','offer') NOT NULL,
+        type       ENUM('order_new','order_status','stock_low','review_new','product_new','price_drop','offer','chat_message') NOT NULL,
         title      VARCHAR(255)  NOT NULL,
         message    TEXT          NOT NULL,
         is_read    TINYINT(1)    NOT NULL DEFAULT 0,
@@ -409,6 +409,52 @@ export async function initSchema(pool: Pool): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
+    // -----------------------------------------------
+    // T9: MENSAJERÍA CLIENTE ↔ TIENDA
+    // Una conversación por cliente (user_id único). Los punteros de lectura
+    // guardan el id del último mensaje leído por cada lado: lo no leído es
+    // lo del otro lado con id mayor. staff_last_read_id es compartido por
+    // todo el personal (bandeja de equipo).
+    // -----------------------------------------------
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS chat_conversations (
+        id                    VARCHAR(50)     NOT NULL,
+        user_id               VARCHAR(50)     NOT NULL,
+        status                ENUM('open','closed') NOT NULL DEFAULT 'open',
+        last_message_at       DATETIME        NULL,
+        customer_last_read_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        staff_last_read_id    BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        closed_at             DATETIME        NULL,
+        created_at            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_chat_conversations_user (user_id),
+        KEY idx_chat_conversations_last (status, last_message_at),
+        CONSTRAINT fk_chat_conversations_user
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        conversation_id VARCHAR(50)     NOT NULL,
+        sender_role     ENUM('customer','staff') NOT NULL,
+        sender_id       VARCHAR(50)     NULL,
+        body            TEXT            NOT NULL,
+        product_id      VARCHAR(50)     NULL,
+        created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_chat_messages_conversation (conversation_id, id),
+        CONSTRAINT fk_chat_messages_conversation
+          FOREIGN KEY (conversation_id) REFERENCES chat_conversations(id) ON DELETE CASCADE,
+        CONSTRAINT fk_chat_messages_sender
+          FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE SET NULL,
+        CONSTRAINT fk_chat_messages_product
+          FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+
     // consultamos information_schema antes de alterar.
     // -----------------------------------------------
     const [cols] = await conn.query(
@@ -453,6 +499,18 @@ export async function initSchema(pool: Pool): Promise<void> {
     if (notifTypeDef && !notifTypeDef.includes("'price_drop'")) {
       await conn.query(
         "ALTER TABLE notifications MODIFY COLUMN type ENUM('order_new','order_status','stock_low','review_new','product_new','price_drop','offer') NOT NULL"
+      );
+    }
+    // T9: aviso de mensaje nuevo en la mensajería. Relee el tipo porque el
+    // bloque anterior pudo haberlo cambiado.
+    const [notifType9] = await conn.query(
+      `SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'type'`
+    );
+    const notifTypeDef9 = String((notifType9 as Array<{ COLUMN_TYPE: string }>)[0]?.COLUMN_TYPE ?? "");
+    if (notifTypeDef9 && !notifTypeDef9.includes("'chat_message'")) {
+      await conn.query(
+        "ALTER TABLE notifications MODIFY COLUMN type ENUM('order_new','order_status','stock_low','review_new','product_new','price_drop','offer','chat_message') NOT NULL"
       );
     }
 

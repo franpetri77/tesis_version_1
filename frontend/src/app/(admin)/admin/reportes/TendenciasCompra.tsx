@@ -145,7 +145,8 @@ export function TendenciasCompra() {
             </p>
           </div>
 
-          <table className="mb-6 w-full text-sm tabular-nums">
+          <div className="mb-6 overflow-x-auto">
+          <table className="w-full text-sm tabular-nums">
             <caption className="sr-only">Detalle por período</caption>
             <thead>
               <tr className="border-b border-paper-300 text-left text-[11px] uppercase tracking-[0.12em] text-slate-500">
@@ -173,12 +174,14 @@ export function TendenciasCompra() {
               ))}
             </tbody>
           </table>
+          </div>
 
           <div>
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
               {data.breakdown_by === "product" ? "Productos" : "Categorías"} · último período cerrado frente al anterior
             </p>
             {data.comparison ? (
+              <div className="overflow-x-auto">
               <table className="w-full text-sm tabular-nums">
                 <caption className="sr-only">Desglose del último período completo frente al anterior</caption>
                 <thead>
@@ -204,6 +207,7 @@ export function TendenciasCompra() {
                   )}
                 </tbody>
               </table>
+              </div>
             ) : (
               <p className="border-y border-paper-300 py-3 text-sm text-slate-500">
                 El rango no incluye dos períodos completos y cerrados consecutivos para comparar.

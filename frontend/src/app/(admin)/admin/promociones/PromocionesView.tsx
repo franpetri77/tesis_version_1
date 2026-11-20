@@ -3,11 +3,15 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { formatPrice } from "@/lib/utils/format";
 import { useCanEdit } from "@/hooks/usePanelRole";
+import { adminButton } from "@/components/admin/adminUi";
 import { listPromotions, savePromotion, setPromotionActive, type AdminPromotion, type PromotionInput } from "@/lib/api/promotions";
 
 const inputClass = "mt-1 w-full rounded border border-paper-300 bg-paper-50 px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:opacity-60";
-const secondary = "rounded border border-paper-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-paper-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:opacity-50";
-const primary = "rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 disabled:opacity-60";
+const secondary = adminButton("secondary", "md");
+// Botones de fila: mismo ancho para Editar y Activar/Desactivar en todas las filas
+const rowEdit = adminButton("secondary", "sm", "w-[4.5rem]");
+const rowToggle = adminButton("secondary", "sm", "w-[6.5rem]");
+const primary = adminButton("primary", "md");
 const micro = "text-xs font-semibold uppercase tracking-wider text-slate-500";
 const types = {percentage:"Porcentaje",fixed_amount:"Monto fijo",free_shipping:"Envío gratis"};
 type Draft = Omit<PromotionInput, "value" | "min_order_amount" | "max_uses" | "description" | "valid_until"> & {
@@ -115,7 +119,7 @@ export function PromocionesView() {
               <label className={`${micro} md:col-span-2`}>Descripción (opcional)<textarea maxLength={5000} rows={2} value={d.description} onChange={e=>update("description",e.target.value)} className={inputClass} /></label>
               <label className="flex items-center gap-2 text-sm text-slate-700 md:col-span-2"><input type="checkbox" checked={d.is_active} onChange={e=>update("is_active",e.target.checked)} className="accent-brand-600 focus-visible:ring-2 focus-visible:ring-brand-600" />Activa, sujeta a vigencia y usos disponibles</label>
             </fieldset>
-            <div className="mt-5 flex flex-wrap gap-2"><button type="submit" disabled={busy} className={primary}>{busy ? "Guardando…" : "Guardar promoción"}</button><button type="button" disabled={busy} onClick={close} className={secondary}>Cancelar</button></div>
+            <div className="mt-5 flex flex-wrap gap-2"><button type="submit" disabled={busy} aria-busy={busy} className={`${primary} min-w-[10.5rem]`}>{busy ? "Guardando…" : "Guardar promoción"}</button><button type="button" disabled={busy} onClick={close} className={secondary}>Cancelar</button></div>
           </form>
         </section>
       )}
@@ -130,7 +134,7 @@ export function PromocionesView() {
               <td className="px-4 py-4 text-slate-600">{p.current_uses} / {p.max_uses ?? "Sin límite"}</td>
               <td className="px-4 py-4 text-xs text-slate-600">{day(p.valid_from)}<span className="mt-1 block">{p.valid_until ? `a ${day(p.valid_until)}` : "Sin vencimiento"}</span></td>
               <td className="px-4 py-4 text-xs text-slate-600">{p.is_active ? "Activa" : "Inactiva"}</td>
-              {canEdit && <td className="px-4 py-4"><div className="flex gap-2"><button type="button" disabled={busy || !!editor} onClick={()=>open(p)} aria-label={`Editar ${p.code}`} className={secondary}>Editar</button><button type="button" disabled={busy || !!editor} onClick={()=>void toggle(p)} aria-label={`${p.is_active ? "Desactivar" : "Activar"} ${p.code}`} className={secondary}>{p.is_active ? "Desactivar" : "Activar"}</button></div></td>}
+              {canEdit && <td className="px-4 py-4"><div className="flex gap-2"><button type="button" disabled={busy || !!editor} onClick={()=>open(p)} aria-label={`Editar ${p.code}`} className={rowEdit}>Editar</button><button type="button" disabled={busy || !!editor} onClick={()=>void toggle(p)} aria-label={`${p.is_active ? "Desactivar" : "Activar"} ${p.code}`} className={rowToggle}>{p.is_active ? "Desactivar" : "Activar"}</button></div></td>}
             </tr>)}
             {!promotions.length && <tr><td colSpan={canEdit ? 7 : 6} className="px-4 py-10 text-center text-slate-500">{loading ? "Cargando promociones…" : "No hay promociones creadas todavía"}</td></tr>}
           </tbody>

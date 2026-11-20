@@ -368,7 +368,7 @@ export default function AuditoriaPage() {
 
       {/* Paginación */}
       {total > PAGE_SIZE && (
-        <div className="flex items-center justify-between text-sm text-slate-500">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
           <span>
             {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} de {total} registros
           </span>

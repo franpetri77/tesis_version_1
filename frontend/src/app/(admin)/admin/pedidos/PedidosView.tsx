@@ -11,6 +11,7 @@ import { Badge, ORDER_STATUS_VARIANT, ORDER_STATUS_LABEL } from "@/components/ui
 import { formatPrice, formatDateTime } from "@/lib/utils/format";
 import type { OrderStatus } from "@/types";
 import { useAdminData } from "@/lib/api/useAdminData";
+import { adminFilterTab } from "@/components/admin/adminUi";
 
 // Tipo que refleja el shape real devuelto por GET /reports/orders
 interface PedidoRow {
@@ -59,11 +60,8 @@ export function PedidosView({ statusFilter }: { statusFilter?: string }) {
           <Link
             key={tab.value}
             href={tab.value ? `/admin/pedidos?estado=${tab.value}` : "/admin/pedidos"}
-            className={`flex-shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              (statusFilter ?? "") === tab.value
-                ? "bg-brand-600 text-white shadow-sm"
-                : "bg-white border border-slate-200 text-slate-600 hover:border-brand-300 hover:text-brand-700"
-            }`}
+            aria-current={(statusFilter ?? "") === tab.value ? "page" : undefined}
+            className={adminFilterTab((statusFilter ?? "") === tab.value)}
           >
             {tab.label}
           </Link>

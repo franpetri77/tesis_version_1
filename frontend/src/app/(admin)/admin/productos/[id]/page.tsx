@@ -18,6 +18,8 @@ import {
 } from "@/lib/api/admin";
 import type { Category, Product } from "@/types";
 import { useCanEdit } from "@/hooks/usePanelRole";
+import { adminButton, adminIconButton } from "@/components/admin/adminUi";
+import { cn } from "@/lib/utils/cn";
 import { ProductClassificationEditor, type MetadataRows } from "@/components/admin/ProductClassificationEditor";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -243,13 +245,14 @@ export default function EditProductPage() {
   return (
     <div className="max-w-3xl space-y-6">
       {/* Encabezado */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link
             href="/admin/productos"
-            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-700 transition-colors"
+            aria-label="Volver al listado de productos"
+            className={adminIconButton("secondary", "h-9 w-9")}
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4" aria-hidden="true" />
           </Link>
           <div>
             <h1 className="text-xl font-bold text-slate-900">{canEdit ? "Editar producto" : "Detalle del producto"}</h1>
@@ -265,18 +268,19 @@ export default function EditProductPage() {
             onClick={handleToggle}
             disabled={toggling}
             title={isActive ? "Desactivar producto" : "Activar producto"}
-            className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border transition-colors disabled:opacity-60 ${
-              isActive
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
-            }`}
+            aria-pressed={isActive}
+            aria-busy={toggling}
+            className={cn(
+              adminButton("secondary", "md", "w-[8.5rem]"),
+              isActive && "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100 hover:text-emerald-800"
+            )}
           >
             {toggling ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-4 h-4 motion-safe:animate-spin" aria-hidden="true" />
             ) : isActive ? (
-              <ToggleRight className="w-4 h-4" />
+              <ToggleRight className="w-4 h-4" aria-hidden="true" />
             ) : (
-              <ToggleLeft className="w-4 h-4" />
+              <ToggleLeft className="w-4 h-4" aria-hidden="true" />
             )}
             {isActive ? "Activo" : "Inactivo"}
           </button>
@@ -286,12 +290,13 @@ export default function EditProductPage() {
             type="button"
             onClick={handleDelete}
             disabled={deleting}
-            className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-60"
+            aria-busy={deleting}
+            className={adminButton("danger", "md")}
           >
             {deleting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-4 h-4 motion-safe:animate-spin" aria-hidden="true" />
             ) : (
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
             )}
             Eliminar
           </button>
@@ -492,9 +497,11 @@ export default function EditProductPage() {
                   <button
                     type="button"
                     onClick={() => removeImageField(idx)}
-                    className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    aria-label={`Quitar imagen ${idx + 1}`}
+                    title="Quitar imagen"
+                    className={adminIconButton("ghost", "mt-1 text-red-500 hover:bg-red-50 hover:text-red-700")}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -505,7 +512,7 @@ export default function EditProductPage() {
             <button
               type="button"
               onClick={addImageField}
-              className="flex items-center gap-2 text-sm text-brand-600 hover:text-brand-700 font-semibold transition-colors"
+              className={adminButton("secondary", "sm")}
             >
               <Plus className="w-4 h-4" />
               Agregar imagen
@@ -551,14 +558,15 @@ export default function EditProductPage() {
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 bg-brand-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-brand-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+            aria-busy={saving}
+            className={adminButton("primary", "md", "min-w-[9.5rem]")}
           >
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+            {saving && <Loader2 className="w-4 h-4 motion-safe:animate-spin" aria-hidden="true" />}
             {saving ? "Guardando..." : "Guardar cambios"}
           </button>
           <Link
             href="/admin/productos"
-            className="text-sm font-semibold text-slate-500 hover:text-slate-700 transition-colors px-3 py-2.5"
+            className={adminButton("ghost", "md")}
           >
             Cancelar
           </Link>

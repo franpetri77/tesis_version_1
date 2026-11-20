@@ -19,6 +19,7 @@ import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { MessageCircle, X, Maximize2, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { AUTH_ROUTES } from "@/lib/routes";
 import { chatApi } from "@/lib/api/chat";
 import { BOT_NAME } from "@/lib/chat/faq";
 import { useAuthStore } from "@/stores/authStore";
@@ -27,7 +28,7 @@ import { useModalStore } from "@/stores/modalStore";
 import { CustomerChat } from "./CustomerChat";
 import { FaqBot } from "./FaqBot";
 
-const HIDDEN_ON = ["/admin", "/perfil/mensajes", "/login", "/registro", "/restablecer", "/verificar-email"];
+const HIDDEN_ON = ["/admin", "/perfil/mensajes", ...AUTH_ROUTES];
 const TEASER_KEY = "tele-import-chat-teaser";
 const TEASER_DELAY_MS = 4000;
 

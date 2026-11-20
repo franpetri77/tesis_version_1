@@ -9,14 +9,25 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Trash2, ShoppingBag, ArrowRight, Package } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCartStore } from "@/stores/cartStore";
+import { useAuthStore } from "@/stores/authStore";
+import { useModalStore } from "@/stores/modalStore";
 import { Button } from "@/components/ui/Button";
 import { formatPrice } from "@/lib/utils/format";
 import { getProductImageUrl } from "@/lib/api/catalog";
 
 export default function CartPage() {
+  const router = useRouter();
   const { items, subtotal, discount_amount, total, updateQuantity, removeItem } =
     useCartStore();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const openModal = useModalStore((s) => s.openModal);
+
+  function goToCheckout() {
+    if (isAuthenticated) router.push("/checkout");
+    else openModal("auth", { authTab: "intro", redirectTo: "/checkout" });
+  }
 
   if (items.length === 0) {
     return (
@@ -191,12 +202,19 @@ export default function CartPage() {
               <span className="text-lg">{formatPrice(total)}</span>
             </div>
 
-            <Link href="/checkout" className="block mt-5">
-              <Button variant="primary" size="lg" fullWidth className="gap-2">
-                Finalizar compra
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </Link>
+            {/* Sin sesión no se navega a /login: se abre el modal de acceso
+                y, al ingresar, se sigue al checkout con el mismo carrito. */}
+            <Button
+              type="button"
+              variant="primary"
+              size="lg"
+              fullWidth
+              className="gap-2 mt-5"
+              onClick={goToCheckout}
+            >
+              Finalizar compra
+              <ArrowRight className="w-4 h-4" aria-hidden="true" />
+            </Button>
 
             {/* Íconos de pago */}
             <p className="text-[11px] text-slate-400 text-center mt-4">

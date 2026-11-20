@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useCartStore } from "@/stores/cartStore";
 import { useAuthStore } from "@/stores/authStore";
+import { useModalStore } from "@/stores/modalStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { formatPrice } from "@/lib/utils/format";
@@ -50,6 +51,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
   const cart = useCartStore();
+  const openModal = useModalStore((s) => s.openModal);
 
   const [form, setForm] = useState<CheckoutFormData>({
     delivery_method: "pickup",
@@ -64,8 +66,13 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (cart.items.length === 0) { router.push("/carrito"); return; }
-    if (!isAuthenticated)        { router.push("/login?redirect=/checkout"); }
-  }, [cart.items.length, isAuthenticated, router]);
+    if (!isAuthenticated) {
+      // Entrada directa sin sesión: volver al carrito y pedir el ingreso en
+      // el modal (sin pasar por /login); al ingresar vuelve acá.
+      router.replace("/carrito");
+      openModal("auth", { authTab: "intro", redirectTo: "/checkout" });
+    }
+  }, [cart.items.length, isAuthenticated, router, openModal]);
 
   const shippingCost = form.delivery_method === "shipping" ? SHIPPING_COST : 0;
   const finalTotal   = cart.total + shippingCost;

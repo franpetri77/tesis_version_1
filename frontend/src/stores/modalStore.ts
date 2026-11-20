@@ -18,8 +18,13 @@ export type ModalType =
 interface ModalPayload {
   firstName?: string;
   email?: string;
-  /** Pestaña inicial del modal de autenticación */
-  authTab?: "login" | "register";
+  /**
+   * Paso inicial del modal de autenticación. "intro" muestra primero el
+   * aviso "Todavía no iniciaste sesión" con las opciones de ingresar o registrarse.
+   */
+  authTab?: "intro" | "login" | "register" | "forgot";
+  /** Ruta interna a la que seguir al ingresar o registrarse (p. ej. /checkout) */
+  redirectTo?: string;
 }
 
 interface ModalState {

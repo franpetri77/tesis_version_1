@@ -7,8 +7,10 @@ import { ShoppingCart, X, ChevronRight } from "lucide-react";
 import { useCartStore } from "@/stores/cartStore";
 import { formatPrice } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
+import { AUTH_ROUTES } from "@/lib/routes";
 
-const HIDDEN_ON = ["/carrito", "/checkout", "/admin"];
+// Tampoco en login, registro, etc.: ahí la barra tapa el formulario y distrae.
+const HIDDEN_ON = ["/carrito", "/checkout", "/admin", ...AUTH_ROUTES];
 
 export function StickyCartBar() {
   const pathname   = usePathname();

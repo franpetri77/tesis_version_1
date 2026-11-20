@@ -74,9 +74,10 @@ function AuthFlow({ initialMode, redirectTo, titleId, finish }: AuthFlowProps) {
 
   return (
     <>
+      <div className="h-px w-full bg-paper-300" />
       {/* ─── Paso 1: aviso de sesión ─── */}
       {mode === "intro" && (
-        <div className="px-7 pt-9 pb-7">
+        <div className="ui-enter px-7 pt-9 pb-7">
           <div className="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center mb-5">
             <ShoppingBag className="w-5 h-5 text-brand-600" strokeWidth={1.75} aria-hidden="true" />
           </div>
@@ -110,7 +111,7 @@ function AuthFlow({ initialMode, redirectTo, titleId, finish }: AuthFlowProps) {
       )}
 
       {mode !== "intro" && (
-        <div className="px-7 pb-7 pt-5">
+        <div key={mode} className="ui-enter px-7 pb-7 pt-5">
           {mode === "login" && (
             <>
               <div className="mb-5">

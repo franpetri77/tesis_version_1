@@ -191,11 +191,31 @@
   }
 
   .animate-modal-in {
-    animation: modalIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   @keyframes modalIn {
-    from { opacity: 0; transform: scale(0.93) translateY(12px); }
+    from { opacity: 0; transform: scale(0.985) translateY(6px); }
     to   { opacity: 1; transform: scale(1)    translateY(0);    }
+  }
+
+  /* La carga respira suavemente tres veces y queda quieta si tarda más.
+     Sólo opacity/transform; sin blur, gradientes ni trabajo de layout. */
+  @media (prefers-reduced-motion: no-preference) {
+    .skeleton-loading { animation: skeletonBreathe 1.6s ease-in-out 3; }
+    .ui-enter { animation: uiEnter 0.18s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  }
+  @keyframes skeletonBreathe {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  @keyframes uiEnter {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-in, .animate-modal-in, .animate-pulse, .animate-spin,
+    .card-enter, .fade-up { animation: none; }
   }
 
   /* Barra de progreso del PromoBanner: se anima con transform (lo resuelve

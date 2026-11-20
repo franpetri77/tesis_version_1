@@ -117,7 +117,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in motion-reduce:animate-none"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 motion-safe:animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby={labelledBy}
@@ -136,11 +136,11 @@ export function Modal({
         ref={panelRef}
         tabIndex={-1}
         className={cn(
-          "relative z-10 w-full max-h-[calc(100dvh-2rem)] overflow-y-auto",
+          "relative z-10 w-full max-h-[calc(100svh-2rem)] overflow-y-auto",
           maxWidth,
-          "bg-white rounded-2xl shadow-2xl shadow-slate-900/20",
-          "border border-slate-200/80 focus:outline-none",
-          "animate-modal-in motion-reduce:animate-none"
+          "bg-paper-50 rounded-2xl shadow-dropdown",
+          "border border-paper-300 focus:outline-none",
+          "motion-safe:animate-modal-in"
         )}
       >
         {/* Botón cerrar */}
@@ -152,7 +152,7 @@ export function Modal({
             data-modal-close="true"
             className="absolute top-3.5 right-3.5 w-8 h-8 flex items-center justify-center
                        rounded-xl text-slate-400 hover:text-slate-700
-                       hover:bg-slate-100 transicion-ui z-10
+                       hover:bg-paper-100 transicion-ui z-10
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
           >
             <X className="w-4 h-4" aria-hidden="true" />

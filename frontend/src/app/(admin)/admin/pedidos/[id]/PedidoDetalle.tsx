@@ -15,6 +15,7 @@ import { Badge, ORDER_STATUS_LABEL, ORDER_STATUS_VARIANT } from "@/components/ui
 import { formatDateTime, formatPrice } from "@/lib/utils/format";
 import { getAdminOrder, updateOrderStatus, type AdminOrderDetail } from "@/lib/api/admin";
 import type { OrderStatus } from "@/types";
+import { LoadingState, OrderDetailSkeleton } from "@/components/ui/Skeleton";
 
 const label = "text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500";
 const statusText = (s: string | null) => (s ? ORDER_STATUS_LABEL[s as OrderStatus] ?? s : "—");
@@ -63,7 +64,11 @@ export function PedidoDetalle({ orderId }: { orderId: string }) {
       </div>
     );
   }
-  if (!order) return <p className="py-6 text-sm text-slate-500">Cargando pedido…</p>;
+  if (!order) return (
+    <LoadingState label="Cargando pedido…" className="max-w-5xl">
+      <OrderDetailSkeleton />
+    </LoadingState>
+  );
 
   const address = order.shipping_address;
   const primary = order.allowed_transitions.find((t) => t.status !== "cancelled");

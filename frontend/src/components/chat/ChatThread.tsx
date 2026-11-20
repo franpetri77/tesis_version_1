@@ -15,6 +15,7 @@ import Image from "next/image";
 import { Send, Package, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { formatPrice } from "@/lib/utils/format";
+import { ChatThreadSkeleton } from "./ChatSkeletons";
 import { MAX_MESSAGE_LENGTH, type ChatMessage, type ChatProduct, type ConversationView, type SenderRole } from "@/lib/api/chat";
 
 const timeFmt = new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit" });
@@ -158,11 +159,7 @@ export function ChatThread(props: ChatThreadProps) {
           </div>
         )}
 
-        {loading && messages.length === 0 && (
-          <div className="flex h-full items-center justify-center text-sm text-slate-400">
-            <Loader2 className="mr-2 h-4 w-4 motion-safe:animate-spin" aria-hidden /> Cargando mensajes…
-          </div>
-        )}
+        {loading && messages.length === 0 && !error && <ChatThreadSkeleton />}
         {props.onRetry ? (
           // La carga inicial falló: se avisa aunque ya se vea algún mensaje propio
           <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">

@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils/cn";
 import { formatPrice, formatDate } from "@/lib/utils/format";
 import { Badge, ORDER_STATUS_LABEL, ORDER_STATUS_VARIANT } from "@/components/ui/Badge";
 import { ChatThread } from "@/components/chat/ChatThread";
+import { ChatCustomerSkeleton, ChatInboxSkeleton } from "@/components/chat/ChatSkeletons";
+import { LoadingState, Skeleton } from "@/components/ui/Skeleton";
 import { useChatThread } from "@/hooks/useChatThread";
 import { useCanEdit } from "@/hooks/usePanelRole";
 import { staffChatApi, type ConversationStatus, type StaffThreadPage } from "@/lib/api/chat";
@@ -78,8 +80,17 @@ function Conversation({ id, onStatusChange }: { id: string; onStatusChange: () =
       <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label="Conversación">
         <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-900">{customer?.name ?? "Cliente"}</p>
-            <p className="truncate text-xs text-slate-500">{customer?.email}</p>
+            {t.loading && !customer ? (
+              <div aria-hidden="true" className="space-y-2 py-1">
+                <Skeleton className="h-3.5 w-32" />
+                <Skeleton className="h-2.5 w-44" />
+              </div>
+            ) : (
+              <>
+                <p className="truncate text-sm font-semibold text-slate-900">{customer?.name ?? "Cliente"}</p>
+                <p className="truncate text-xs text-slate-500">{customer?.email}</p>
+              </>
+            )}
           </div>
           <div className="flex flex-shrink-0 items-center gap-2">
             {status && (
@@ -120,6 +131,7 @@ function Conversation({ id, onStatusChange }: { id: string; onStatusChange: () =
         />
       </section>
 
+      {t.loading && !customer && !t.error && <ChatCustomerSkeleton />}
       {customer && (
         <aside className="flex-shrink-0 border-t border-slate-200 px-4 py-4 text-sm lg:w-64 lg:overflow-y-auto lg:border-l lg:border-t-0" aria-label="Datos del cliente">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Cliente</h2>
@@ -216,7 +228,7 @@ function Inbox() {
             </label>
           </div>
           <ul className="flex-1 overflow-y-auto" aria-label="Conversaciones">
-            {list.isLoading && <li className="px-4 py-6 text-center text-xs text-slate-400">Cargando…</li>}
+            {list.isLoading && <li><ChatInboxSkeleton /></li>}
             {list.isError && <li className="px-4 py-6 text-center text-xs text-red-600">{(list.error as Error).message}</li>}
             {!list.isLoading && !list.isError && conversations.length === 0 && (
               <li className="px-4 py-10 text-center text-xs text-slate-400">
@@ -280,7 +292,12 @@ function Inbox() {
 
 export default function AdminMensajesPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={
+      <LoadingState label="Cargando la bandeja de mensajes…" className="space-y-5">
+        <Skeleton className="mb-5 h-7 w-36" />
+        <Skeleton className="h-[28rem] w-full rounded-xl" />
+      </LoadingState>
+    }>
       <Inbox />
     </Suspense>
   );

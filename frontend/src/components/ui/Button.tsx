@@ -7,7 +7,7 @@
 // =============================================
 
 import { cn } from "@/lib/utils/cn";
-import { type ButtonHTMLAttributes, forwardRef } from "react";
+import { Children, type ButtonHTMLAttributes, forwardRef } from "react";
 
 type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
@@ -52,6 +52,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref
   ) => {
+    const hasContent = Children.toArray(children).length > 0;
     return (
       <button
         ref={ref}
@@ -70,11 +71,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         )}
         disabled={disabled || isLoading}
         {...props}
+        aria-busy={isLoading || props["aria-busy"]}
       >
         {/* Spinner de carga */}
         {isLoading && (
           <svg
-            className="animate-spin h-4 w-4 flex-shrink-0"
+            className="motion-safe:animate-spin h-4 w-4 flex-shrink-0"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -95,6 +97,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             />
           </svg>
         )}
+        {isLoading && <span className={hasContent ? "sr-only" : undefined}>Procesando…</span>}
         {children}
       </button>
     );

@@ -2,7 +2,7 @@
 
 // =============================================
 // COMPONENTE: BASE MODAL
-// Overlay animado + panel central con glassmorphism.
+// Overlay y panel con entrada breve; respeta movimiento reducido.
 // Cierra con Escape o click en el backdrop.
 // =============================================
 
@@ -45,13 +45,11 @@ export function Modal({
 
   // Bloquear scroll del body mientras esté abierto
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousOverflow;
     };
   }, [isOpen]);
 
@@ -61,7 +59,7 @@ export function Modal({
     <div
       className={cn(
         "fixed inset-0 z-[100] flex items-center justify-center p-4",
-        "animate-fade-in"
+        "motion-safe:animate-fade-in"
       )}
       role="dialog"
       aria-modal="true"
@@ -80,9 +78,9 @@ export function Modal({
         className={cn(
           "relative z-10 w-full",
           maxWidth,
-          "bg-white rounded-2xl shadow-2xl shadow-slate-900/20",
-          "border border-slate-200/80",
-          "animate-modal-in"
+          "max-h-[calc(100svh-2rem)] overflow-y-auto bg-paper-50 rounded-2xl shadow-dropdown",
+          "border border-paper-300",
+          "motion-safe:animate-modal-in"
         )}
       >
         {/* Botón cerrar */}
@@ -92,7 +90,7 @@ export function Modal({
             aria-label="Cerrar"
             className="absolute top-3.5 right-3.5 w-8 h-8 flex items-center justify-center
                        rounded-xl text-slate-400 hover:text-slate-700
-                       hover:bg-slate-100 transicion-ui z-10"
+                       hover:bg-paper-100 transicion-ui z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
           >
             <X className="w-4 h-4" />
           </button>

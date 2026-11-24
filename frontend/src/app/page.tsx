@@ -26,11 +26,13 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   // Intenta productos destacados; si no hay, muestra los más recientes del catálogo
-  const featuredProducts = await getFeaturedProducts(8);
+  // Diez productos: completan dos filas en la grilla de 5 columnas (xl);
+  // en 3 y 4 columnas se ocultan los que dejarían una fila incompleta.
+  const featuredProducts = await getFeaturedProducts(10);
   const isFeatured = featuredProducts.length > 0;
   const displayProducts = isFeatured
     ? featuredProducts
-    : (await getPublicProducts({ limit: 8, sort: "newest" })).products;
+    : (await getPublicProducts({ limit: 10, sort: "newest" })).products;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -125,9 +127,15 @@ export default async function HomePage() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-5">
+            {/* Misma grilla y tamaño de tarjeta que /catalogo */}
+            <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4 xl:grid-cols-5 xl:gap-5">
               {displayProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <div
+                  key={product.id}
+                  className="min-w-0 sm:[&:nth-child(10)]:hidden lg:[&:nth-child(n+9)]:hidden xl:[&:nth-child(n+9)]:block"
+                >
+                  <ProductCard product={product} />
+                </div>
               ))}
             </div>
 

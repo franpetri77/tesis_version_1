@@ -145,7 +145,7 @@ export function HeroCarousel() {
     <section
       aria-roledescription="carrusel"
       aria-label="Destacados de Tele Import"
-      className="border-b border-paper-300 bg-paper-50 lg:flex lg:min-h-[min(calc(100svh-4.5rem),56rem)] lg:items-center"
+      className="border-b border-paper-300 bg-paper-50"
       onMouseEnter={() => setPauseReasons((reasons) => ({ ...reasons, pointer: true }))}
       onMouseLeave={() => setPauseReasons((reasons) => ({ ...reasons, pointer: false }))}
       onFocusCapture={() => setPauseReasons((reasons) => ({ ...reasons, focus: true }))}
@@ -169,8 +169,9 @@ export function HeroCarousel() {
         goTo(current + (backwards ? -1 : 1));
       }}
     >
-      <div className="container-main py-6 md:py-10 lg:w-full xl:py-12">
-        <div className="grid items-center gap-6 md:grid-cols-2 md:gap-8 lg:gap-12 xl:gap-16 2xl:grid-cols-[5fr_7fr]">
+      <div className="container-main py-6 md:py-8 lg:py-10">
+        {/* La foto ocupa 7/12 desde lg: es lo primero que se ve de la tienda. */}
+        <div className="grid items-center gap-6 md:grid-cols-2 md:gap-8 lg:grid-cols-[5fr_7fr] lg:gap-12 xl:gap-14">
 
           {/* ── Texto: los slides comparten una celda; el más alto reserva el
               espacio y evita saltos de layout ── */}
@@ -200,7 +201,7 @@ export function HeroCarousel() {
                   </p>
                   <Heading
                     className={cn(
-                      "titulo-display mt-3 max-w-lg text-balance text-4xl sm:text-5xl lg:max-w-[15ch] lg:text-6xl 2xl:text-7xl",
+                      "titulo-display mt-3 max-w-lg text-balance text-4xl sm:text-5xl lg:max-w-[15ch] xl:text-6xl 2xl:text-7xl",
                       isActive && RISE
                     )}
                     style={isActive ? { animationDelay: "90ms" } : undefined}
@@ -233,7 +234,7 @@ export function HeroCarousel() {
 
           {/* ── Foto con los controles encima ── */}
           <div
-            className="relative order-first aspect-[16/10] min-w-0 touch-pan-y overflow-hidden rounded-2xl border border-paper-300 bg-slate-900 shadow-card md:order-last md:aspect-[5/4]"
+            className="relative order-first aspect-[16/10] min-w-0 touch-pan-y overflow-hidden rounded-2xl border border-paper-300 bg-slate-900 shadow-card-xl md:order-last md:aspect-[4/3] lg:aspect-[16/11]"
             onPointerDown={(e) => { if (e.pointerType !== "mouse") swipeStart.current = e.clientX; }}
             onPointerUp={(e) => {
               if (swipeStart.current === null) return;

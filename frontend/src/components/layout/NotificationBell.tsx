@@ -46,7 +46,9 @@ const TYPE_ICON: Record<Notification["type"], React.ReactNode> = {
   chat_message: <MessageCircle className="w-4 h-4 text-brand-500" />,
 };
 
-export function NotificationBell() {
+/** tone="dark": versión para el header oscuro (ícono claro y foco con offset oscuro). */
+export function NotificationBell({ tone = "light" }: { tone?: "light" | "dark" } = {}) {
+  const dark = tone === "dark";
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -116,14 +118,19 @@ export function NotificationBell() {
         onClick={() => setOpen((v) => !v)}
         aria-label={`Notificaciones${unreadCount > 0 ? ` — ${unreadCount} sin leer` : ""}`}
         className={cn(
-          "relative rounded-lg p-2 motion-safe:transition-colors motion-safe:duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-50",
-          open ? "bg-paper-200 text-slate-900" : "text-slate-600 hover:bg-paper-100 hover:text-slate-900"
+          "relative rounded-lg p-2 motion-safe:transition-colors motion-safe:duration-200 focus-visible:outline-none focus-visible:ring-2",
+          dark
+            ? "focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+            : "focus-visible:ring-brand-600/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-50",
+          dark
+            ? open ? "bg-white/15 text-white" : "text-slate-200 hover:bg-white/10 hover:text-white"
+            : open ? "bg-paper-200 text-slate-900" : "text-slate-600 hover:bg-paper-100 hover:text-slate-900"
         )}
       >
         <Bell className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center rounded
-                           bg-slate-900 px-1 text-[10px] font-bold tabular-nums text-paper-50
+                           bg-brand-600 px-1 text-[10px] font-bold tabular-nums text-paper-50
                            motion-safe:animate-pop-in">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>

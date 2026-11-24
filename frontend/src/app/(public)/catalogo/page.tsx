@@ -12,6 +12,7 @@ import { getPublicProducts, getCategories, getTags } from "@/lib/api/catalog";
 import { ProductCard } from "@/components/catalog/ProductCard";
 import { CatalogFilters } from "@/components/catalog/CatalogFilters";
 import { ActiveFilterChips } from "@/components/catalog/ActiveFilterChips";
+import { SortSelect } from "@/components/catalog/SortSelect";
 import { PromoBanner } from "@/components/catalog/PromoBanner";
 import type { CatalogFilters as Filters } from "@/types";
 
@@ -151,8 +152,6 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
         {/* Título + contador */}
         <div className="flex items-end justify-between gap-4">
           <div className="flex items-center gap-3">
-            {/* Acento visual izquierdo */}
-            <div className="hidden sm:block w-1 h-8 rounded-full bg-brand-600 flex-shrink-0" />
             <div>
               <h1 className="titulo-display text-[1.65rem]">
                 {pageTitle}
@@ -188,15 +187,20 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
         {/* CONTENIDO PRINCIPAL */}
         <div className="flex-1 min-w-0">
 
-          {/* Botón filtros mobile + chips activos */}
-          <div className="mb-4 space-y-2.5">
-            <CatalogFilters tags={tags}
-              categories={categories}
-              currentFilters={filters}
-              searchParams={rawParams}
-              totalProducts={productsResult.total}
-              mobileOnly
-            />
+          {/* Barra de herramientas: filtros (mobile) + ordenar, y chips activos */}
+          <div className="mb-5 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <CatalogFilters tags={tags}
+                categories={categories}
+                currentFilters={filters}
+                searchParams={rawParams}
+                totalProducts={productsResult.total}
+                mobileOnly
+              />
+              <div className="ml-auto">
+                <SortSelect current={filters.sort} searchParams={rawParams} />
+              </div>
+            </div>
             <ActiveFilterChips tags={tags}
               currentFilters={filters}
               searchParams={rawParams}

@@ -13,22 +13,24 @@ const config: Config = {
       },
       // -----------------------------------------------
       // PALETA DE COLORES - TELE IMPORT
-      // Azul profesional como color primario.
-      // Slate como color de superficie y grises fríos.
+      // Azul cobalto sobrio como color primario: menos saturado que el azul
+      // por defecto de Tailwind, que se veía sintético junto al papel cálido.
+      // brand-600 con texto blanco tiene contraste ~7:1 (AA y AAA en texto normal).
+      // Slate como color de texto y grises fríos.
       // -----------------------------------------------
       colors: {
         brand: {
-          50:  "#eff6ff",
-          100: "#dbeafe",
-          200: "#bfdbfe",
-          300: "#93c5fd",
-          400: "#60a5fa",
-          500: "#3b82f6",
-          600: "#2563eb",
-          700: "#1d4ed8",
-          800: "#1e40af",
-          900: "#1e3a8a",
-          950: "#172554",
+          50:  "#F2F5FB",
+          100: "#E3E9F6",
+          200: "#C6D2EC",
+          300: "#9DB0DD",
+          400: "#7088C9",
+          500: "#4D67B4",
+          600: "#34509E",
+          700: "#2A4185",
+          800: "#22356B",
+          900: "#1C2B55",
+          950: "#121B36",
         },
         // -----------------------------------------------
         // NEUTROS CÁLIDOS — superficies de página

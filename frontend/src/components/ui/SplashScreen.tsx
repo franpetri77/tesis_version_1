@@ -106,7 +106,7 @@ export function SplashScreen({ isVisible }: SplashScreenProps = {}) {
             width: '640px',
             height: '480px',
             background:
-              'radial-gradient(ellipse at center, rgba(37,99,235,0.18) 0%, transparent 68%)',
+              'radial-gradient(ellipse at center, rgba(52,80,158,0.18) 0%, transparent 68%)',
             animation: 'ti-glow-breathe 3.5s ease-in-out infinite',
             pointerEvents: 'none',
           }}
@@ -145,7 +145,7 @@ export function SplashScreen({ isVisible }: SplashScreenProps = {}) {
               width: '100%',
               height: '1px',
               background:
-                'linear-gradient(90deg, transparent 0%, rgba(59,130,246,0.5) 50%, transparent 100%)',
+                'linear-gradient(90deg, transparent 0%, rgba(77,103,180,0.5) 50%, transparent 100%)',
               marginBottom: '36px',
               animation: 'ti-fade-in 0.8s ease-out 0.25s both',
             }}
@@ -163,7 +163,7 @@ export function SplashScreen({ isVisible }: SplashScreenProps = {}) {
               height="30"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#3b82f6"
+              stroke="#4D67B4"
               strokeWidth="1.75"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -196,7 +196,7 @@ export function SplashScreen({ isVisible }: SplashScreenProps = {}) {
               fontSize: '0.78rem',
               fontWeight: 600,
               letterSpacing: '0.45em',
-              color: '#60a5fa',
+              color: '#7088C9',
               margin: '10px 0 0',
               animation: 'ti-fade-up 0.75s cubic-bezier(0.16,1,0.3,1) 0.68s both',
             }}
@@ -210,7 +210,7 @@ export function SplashScreen({ isVisible }: SplashScreenProps = {}) {
               marginTop: '22px',
               height: '1px',
               width: '52px',
-              background: 'linear-gradient(90deg, #1d4ed8, #60a5fa)',
+              background: 'linear-gradient(90deg, #2A4185, #7088C9)',
               transformOrigin: 'center',
               borderRadius: '1px',
               animation: 'ti-line-draw 0.75s cubic-bezier(0.16,1,0.3,1) 0.82s both',
@@ -239,7 +239,7 @@ export function SplashScreen({ isVisible }: SplashScreenProps = {}) {
               width: '100%',
               height: '1px',
               background:
-                'linear-gradient(90deg, transparent 0%, rgba(59,130,246,0.5) 50%, transparent 100%)',
+                'linear-gradient(90deg, transparent 0%, rgba(77,103,180,0.5) 50%, transparent 100%)',
               marginTop: '36px',
               animation: 'ti-fade-in 0.8s ease-out 0.25s both',
             }}
@@ -260,7 +260,7 @@ export function SplashScreen({ isVisible }: SplashScreenProps = {}) {
           <div
             style={{
               height: '100%',
-              background: 'linear-gradient(90deg, #1d4ed8 0%, #3b82f6 60%, #60a5fa 100%)',
+              background: 'linear-gradient(90deg, #2A4185 0%, #4D67B4 60%, #7088C9 100%)',
               animation: 'ti-progress 2.4s cubic-bezier(0.4,0,0.6,1) 0.2s both',
             }}
           />

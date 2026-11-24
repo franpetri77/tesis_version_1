@@ -45,7 +45,7 @@ const slides: PromoSlide[] = [
       "from-[#0f172a] via-[#1e3a5f] to-[#0f172a]",
     accent: "brand",
     orbs: [
-      { size: "w-32 h-32", pos: "-top-10 -right-6",  color: "bg-blue-500/15" },
+      { size: "w-32 h-32", pos: "-top-10 -right-6",  color: "bg-brand-500/15" },
       { size: "w-20 h-20", pos: "bottom-0 right-24", color: "bg-brand-400/10" },
     ],
   },
@@ -85,7 +85,7 @@ const slides: PromoSlide[] = [
 
 // Mapa de colores de acento para pill y dots
 const accentMap: Record<string, { pill: string; dot: string; bar: string }> = {
-  brand:   { pill: "bg-blue-500/20 border-blue-400/30 text-blue-200",   dot: "bg-blue-400",   bar: "bg-blue-400"   },
+  brand:   { pill: "bg-brand-500/20 border-brand-400/30 text-brand-200",   dot: "bg-brand-400",   bar: "bg-brand-400"   },
   emerald: { pill: "bg-emerald-500/20 border-emerald-400/30 text-emerald-200", dot: "bg-emerald-400", bar: "bg-emerald-400" },
   violet:  { pill: "bg-violet-500/20 border-violet-400/30 text-violet-200",  dot: "bg-violet-400", bar: "bg-violet-400"  },
 };

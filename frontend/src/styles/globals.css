@@ -37,7 +37,7 @@
        producto y sostiene mejor las superficies blancas encima. */
     --bg-page: #F7F6F3;
     /* Main header (64px) + nav strip (40px) = 104px sticky total */
-    --header-h: 104px;
+    --header-h: 65px; /* header de una sola fila (h-16 + borde) */
   }
 
   html {

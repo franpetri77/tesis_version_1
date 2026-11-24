@@ -206,7 +206,7 @@ function getPasswordStrength(password: string): { label: string; color: string; 
   if (!hasLetter || !hasNumber)
     return { label: "Falta letra y número", color: "bg-amber-400", width: "50%" };
   if (!hasSymbol)
-    return { label: "Buena", color: "bg-blue-400", width: "75%" };
+    return { label: "Buena", color: "bg-brand-400", width: "75%" };
   return { label: "Fuerte", color: "bg-emerald-500", width: "100%" };
 }
 

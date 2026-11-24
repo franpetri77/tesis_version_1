@@ -155,7 +155,8 @@ function ProductRail({
         <ul
           ref={railRef}
           onScroll={updateEdges}
-          className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-1 px-1 pb-4 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          // Margen interno para que el zoom de la tarjeta al pasar el mouse no se corte
+          className="-mx-3 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-3 px-3 pb-6 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {products.map((product) => (
             <li

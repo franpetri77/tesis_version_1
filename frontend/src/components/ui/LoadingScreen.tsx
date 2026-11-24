@@ -123,7 +123,7 @@ export function LoadingScreen({ isVisible, message }: LoadingScreenProps) {
             transform: 'translate(-50%, -50%)',
             width: '560px', height: '420px',
             background:
-              'radial-gradient(ellipse at center, rgba(37,99,235,0.15) 0%, transparent 68%)',
+              'radial-gradient(ellipse at center, rgba(52,80,158,0.15) 0%, transparent 68%)',
             animation: 'ls-glow-breathe 3.5s ease-in-out infinite',
             pointerEvents: 'none',
           }}
@@ -163,7 +163,7 @@ export function LoadingScreen({ isVisible, message }: LoadingScreenProps) {
             style={{
               width: '100%', height: '1px',
               background:
-                'linear-gradient(90deg, transparent 0%, rgba(59,130,246,0.45) 50%, transparent 100%)',
+                'linear-gradient(90deg, transparent 0%, rgba(77,103,180,0.45) 50%, transparent 100%)',
               marginBottom: '30px',
               animation: 'ls-fade-in 0.8s ease-out 0.2s both',
             }}
@@ -181,7 +181,7 @@ export function LoadingScreen({ isVisible, message }: LoadingScreenProps) {
               width="28" height="28"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#3b82f6"
+              stroke="#4D67B4"
               strokeWidth="1.75"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -214,7 +214,7 @@ export function LoadingScreen({ isVisible, message }: LoadingScreenProps) {
               fontSize: '0.75rem',
               fontWeight: 600,
               letterSpacing: '0.42em',
-              color: '#60a5fa',
+              color: '#7088C9',
               margin: '9px 0 0',
               animation: 'ls-fade-up 0.75s cubic-bezier(0.16,1,0.3,1) 0.56s both',
             }}
@@ -228,7 +228,7 @@ export function LoadingScreen({ isVisible, message }: LoadingScreenProps) {
             style={{
               marginTop: '20px',
               height: '1px', width: '48px',
-              background: 'linear-gradient(90deg, #1d4ed8, #60a5fa)',
+              background: 'linear-gradient(90deg, #2A4185, #7088C9)',
               transformOrigin: 'center',
               borderRadius: '1px',
               animation: 'ls-line-draw 0.75s cubic-bezier(0.16,1,0.3,1) 0.70s both',
@@ -269,7 +269,7 @@ export function LoadingScreen({ isVisible, message }: LoadingScreenProps) {
                     display: 'inline-block',
                     width: '4px', height: '4px',
                     borderRadius: '50%',
-                    backgroundColor: '#3b82f6',
+                    backgroundColor: '#4D67B4',
                     animation: `ls-dot-bounce 1.3s ease-in-out ${i * 0.18}s infinite`,
                   }}
                 />
@@ -283,7 +283,7 @@ export function LoadingScreen({ isVisible, message }: LoadingScreenProps) {
             style={{
               width: '100%', height: '1px',
               background:
-                'linear-gradient(90deg, transparent 0%, rgba(59,130,246,0.45) 50%, transparent 100%)',
+                'linear-gradient(90deg, transparent 0%, rgba(77,103,180,0.45) 50%, transparent 100%)',
               marginTop: '30px',
               animation: 'ls-fade-in 0.8s ease-out 0.2s both',
             }}
@@ -311,7 +311,7 @@ export function LoadingScreen({ isVisible, message }: LoadingScreenProps) {
                 height: '100%',
                 width: '28%',
                 background:
-                  'linear-gradient(90deg, transparent 0%, #3b82f6 40%, #60a5fa 60%, transparent 100%)',
+                  'linear-gradient(90deg, transparent 0%, #4D67B4 40%, #7088C9 60%, transparent 100%)',
                 animation: 'ls-scan 1.8s cubic-bezier(0.4,0,0.6,1) 0.3s infinite',
               }}
             />
@@ -324,7 +324,7 @@ export function LoadingScreen({ isVisible, message }: LoadingScreenProps) {
               style={{
                 height: '100%',
                 background:
-                  'linear-gradient(90deg, #1d4ed8 0%, #3b82f6 60%, #60a5fa 100%)',
+                  'linear-gradient(90deg, #2A4185 0%, #4D67B4 60%, #7088C9 100%)',
                 animation: 'ls-fill 3s cubic-bezier(0.4,0,0.2,1) 0.2s both',
               }}
             />

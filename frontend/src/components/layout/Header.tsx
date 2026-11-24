@@ -27,6 +27,10 @@ import { cn } from "@/lib/utils/cn";
 
 const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-50";
 const COLOR_TRANSITION = "motion-safe:transition-colors motion-safe:duration-200 motion-safe:ease-out";
+// Sobre el fondo oscuro del header el anillo de foco necesita otro offset.
+const FOCUS_RING_DARK = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900";
+// Botones de texto claro sobre el header oscuro
+const ON_DARK = "text-slate-200 hover:bg-white/10 hover:text-white";
 
 // ─── Buscador ─────────────────────────────────────────────────────────────────
 // Elemento principal del header: campo amplio con botón de buscar.
@@ -42,7 +46,7 @@ function SearchForm({
 }) {
   return (
     <form onSubmit={onSubmit} role="search" className={cn("min-w-0", className)}>
-      <div className="flex h-11 w-full items-stretch overflow-hidden rounded-xl border border-paper-300 bg-paper-50 shadow-sm focus-within:border-brand-600/60 focus-within:ring-2 focus-within:ring-brand-600/20">
+      <div className="flex h-11 w-full items-stretch overflow-hidden rounded-xl bg-paper-50 shadow-sm ring-1 ring-white/10 focus-within:ring-2 focus-within:ring-brand-300">
         <label className="flex min-w-0 flex-1 items-center gap-2.5 pl-3.5">
           <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
           <span className="sr-only">Buscar productos</span>
@@ -129,15 +133,15 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-paper-300 bg-paper-50">
+    <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-900">
 
       {/* ── Fila principal ── */}
       <div className="container-main">
         <div className="flex h-14 items-center gap-2 md:h-16 lg:gap-4">
 
           {/* Logo */}
-          <Link href="/" className={cn("inline-flex shrink-0 items-baseline gap-2 rounded-sm", FOCUS_RING)}>
-            <span className="whitespace-nowrap font-display text-2xl font-medium tracking-display text-slate-900 md:text-xl lg:text-2xl">
+          <Link href="/" className={cn("inline-flex shrink-0 items-baseline gap-2 rounded-sm", FOCUS_RING_DARK)}>
+            <span className="whitespace-nowrap font-display text-2xl font-medium tracking-display text-paper-50 md:text-xl lg:text-2xl">
               Tele Import
             </span>
             <span className="font-sans text-xs font-medium uppercase tracking-widest text-slate-400">S.A.</span>
@@ -150,11 +154,11 @@ export function Header() {
               onClick={() => setIsCategoriesOpen((v) => !v)}
               aria-expanded={isCategoriesOpen}
               aria-controls="header-categories"
-              className={cn("flex h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium text-slate-700 hover:bg-paper-100 hover:text-slate-900", COLOR_TRANSITION, FOCUS_RING)}
+              className={cn("flex h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium", ON_DARK, isCategoriesOpen && "bg-white/10 text-white", COLOR_TRANSITION, FOCUS_RING_DARK)}
             >
               <LayoutGrid className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
               <span>Categorías</span>
-              <ChevronDown className={cn("h-3 w-3 text-slate-500 motion-safe:transition-transform motion-safe:duration-200", isCategoriesOpen && "rotate-180")} aria-hidden="true" />
+              <ChevronDown className={cn("h-3 w-3 text-slate-400 motion-safe:transition-transform motion-safe:duration-200", isCategoriesOpen && "rotate-180")} aria-hidden="true" />
             </button>
 
             {isCategoriesOpen && (
@@ -207,7 +211,7 @@ export function Header() {
             {canSeePanel && (
               <Link
                 href="/admin"
-                className={cn("flex items-center gap-1.5 rounded-lg border border-paper-300 px-2.5 py-2 text-sm font-medium text-slate-700 hover:bg-paper-100 hover:text-slate-900", COLOR_TRANSITION, FOCUS_RING)}
+                className={cn("flex items-center gap-1.5 rounded-lg border border-white/15 px-2.5 py-2 text-sm font-medium", ON_DARK, COLOR_TRANSITION, FOCUS_RING_DARK)}
               >
                 <ShieldCheck className="w-4 h-4" aria-hidden="true" />
                 <span>Admin</span>
@@ -223,16 +227,16 @@ export function Header() {
                   aria-expanded={isUserMenuOpen}
                   aria-haspopup="menu"
                   aria-controls="header-user-menu"
-                  className={cn("flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-paper-100 hover:text-slate-900", COLOR_TRANSITION, FOCUS_RING)}
+                  className={cn("flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-medium", ON_DARK, COLOR_TRANSITION, FOCUS_RING_DARK)}
                 >
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-paper-200">
-                    <span className="text-xs font-semibold leading-none text-slate-700">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/10">
+                    <span className="text-xs font-semibold leading-none text-paper-50">
                       {user.first_name?.[0]?.toUpperCase() ?? "U"}
                     </span>
                   </div>
                   <span className="max-w-14 truncate lg:max-w-[80px]">{user.first_name}</span>
                   <ChevronDown className={cn(
-                    "h-3 w-3 text-slate-500 motion-safe:transition-transform motion-safe:duration-200",
+                    "h-3 w-3 text-slate-400 motion-safe:transition-transform motion-safe:duration-200",
                     isUserMenuOpen && "rotate-180"
                   )} aria-hidden="true" />
                 </button>
@@ -277,7 +281,7 @@ export function Header() {
             ) : (
               <button
                 onClick={() => openModal("auth", { authTab: "login" })}
-                className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-paper-100 hover:text-slate-900", COLOR_TRANSITION, FOCUS_RING)}
+                className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium", ON_DARK, COLOR_TRANSITION, FOCUS_RING_DARK)}
               >
                 <User className="w-4 h-4" aria-hidden="true" />
                 <span>Ingresar</span>
@@ -285,18 +289,18 @@ export function Header() {
             )}
 
             {/* Notificaciones — solo usuarios autenticados */}
-            {isAuthenticated && <NotificationBell />}
+            {isAuthenticated && <NotificationBell tone="dark" />}
 
             {/* Divisor */}
-            <div className="mx-1 h-5 w-px bg-paper-300" />
+            <div className="mx-1 h-5 w-px bg-white/15" />
 
             {/* Carrito */}
             <Link
               href="/carrito"
               aria-label={`Carrito${totalItems > 0 ? ` — ${totalItems} productos` : ""}`}
               className={cn(
-                "flex items-center gap-2 rounded-lg border border-paper-300 bg-paper-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-paper-200 hover:text-slate-900",
-                COLOR_TRANSITION, FOCUS_RING
+                "flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm font-medium", ON_DARK,
+                COLOR_TRANSITION, FOCUS_RING_DARK
               )}
             >
               <ShoppingCart className="w-4 h-4" strokeWidth={1.75} aria-hidden="true" />
@@ -304,7 +308,7 @@ export function Header() {
               {totalItems > 0 && (
                 <span className={cn(
                   "flex h-5 min-w-5 items-center justify-center rounded px-1 text-[10px] font-bold tabular-nums",
-                  "bg-brand-600 text-paper-50 motion-safe:animate-pop-in"
+                  "bg-paper-50 text-slate-900 motion-safe:animate-pop-in"
                 )}>
                   {totalItems > 99 ? "99+" : totalItems}
                 </span>
@@ -318,19 +322,19 @@ export function Header() {
               href="/carrito"
               aria-label="Carrito"
               className={cn(
-                "flex min-h-10 items-center gap-1.5 rounded-lg px-2.5 py-2 text-slate-700 hover:bg-paper-100 hover:text-slate-900",
-                COLOR_TRANSITION, FOCUS_RING
+                "flex min-h-10 items-center gap-1.5 rounded-lg px-2.5 py-2", ON_DARK,
+                COLOR_TRANSITION, FOCUS_RING_DARK
               )}
             >
               <ShoppingCart className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />
               {totalItems > 0 && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded bg-brand-600 px-1 text-[10px] font-bold tabular-nums text-paper-50 motion-safe:animate-pop-in">
+                <span className="flex h-5 min-w-5 items-center justify-center rounded bg-paper-50 px-1 text-[10px] font-bold tabular-nums text-slate-900 motion-safe:animate-pop-in">
                   {totalItems > 99 ? "99+" : totalItems}
                 </span>
               )}
             </Link>
             <button
-              className={cn("rounded-lg p-2.5 text-slate-600 hover:bg-paper-100 hover:text-slate-900", COLOR_TRANSITION, FOCUS_RING)}
+              className={cn("rounded-lg p-2.5", ON_DARK, COLOR_TRANSITION, FOCUS_RING_DARK)}
               onClick={() => setIsMobileMenuOpen((v) => !v)}
               aria-label={isMobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
               aria-expanded={isMobileMenuOpen}

@@ -2,11 +2,12 @@
 
 // =============================================
 // COMPONENTE: HERO CAROUSEL
-// Portada editorial: fotografía enmarcada, titular en papel y folio.
-// Avanza sola: la foto activa se acerca lentamente y el texto entra
-// escalonado. Se detiene mientras el puntero o el foco están encima
-// (para poder leer y usar el CTA) y no se mueve si el usuario pidió
-// reducir el movimiento; en ese caso quedan las flechas.
+// Portada: texto a la izquierda y fotografía a la derecha (arriba en
+// celulares). Avanza sola: la foto activa se acerca lentamente y el texto
+// entra escalonado. Los controles (indicadores y flechas) van sobre la
+// foto, como en la mayoría de las tiendas, para no sumar una fila aparte.
+// Se detiene mientras el puntero o el foco están encima y no se mueve si
+// el usuario pidió reducir el movimiento. En pantallas táctiles se desliza.
 // =============================================
 
 import { useState, useEffect, useRef } from "react";
@@ -33,9 +34,9 @@ const slides: Slide[] = [
     id:       1,
     image:    "/img/hero/escritorio.jpg",
     imagePos: "50% 55%",
-    tag:       "Bienvenido a Tele Import",
-    title:     "Tecnología para tu hogar y oficina",
-    subtitle:  "TV, laptops, smartphones y más. Envío a todo el país con garantía oficial.",
+    tag:       "Tele Import S.A.",
+    title:     "Tecnología para el hogar y la oficina",
+    subtitle:  "Distribución mayorista y minorista de electrónica y computación, con garantía oficial y envío a todo el país.",
     cta:       "Ver catálogo",
     href:      "/catalogo",
   },
@@ -43,9 +44,9 @@ const slides: Slide[] = [
     id:       2,
     image:    "/img/hero/smartphones.jpg",
     imagePos: "45% 50%",
-    tag:       "Top ventas",
-    title:     "Smartphones y Celulares",
-    subtitle:  "Samsung, Motorola, Apple y más. Las últimas novedades con envío a todo el país.",
+    tag:       "Smartphones",
+    title:     "Celulares de las principales marcas",
+    subtitle:  "Samsung, Motorola, Apple y otras marcas, nuevos y con garantía oficial.",
     cta:       "Ver smartphones",
     href:      "/catalogo?categoria=smartphones",
   },
@@ -53,27 +54,28 @@ const slides: Slide[] = [
     id:       3,
     image:    "/img/hero/monitor.jpg",
     imagePos: "50% 45%",
-    tag:       "Destacados",
-    title:     "Productos Seleccionados",
-    subtitle:  "Nuestra selección curada del mejor stock disponible con los mejores precios.",
-    cta:       "Ver destacados",
-    href:      "/catalogo?destacados=true",
+    tag:       "Computación",
+    title:     "Computadoras, monitores y periféricos",
+    subtitle:  "Equipos para trabajo, estudio y gaming, con asesoramiento para empresas.",
+    cta:       "Ver laptops y PCs",
+    href:      "/catalogo?categoria=laptops-pcs",
   },
   {
     id:       4,
     image:    "/img/hero/auriculares.jpg",
     imagePos: "50% 50%",
     tag:       "Audio y video",
-    title:     "Sonido que se siente",
-    subtitle:  "Auriculares, parlantes y soundbars para disfrutar en casa o en movimiento.",
+    title:     "Auriculares, parlantes y sonido",
+    subtitle:  "Audio inalámbrico, barras de sonido y accesorios de marcas reconocidas.",
     cta:       "Ver audio y video",
     href:      "/catalogo?categoria=audio-video",
   },
 ];
 
 const AUTOPLAY_MS = 6000;
+const SWIPE_PX = 40;
 const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-50";
-const CONTROL_STYLE = "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-paper-300 bg-paper-50 text-slate-700 hover:bg-paper-100 hover:text-slate-900 motion-safe:transition-colors motion-safe:duration-200";
+const ON_PHOTO_FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-50 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900";
 // Entrada escalonada del texto del slide activo (sólo con movimiento permitido)
 const RISE = "motion-safe:animate-hero-rise";
 
@@ -94,6 +96,7 @@ export function HeroCarousel() {
   });
   const isPaused = pauseReasons.reduced || pauseReasons.pointer || pauseReasons.focus;
   const clock = useRef({ slide: 0, remaining: AUTOPLAY_MS });
+  const swipeStart = useRef<number | null>(null);
 
   function goTo(index: number) {
     const to = (index + slides.length) % slides.length;
@@ -119,7 +122,7 @@ export function HeroCarousel() {
   }, []);
 
   // Un único reloj: al pausar guarda lo que faltaba y al reanudar sigue
-  // desde ahí, igual que la barra de progreso (que usa el mismo período).
+  // desde ahí, igual que el indicador de progreso (mismo período).
   useEffect(() => {
     if (clock.current.slide !== current) {
       clock.current = { slide: current, remaining: AUTOPLAY_MS };
@@ -142,7 +145,7 @@ export function HeroCarousel() {
     <section
       aria-roledescription="carrusel"
       aria-label="Destacados de Tele Import"
-      className="border-b border-paper-300 bg-paper-50 lg:flex lg:min-h-[min(calc(100svh-6.125rem),56rem)] lg:items-center"
+      className="border-b border-paper-300 bg-paper-50 lg:flex lg:min-h-[min(calc(100svh-4.5rem),56rem)] lg:items-center"
       onMouseEnter={() => setPauseReasons((reasons) => ({ ...reasons, pointer: true }))}
       onMouseLeave={() => setPauseReasons((reasons) => ({ ...reasons, pointer: false }))}
       onFocusCapture={() => setPauseReasons((reasons) => ({ ...reasons, focus: true }))}
@@ -166,40 +169,38 @@ export function HeroCarousel() {
         goTo(current + (backwards ? -1 : 1));
       }}
     >
-      <div className="container-main py-6 md:py-8 lg:w-full xl:py-10">
-        {/* Las slides comparten una celda: la más alta reserva el espacio y
-            evita saltos de layout. */}
-        <div className="grid">
-          {slides.map((s, i) => {
-            const isActive = i === current;
-            const isLeaving = i === previous;
-            const Heading = isActive ? "h1" : "h2";
-            // React 18 necesita serializar inert como atributo HTML vacío.
-            const inactiveAttributes: Record<string, string> = isActive ? {} : { inert: "" };
+      <div className="container-main py-6 md:py-10 lg:w-full xl:py-12">
+        <div className="grid items-center gap-6 md:grid-cols-2 md:gap-8 lg:gap-12 xl:gap-16 2xl:grid-cols-[5fr_7fr]">
 
-            return (
-              <div
-                key={s.id}
-                role="group"
-                aria-roledescription="slide"
-                aria-label={`${i + 1} de ${slides.length}`}
-                aria-hidden={!isActive}
-                {...inactiveAttributes}
-                className={cn(
-                  "col-start-1 row-start-1 grid min-w-0 items-center gap-6 md:grid-cols-2 md:gap-8 lg:gap-12 xl:gap-16 2xl:grid-cols-[5fr_7fr]",
-                  "motion-safe:transition-opacity motion-safe:duration-700 motion-safe:ease-out",
-                  isActive ? "relative z-10 opacity-100" : "pointer-events-none opacity-0"
-                )}
-              >
-                <div className="min-w-0">
-                  <p
-                    className={cn("text-xs font-semibold uppercase leading-normal tracking-wider text-brand-600", isActive && RISE)}
-                  >
+          {/* ── Texto: los slides comparten una celda; el más alto reserva el
+              espacio y evita saltos de layout ── */}
+          <div className="grid min-w-0">
+            {slides.map((s, i) => {
+              const isActive = i === current;
+              const Heading = isActive ? "h1" : "h2";
+              // React 18 necesita serializar inert como atributo HTML vacío.
+              const inactiveAttributes: Record<string, string> = isActive ? {} : { inert: "" };
+
+              return (
+                <div
+                  key={s.id}
+                  role="group"
+                  aria-roledescription="slide"
+                  aria-label={`${i + 1} de ${slides.length}`}
+                  aria-hidden={!isActive}
+                  {...inactiveAttributes}
+                  className={cn(
+                    "col-start-1 row-start-1 min-w-0",
+                    "motion-safe:transition-opacity motion-safe:duration-700 motion-safe:ease-out",
+                    isActive ? "relative z-10 opacity-100" : "pointer-events-none opacity-0"
+                  )}
+                >
+                  <p className={cn("text-xs font-semibold uppercase leading-normal tracking-wider text-slate-500", isActive && RISE)}>
                     {s.tag}
                   </p>
                   <Heading
                     className={cn(
-                      "titulo-display mt-3 max-w-lg text-balance text-4xl sm:text-5xl lg:max-w-[14ch] lg:text-6xl 2xl:text-7xl 3xl:text-8xl",
+                      "titulo-display mt-3 max-w-lg text-balance text-4xl sm:text-5xl lg:max-w-[15ch] lg:text-6xl 2xl:text-7xl",
                       isActive && RISE
                     )}
                     style={isActive ? { animationDelay: "90ms" } : undefined}
@@ -207,7 +208,7 @@ export function HeroCarousel() {
                     {s.title}
                   </Heading>
                   <p
-                    className={cn("mt-4 max-w-md text-base leading-relaxed text-slate-600 lg:text-lg 2xl:max-w-lg 2xl:text-xl", isActive && RISE)}
+                    className={cn("mt-4 max-w-md text-base leading-relaxed text-slate-600 lg:text-lg 2xl:max-w-lg", isActive && RISE)}
                     style={isActive ? { animationDelay: "180ms" } : undefined}
                   >
                     {s.subtitle}
@@ -216,7 +217,7 @@ export function HeroCarousel() {
                     <Link
                       href={s.href}
                       className={cn(
-                        "group mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-paper-50 hover:bg-brand-700",
+                        "group mt-7 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-paper-50 hover:bg-brand-700",
                         "motion-safe:transition-colors motion-safe:duration-200",
                         FOCUS_RING
                       )}
@@ -226,9 +227,36 @@ export function HeroCarousel() {
                     </Link>
                   </div>
                 </div>
+              );
+            })}
+          </div>
 
-                <div className="relative order-first aspect-[16/10] min-w-0 overflow-hidden rounded-2xl border border-paper-300 bg-slate-900 shadow-card md:order-last md:aspect-[5/4]">
-                  {/* La foto se acerca mientras el slide está activo; el que
+          {/* ── Foto con los controles encima ── */}
+          <div
+            className="relative order-first aspect-[16/10] min-w-0 touch-pan-y overflow-hidden rounded-2xl border border-paper-300 bg-slate-900 shadow-card md:order-last md:aspect-[5/4]"
+            onPointerDown={(e) => { if (e.pointerType !== "mouse") swipeStart.current = e.clientX; }}
+            onPointerUp={(e) => {
+              if (swipeStart.current === null) return;
+              const dx = e.clientX - swipeStart.current;
+              swipeStart.current = null;
+              if (Math.abs(dx) >= SWIPE_PX) goTo(current + (dx < 0 ? 1 : -1));
+            }}
+            onPointerCancel={() => { swipeStart.current = null; }}
+          >
+            {slides.map((s, i) => {
+              const isActive = i === current;
+              const isLeaving = i === previous;
+              return (
+                <div
+                  key={s.id}
+                  aria-hidden="true"
+                  className={cn(
+                    "absolute inset-0",
+                    "motion-safe:transition-opacity motion-safe:duration-700 motion-safe:ease-out",
+                    isActive ? "z-10 opacity-100" : "opacity-0"
+                  )}
+                >
+                  {/* La foto se acerca mientras el slide está activo; la que
                       sale conserva su encuadre durante el fundido. */}
                   <div
                     key={runs[i]}
@@ -249,12 +277,74 @@ export function HeroCarousel() {
                       quality={80}
                     />
                   </div>
-                  {/* Viñeta suave para dar profundidad sin tapar la foto */}
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-900/25 via-transparent to-transparent" aria-hidden="true" />
                 </div>
+              );
+            })}
+
+            {/* Degradé inferior: da contraste a los controles sin tapar la foto */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-24 bg-gradient-to-t from-slate-900/55 to-transparent" aria-hidden="true" />
+
+            <div className="absolute inset-x-0 bottom-0 z-30 flex items-center justify-between gap-4 px-4 pb-3 sm:px-5 sm:pb-4">
+              {/* Indicadores: uno por slide; el activo se llena con el mismo
+                  período del reloj y se congela al pausar. */}
+              <div className="flex items-center gap-1">
+                {slides.map((s, i) => {
+                  const isActive = i === current;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => goTo(i)}
+                      aria-label={`Ir a ${i + 1} de ${slides.length}: ${s.title}`}
+                      aria-current={isActive ? "true" : undefined}
+                      className={cn("group/ind flex h-8 items-center rounded-sm px-1", ON_PHOTO_FOCUS)}
+                    >
+                      <span
+                        className={cn(
+                          "block h-[3px] overflow-hidden rounded-full bg-paper-50/40 motion-safe:transition-[width] motion-safe:duration-300",
+                          isActive ? "w-10 sm:w-12" : "w-5 group-hover/ind:bg-paper-50/70"
+                        )}
+                      >
+                        {isActive && (
+                          pauseReasons.reduced ? (
+                            <span className="block h-full bg-paper-50" />
+                          ) : (
+                            <span
+                              key={`${current}-${runs[i]}`}
+                              className="animate-promo-progress block h-full origin-left bg-paper-50"
+                              style={{
+                                animationDuration: `${AUTOPLAY_MS}ms`,
+                                animationPlayState: isPaused ? "paused" : "running",
+                              }}
+                            />
+                          )
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            );
-          })}
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => goTo(current - 1)}
+                  aria-label="Anterior"
+                  className={cn("inline-flex h-9 w-9 items-center justify-center rounded-full bg-paper-50/90 text-slate-800 shadow-sm hover:bg-paper-50 motion-safe:transition-colors", ON_PHOTO_FOCUS)}
+                >
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => goTo(current + 1)}
+                  aria-label="Siguiente"
+                  className={cn("inline-flex h-9 w-9 items-center justify-center rounded-full bg-paper-50/90 text-slate-800 shadow-sm hover:bg-paper-50 motion-safe:transition-colors", ON_PHOTO_FOCUS)}
+                >
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Sin anuncios durante el avance automático; con hover/foco o
@@ -262,41 +352,6 @@ export function HeroCarousel() {
         <p className="sr-only" aria-live={isPaused ? "polite" : "off"} aria-atomic="true">
           {current + 1} de {slides.length}: {slides[current].title}
         </p>
-
-        <div className="mt-6 flex items-center gap-4 border-t border-paper-300 pt-4 md:gap-6 lg:w-[calc((100%_-_3rem)/2)] xl:w-[calc((100%_-_4rem)/2)] 2xl:w-[calc((100%_-_4rem)*5/12)]">
-          <p className="shrink-0 text-xs font-medium uppercase tracking-wider text-slate-600 tabular-nums">
-            {String(current + 1).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
-          </p>
-
-          {/* Un segmento por slide: los ya vistos llenos, el activo avanza
-              con el mismo período que el reloj y se congela al pausar. */}
-          <div className="flex min-w-12 flex-1 items-center gap-1.5" aria-hidden="true">
-            {slides.map((s, i) => (
-              <div key={s.id} className="h-0.5 flex-1 overflow-hidden rounded-full bg-paper-300">
-                {(i < current || (i === current && pauseReasons.reduced)) && <div className="h-full bg-slate-900" />}
-                {i === current && !pauseReasons.reduced && (
-                  <div
-                    key={`${current}-${runs[i]}`}
-                    className="animate-promo-progress h-full origin-left bg-slate-900"
-                    style={{
-                      animationDuration: `${AUTOPLAY_MS}ms`,
-                      animationPlayState: isPaused ? "paused" : "running",
-                    }}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            <button type="button" onClick={() => goTo(current - 1)} aria-label="Anterior" className={cn(CONTROL_STYLE, FOCUS_RING)}>
-              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            </button>
-            <button type="button" onClick={() => goTo(current + 1)} aria-label="Siguiente" className={cn(CONTROL_STYLE, FOCUS_RING)}>
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
       </div>
     </section>
   );

@@ -24,6 +24,9 @@ interface ProductCardProps {
 export function ProductCard({ product, priority = false }: ProductCardProps) {
   const addItem    = useCartStore((s) => s.addItem);
   const [added, setAdded] = useState(false);
+  // Si la URL de la imagen falla (p. ej. un recurso externo caído), se
+  // muestra el mismo marcador que un producto sin foto en vez del texto alt.
+  const [imageFailed, setImageFailed] = useState(false);
 
   const mainImage = product.images
     ?.slice()
@@ -68,12 +71,13 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
         {/* ── IMAGEN ─────────────────────────────────────── */}
         <div className="relative aspect-square w-full shrink-0 overflow-hidden rounded-t-2xl bg-paper-100">
 
-          {mainImage ? (
+          {mainImage && !imageFailed ? (
             <Image
               src={getProductImageUrl(mainImage.image_url)}
               alt={mainImage.alt_text ?? product.name}
               fill
               priority={priority}
+              onError={() => setImageFailed(true)}
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               className={cn(
                 // Sin will-change permanente: evitar una capa de composición

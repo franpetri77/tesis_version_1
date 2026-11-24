@@ -1,27 +1,33 @@
 "use client";
 
 // =============================================
-// PÁGINA: CHECKOUT
-// Flujo: resumen → método de entrega → dirección → pago Mercado Pago.
-// Incluye modal de procesamiento y validaciones.
+// PÁGINA: CHECKOUT — "Finalizá tu compra"
+// Misma estructura que el carrito (productos con su descripción + resumen
+// a la derecha) y luego: forma de entrega (envío o retiro, con las
+// direcciones guardadas del usuario), medio de pago y notas.
+// El pago se completa en Mercado Pago. La lógica de cupón y de creación
+// de la preferencia de pago no cambia.
 // =============================================
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import {
-  Store, Truck, Tag, AlertCircle, CheckCircle2,
-  Lock, ChevronRight, Package, ArrowLeft
+  Store, Truck, AlertCircle, CheckCircle2, Lock, ArrowLeft,
+  Home, Plus, Wallet, CreditCard, ChevronDown,
 } from "lucide-react";
 import { useCartStore } from "@/stores/cartStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useModalStore } from "@/stores/modalStore";
-import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { CartLineItem } from "@/components/cart/CartLineItem";
+import { OrderSummary, type SummaryLine } from "@/components/cart/OrderSummary";
+import { getMyAddresses } from "@/lib/api/account";
 import { formatPrice } from "@/lib/utils/format";
-import { getProductImageUrl } from "@/lib/api/catalog";
+import { STORE_ADDRESS } from "@/lib/chat/faq";
+import { SHIPPING_COST } from "@/lib/shipping";
 import { cn } from "@/lib/utils/cn";
+import type { Address } from "@/types";
 
 type DeliveryMethod = "pickup" | "shipping";
 
@@ -37,8 +43,6 @@ interface CheckoutFormData {
   notes: string;
 }
 
-const SHIPPING_COST = 3500;
-
 const PROVINCES = [
   "CABA", "Buenos Aires", "Catamarca", "Chaco", "Chubut",
   "Córdoba", "Corrientes", "Entre Ríos", "Formosa", "Jujuy",
@@ -47,24 +51,50 @@ const PROVINCES = [
   "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán",
 ];
 
+const EMPTY_ADDRESS = { street: "", number: "", floor: "", apartment: "", city: "", province: "", postal_code: "" };
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-50";
+const CARD = "rounded-2xl border border-paper-300 bg-paper-50 shadow-card";
+
+function formatAddress(a: Pick<Address, "street" | "number" | "floor" | "apartment">) {
+  return `${a.street} ${a.number}${a.floor ? `, piso ${a.floor}` : ""}${a.apartment ? ` ${a.apartment}` : ""}`;
+}
+
+/** Campos del formulario a partir de una dirección guardada. */
+function addressFields(a: Address) {
+  return {
+    street: a.street, number: a.number, floor: a.floor ?? "", apartment: a.apartment ?? "",
+    city: a.city, province: a.province, postal_code: a.postal_code,
+  };
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
-  const { user, isAuthenticated } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const cart = useCartStore();
   const openModal = useModalStore((s) => s.openModal);
 
   const [form, setForm] = useState<CheckoutFormData>({
     delivery_method: "pickup",
-    street: "", number: "", floor: "", apartment: "",
-    city: "", province: "", postal_code: "", notes: "",
+    ...EMPTY_ADDRESS, notes: "",
   });
   const [couponInput, setCouponInput]     = useState("");
   const [couponError, setCouponError]     = useState("");
+  const [couponOpen, setCouponOpen]       = useState(false);
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [isProcessing, setIsProcessing]   = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
+  // Direcciones guardadas en "Mi perfil": la predeterminada se elige sola
+  const [addresses, setAddresses]         = useState<Address[]>([]);
+  const [addressChoice, setAddressChoice] = useState<string>("new");
+  // Durante la hidratación los stores devuelven su estado inicial (carrito
+  // vacío, sin sesión) para coincidir con el HTML del servidor. Las
+  // redirecciones esperan al montaje: si no, recargar /checkout con sesión
+  // y productos mandaba siempre al carrito.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
+    if (!mounted) return;
     if (cart.items.length === 0) { router.push("/carrito"); return; }
     if (!isAuthenticated) {
       // Entrada directa sin sesión: volver al carrito y pedir el ingreso en
@@ -72,10 +102,31 @@ export default function CheckoutPage() {
       router.replace("/carrito");
       openModal("auth", { authTab: "intro", redirectTo: "/checkout" });
     }
-  }, [cart.items.length, isAuthenticated, router, openModal]);
+  }, [mounted, cart.items.length, isAuthenticated, router, openModal]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    getMyAddresses()
+      .then((list) => {
+        if (cancelled || list.length === 0) return;
+        setAddresses(list);
+        const preferred = list.find((a) => a.is_default) ?? list[0];
+        setAddressChoice(preferred.id);
+        setForm((prev) => ({ ...prev, ...addressFields(preferred) }));
+      })
+      .catch(() => { /* sin direcciones guardadas se usa el formulario */ });
+    return () => { cancelled = true; };
+  }, [isAuthenticated]);
 
   const shippingCost = form.delivery_method === "shipping" ? SHIPPING_COST : 0;
   const finalTotal   = cart.total + shippingCost;
+
+  function chooseAddress(id: string) {
+    setAddressChoice(id);
+    const saved = addresses.find((a) => a.id === id);
+    setForm((prev) => ({ ...prev, ...(saved ? addressFields(saved) : EMPTY_ADDRESS) }));
+  }
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -177,334 +228,372 @@ export default function CheckoutPage() {
     }
   }
 
-  if (!isAuthenticated || cart.items.length === 0) return null;
+  if (!mounted || !isAuthenticated || cart.items.length === 0) return null;
+
+  const totalItems = cart.items.reduce((n, i) => n + i.quantity, 0);
+  const savings = cart.items.reduce((acc, i) => {
+    const cmp = i.product.compare_price;
+    return cmp && cmp > i.unit_price ? acc + (cmp - i.unit_price) * i.quantity : acc;
+  }, 0) + cart.discount_amount;
+
+  const lines: SummaryLine[] = [
+    { label: `Productos (${totalItems})`, value: formatPrice(cart.subtotal) },
+    ...(cart.discount_amount > 0
+      ? [{ label: `Cupón ${cart.coupon_code ?? ""}`.trim(), value: `−${formatPrice(cart.discount_amount)}`, tone: "discount" as const }]
+      : []),
+    form.delivery_method === "pickup"
+      ? { label: "Envío", value: "Gratis", tone: "free" as const }
+      : { label: "Envío", value: formatPrice(SHIPPING_COST) },
+  ];
+
+  const showAddressForm = addresses.length === 0 || addressChoice === "new";
 
   return (
     <>
-      {/* ---- MODAL DE PROCESAMIENTO ---- */}
+      {/* ---- AVISO DE PROCESAMIENTO ---- */}
       {isProcessing && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
-          <div className="bg-white rounded-2xl p-8 flex flex-col items-center gap-5 shadow-2xl max-w-xs w-full mx-4">
-            {/* Spinner */}
-            <div className="relative w-16 h-16">
-              <div className="absolute inset-0 rounded-full border-4 border-slate-100" />
-              <div className="absolute inset-0 rounded-full border-4 border-brand-600 border-t-transparent animate-spin" />
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 motion-safe:animate-fade-in"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="mx-4 flex w-full max-w-xs flex-col items-center gap-5 rounded-2xl bg-paper-50 p-8 shadow-2xl">
+            <div className="relative h-16 w-16">
+              <div className="absolute inset-0 rounded-full border-4 border-paper-200" />
+              <div className="absolute inset-0 rounded-full border-4 border-brand-600 border-t-transparent motion-safe:animate-spin" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <Lock className="w-5 h-5 text-brand-600" />
+                <Lock className="h-5 w-5 text-brand-600" aria-hidden="true" />
               </div>
             </div>
             <div className="text-center">
-              <p className="font-bold text-slate-900 text-lg">Procesando pago</p>
-              <p className="text-slate-500 text-sm mt-1">
-                Conectando con Mercado Pago...
-              </p>
-            </div>
-            <div className="flex gap-1.5">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="w-2 h-2 rounded-full bg-brand-400 animate-bounce"
-                  style={{ animationDelay: `${i * 150}ms` }}
-                />
-              ))}
+              <p className="text-lg font-semibold text-slate-900">Procesando pago</p>
+              <p className="mt-1 text-sm text-slate-500">Te llevamos a Mercado Pago…</p>
             </div>
           </div>
         </div>
       )}
 
-      <div className="container-main py-8 animate-fade-in">
-        {/* Encabezado + breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-slate-400 mb-6">
-          <Link href="/carrito" className="flex items-center gap-1 hover:text-brand-600 transition-colors">
-            <ArrowLeft className="w-4 h-4" />
-            Carrito
+      <div className="bg-paper-100">
+        <div className="container-main py-8 motion-safe:animate-fade-in lg:py-10">
+          <Link
+            href="/carrito"
+            className={cn("mb-3 inline-flex items-center gap-1.5 rounded-sm text-sm text-slate-500 hover:text-slate-900", FOCUS_RING)}
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Volver al carrito
           </Link>
-          <ChevronRight className="w-3.5 h-3.5" />
-          <span className="text-slate-700 font-semibold">Finalizar compra</span>
-        </div>
+          <h1 className="titulo-display mb-6 text-3xl">Finalizá tu compra</h1>
 
-        <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* ---- COLUMNA IZQUIERDA ---- */}
-            <div className="lg:col-span-2 space-y-5">
+          <form onSubmit={handleSubmit} noValidate>
+            <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+              {/* ---- COLUMNA IZQUIERDA ---- */}
+              <div className="space-y-5">
 
-              {/* SECCIÓN 1: Método de entrega */}
-              <section className="bg-white rounded-2xl border border-slate-200 shadow-card p-6">
-                <h2 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-brand-600 text-white text-xs font-bold flex items-center justify-center">1</span>
-                  Método de entrega
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {([
-                    {
-                      value: "pickup" as const,
-                      label: "Retiro en sucursal",
-                      desc: "Sin costo. Listo en 24hs hábiles.",
-                      icon: Store,
-                      badge: "Gratis",
-                    },
-                    {
-                      value: "shipping" as const,
-                      label: "Envío a domicilio",
-                      desc: `Costo fijo ${formatPrice(SHIPPING_COST)}. 3–7 días hábiles.`,
-                      icon: Truck,
-                      badge: null,
-                    },
-                  ]).map(({ value, label, desc, icon: Icon, badge }) => (
-                    <label
-                      key={value}
-                      className={cn(
-                        "flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transicion-ui duration-150",
-                        form.delivery_method === value
-                          ? "border-brand-500 bg-brand-50"
-                          : "border-slate-200 hover:border-slate-300 bg-white"
-                      )}
-                    >
-                      <input
-                        type="radio"
-                        name="delivery_method"
-                        value={value}
-                        checked={form.delivery_method === value}
-                        onChange={handleChange}
-                        className="mt-0.5 accent-brand-600"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <Icon className={cn(
-                            "w-4 h-4",
-                            form.delivery_method === value ? "text-brand-600" : "text-slate-400"
-                          )} />
-                          <span className={cn(
-                            "text-sm font-semibold",
-                            form.delivery_method === value ? "text-brand-800" : "text-slate-700"
-                          )}>
-                            {label}
-                          </span>
-                          {badge && (
-                            <span className="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded-full">
-                              {badge}
-                            </span>
+                {/* PRODUCTOS */}
+                <section aria-labelledby="co-productos" className={CARD}>
+                  <div className="flex items-center justify-between border-b border-paper-300 px-5 py-4 sm:px-6">
+                    <h2 id="co-productos" className="text-base font-semibold text-slate-900">
+                      Productos <span className="font-normal text-slate-500">({totalItems})</span>
+                    </h2>
+                    <Link href="/carrito" className={cn("rounded-sm text-sm font-medium text-brand-700 underline-offset-4 hover:underline", FOCUS_RING)}>
+                      Modificar
+                    </Link>
+                  </div>
+                  <ul className="divide-y divide-paper-300 px-5 sm:px-6">
+                    {cart.items.map((item) => (
+                      <CartLineItem key={item.product_id} item={item} compact />
+                    ))}
+                  </ul>
+                </section>
+
+                {/* FORMA DE ENTREGA */}
+                <section aria-labelledby="co-entrega" className={cn(CARD, "p-5 sm:p-6")}>
+                  <h2 id="co-entrega" className="text-base font-semibold text-slate-900">Forma de entrega</h2>
+
+                  <fieldset className="mt-4">
+                    <legend className="sr-only">Elegí cómo recibir tu pedido</legend>
+                    <div className="grid grid-cols-1 gap-2 rounded-xl bg-paper-100 p-1.5 sm:grid-cols-2">
+                      {([
+                        { value: "shipping" as const, label: "Envío a domicilio", detail: `${formatPrice(SHIPPING_COST)} · 3 a 7 días hábiles`, icon: Truck, free: false },
+                        { value: "pickup" as const,   label: "Retiro en el local", detail: "Listo en 24 h hábiles", icon: Store, free: true },
+                      ]).map(({ value, label, detail, icon: Icon, free }) => (
+                        <label
+                          key={value}
+                          className={cn(
+                            "flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 motion-safe:transition-colors",
+                            "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-600/40",
+                            form.delivery_method === value
+                              ? "border-brand-600 bg-paper-50 shadow-sm"
+                              : "border-transparent hover:bg-paper-50/70"
                           )}
-                        </div>
-                        <p className="text-xs text-slate-400 mt-0.5">{desc}</p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </section>
+                        >
+                          <input
+                            type="radio"
+                            name="delivery_method"
+                            value={value}
+                            checked={form.delivery_method === value}
+                            onChange={handleChange}
+                            className="h-4 w-4 accent-brand-600"
+                          />
+                          <Icon className={cn("h-5 w-5 shrink-0", form.delivery_method === value ? "text-brand-700" : "text-slate-500")} strokeWidth={1.75} aria-hidden="true" />
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium text-slate-900">{label}</span>
+                            <span className="block text-xs text-slate-500">
+                              {free && <span className="font-semibold text-emerald-700">Gratis · </span>}
+                              {detail}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
 
-              {/* SECCIÓN 2: Dirección (solo si eligió envío) */}
-              {form.delivery_method === "shipping" && (
-                <section className="bg-white rounded-2xl border border-slate-200 shadow-card p-6 animate-fade-in">
-                  <h2 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-brand-600 text-white text-xs font-bold flex items-center justify-center">2</span>
-                    Dirección de envío
-                  </h2>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="col-span-2">
-                        <Input label="Calle *" name="street" value={form.street}
-                          onChange={handleChange} placeholder="Av. Corrientes" required />
+                  {/* Retiro */}
+                  {form.delivery_method === "pickup" && (
+                    <div className="mt-4 flex items-start gap-3 rounded-xl border border-paper-300 px-4 py-3.5 motion-safe:animate-fade-in">
+                      <Store className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" strokeWidth={1.75} aria-hidden="true" />
+                      <div className="text-sm">
+                        <p className="font-medium text-slate-900">Retirás en {STORE_ADDRESS}</p>
+                        <p className="mt-0.5 text-slate-500">Te avisamos cuando tu pedido esté listo para retirar.</p>
                       </div>
-                      <Input label="Número *" name="number" value={form.number}
-                        onChange={handleChange} placeholder="1234" required />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Input label="Piso" name="floor" value={form.floor}
-                        onChange={handleChange} placeholder="3" />
-                      <Input label="Departamento" name="apartment" value={form.apartment}
-                        onChange={handleChange} placeholder="B" />
+                  )}
+
+                  {/* Envío: direcciones guardadas o formulario */}
+                  {form.delivery_method === "shipping" && (
+                    <div className="mt-4 space-y-3 motion-safe:animate-fade-in">
+                      {addresses.length > 0 && (
+                        <fieldset className="space-y-2">
+                          <legend className="mb-2 text-sm font-medium text-slate-700">Dirección de envío</legend>
+                          {addresses.map((a) => (
+                            <label
+                              key={a.id}
+                              className={cn(
+                                "flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3.5 motion-safe:transition-colors",
+                                "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-600/40",
+                                addressChoice === a.id ? "border-brand-600 bg-brand-50/60" : "border-paper-300 hover:border-paper-400"
+                              )}
+                            >
+                              <input
+                                type="radio"
+                                name="address_choice"
+                                checked={addressChoice === a.id}
+                                onChange={() => chooseAddress(a.id)}
+                                className="mt-1 h-4 w-4 accent-brand-600"
+                              />
+                              <Home className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" strokeWidth={1.75} aria-hidden="true" />
+                              <span className="min-w-0 text-sm">
+                                <span className="block font-medium text-slate-900">{formatAddress(a)}</span>
+                                <span className="block text-slate-500">
+                                  {a.city}, {a.province} · CP {a.postal_code}
+                                  {a.is_default && <span className="ml-1.5 text-xs font-medium text-slate-600">(predeterminada)</span>}
+                                </span>
+                              </span>
+                            </label>
+                          ))}
+                          <label
+                            className={cn(
+                              "flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3.5 text-sm motion-safe:transition-colors",
+                              "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-600/40",
+                              addressChoice === "new" ? "border-brand-600 bg-brand-50/60" : "border-dashed border-paper-400 hover:border-slate-400"
+                            )}
+                          >
+                            <input
+                              type="radio"
+                              name="address_choice"
+                              checked={addressChoice === "new"}
+                              onChange={() => chooseAddress("new")}
+                              className="h-4 w-4 accent-brand-600"
+                            />
+                            <Plus className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+                            <span className="font-medium text-slate-900">Usar otra dirección</span>
+                          </label>
+                        </fieldset>
+                      )}
+
+                      {showAddressForm && (
+                        <div className="space-y-3 rounded-xl border border-paper-300 p-4 motion-safe:animate-fade-in">
+                          {addresses.length === 0 && (
+                            <p className="text-sm font-medium text-slate-700">Dirección de envío</p>
+                          )}
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="col-span-2">
+                              <Input label="Calle *" name="street" value={form.street}
+                                onChange={handleChange} placeholder="Av. Corrientes" required autoComplete="address-line1" />
+                            </div>
+                            <Input label="Número *" name="number" value={form.number}
+                              onChange={handleChange} placeholder="1234" required />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <Input label="Piso" name="floor" value={form.floor}
+                              onChange={handleChange} placeholder="3" />
+                            <Input label="Departamento" name="apartment" value={form.apartment}
+                              onChange={handleChange} placeholder="B" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <Input label="Ciudad *" name="city" value={form.city}
+                              onChange={handleChange} placeholder="Córdoba" required autoComplete="address-level2" />
+                            <Input label="Cód. postal *" name="postal_code" value={form.postal_code}
+                              onChange={handleChange} placeholder="5000" required autoComplete="postal-code" />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label htmlFor="co-provincia" className="text-sm font-medium text-slate-700">Provincia *</label>
+                            <select
+                              id="co-provincia"
+                              name="province"
+                              value={form.province}
+                              onChange={handleChange}
+                              required
+                              className="w-full rounded-lg border border-paper-300 bg-paper-50 px-3.5 py-2.5 text-sm text-slate-900 hover:border-paper-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30"
+                            >
+                              <option value="">Seleccioná una provincia</option>
+                              {PROVINCES.map((p) => (
+                                <option key={p} value={p}>{p}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <p className="text-xs text-slate-500">
+                            Podés guardar direcciones en <Link href="/perfil/direcciones" className="font-medium text-brand-700 underline-offset-4 hover:underline">Mi perfil</Link> para elegirlas acá la próxima vez.
+                          </p>
+                        </div>
+                      )}
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Input label="Ciudad *" name="city" value={form.city}
-                        onChange={handleChange} placeholder="Córdoba" required />
-                      <Input label="Cód. postal *" name="postal_code" value={form.postal_code}
-                        onChange={handleChange} placeholder="5000" required />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-slate-700">Provincia *</label>
-                      <select
-                        name="province"
-                        value={form.province}
-                        onChange={handleChange}
-                        required
-                        className="mt-1.5 w-full rounded-lg border border-slate-200 hover:border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors"
-                      >
-                        <option value="">Seleccioná una provincia</option>
-                        {PROVINCES.map((p) => (
-                          <option key={p} value={p}>{p}</option>
+                  )}
+                </section>
+
+                {/* MEDIO DE PAGO */}
+                <section aria-labelledby="co-pago" className={cn(CARD, "p-5 sm:p-6")}>
+                  <h2 id="co-pago" className="text-base font-semibold text-slate-900">Medio de pago</h2>
+                  <div className="mt-4 flex items-start gap-4 rounded-xl border border-brand-600 bg-brand-50/60 px-4 py-4">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paper-50 text-brand-700 ring-1 ring-paper-300">
+                      <Wallet className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0 text-sm">
+                      <p className="font-medium text-slate-900">Mercado Pago</p>
+                      <p className="mt-0.5 text-slate-600">
+                        Al confirmar te llevamos a Mercado Pago para pagar de forma segura. Cuando termines, volvés a la tienda.
+                      </p>
+                      <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Medios disponibles en Mercado Pago">
+                        {["Tarjeta de crédito", "Tarjeta de débito", "Dinero en cuenta", "Efectivo"].map((m) => (
+                          <li key={m} className="inline-flex items-center gap-1.5 rounded-full border border-paper-300 bg-paper-50 px-2.5 py-1 text-xs text-slate-700">
+                            <CreditCard className="h-3 w-3 text-slate-500" aria-hidden="true" />
+                            {m}
+                          </li>
                         ))}
-                      </select>
+                      </ul>
                     </div>
                   </div>
                 </section>
-              )}
 
-              {/* SECCIÓN 3: Notas */}
-              <section className="bg-white rounded-2xl border border-slate-200 shadow-card p-6">
-                <h2 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-600 text-xs font-bold flex items-center justify-center">
-                    {form.delivery_method === "shipping" ? "3" : "2"}
-                  </span>
-                  Notas del pedido
-                  <span className="text-xs text-slate-400 font-normal">(opcional)</span>
-                </h2>
-                <textarea
-                  name="notes"
-                  value={form.notes}
-                  onChange={handleChange}
-                  rows={3}
-                  className="w-full rounded-xl border border-slate-200 hover:border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none transition-colors placeholder:text-slate-400"
-                  placeholder="Instrucciones especiales, horario de entrega, etc."
-                />
-              </section>
-            </div>
+                {/* NOTAS */}
+                <details className={cn(CARD, "group")} open={Boolean(form.notes)}>
+                  <summary className={cn("flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-5 py-4 sm:px-6 [&::-webkit-details-marker]:hidden", FOCUS_RING)}>
+                    <span className="text-base font-semibold text-slate-900">
+                      Notas del pedido <span className="text-sm font-normal text-slate-500">(opcional)</span>
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-slate-400 motion-safe:transition-transform group-open:rotate-180" aria-hidden="true" />
+                  </summary>
+                  <div className="px-5 pb-5 sm:px-6">
+                    <label htmlFor="co-notas" className="sr-only">Notas del pedido</label>
+                    <textarea
+                      id="co-notas"
+                      name="notes"
+                      value={form.notes}
+                      onChange={handleChange}
+                      rows={3}
+                      className="w-full resize-none rounded-xl border border-paper-300 bg-paper-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 hover:border-paper-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30"
+                      placeholder="Instrucciones especiales, horario de entrega, etc."
+                    />
+                  </div>
+                </details>
+              </div>
 
-            {/* ---- COLUMNA DERECHA: RESUMEN ---- */}
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 sticky top-24 space-y-5">
-                <h2 className="font-bold text-slate-900">Resumen del pedido</h2>
-
-                {/* Productos */}
-                <ul className="space-y-3 max-h-56 overflow-y-auto pr-1">
-                  {cart.items.map((item) => {
-                    const img = item.product.images
-                      ?.slice().sort((a, b) => a.sort_order - b.sort_order)[0];
-                    return (
-                      <li key={item.product_id} className="flex gap-3">
-                        <div className="relative w-11 h-11 rounded-lg overflow-hidden bg-slate-50 border border-slate-100 flex-shrink-0">
-                          {img ? (
-                            <Image
-                              src={getProductImageUrl(img.image_url, { width: 88 })}
-                              alt={item.product.name}
-                              fill className="object-contain p-1" sizes="44px"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Package className="w-4 h-4 text-slate-300" strokeWidth={1} />
-                            </div>
-                          )}
-                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-slate-700 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                            {item.quantity}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-slate-800 line-clamp-2 leading-snug">
-                            {item.product.name}
-                          </p>
-                        </div>
-                        <span className="text-xs font-semibold text-slate-900 flex-shrink-0">
-                          {formatPrice(item.unit_price * item.quantity)}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-
-                {/* Cupón */}
-                <div className="pt-1">
-                  <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1.5">
-                    <Tag className="w-3.5 h-3.5" />
-                    ¿Tenés un cupón?
-                  </p>
-                  {cart.coupon_code ? (
-                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-3.5 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        <span className="text-sm text-emerald-700 font-semibold">
+              {/* ---- COLUMNA DERECHA: RESUMEN ---- */}
+              <div className="lg:sticky lg:top-[calc(var(--header-h)+1.5rem)]">
+                <OrderSummary
+                  lines={lines}
+                  total={finalTotal}
+                  totalNote={savings > 0 ? `Ahorrás ${formatPrice(savings)}` : undefined}
+                  extra={
+                    cart.coupon_code ? (
+                      <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5">
+                        <span className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
                           {cart.coupon_code}
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => cart.removePromotion()}
+                          className={cn("rounded-sm text-xs font-medium text-slate-600 hover:text-red-700", FOCUS_RING)}
+                        >
+                          Quitar
+                        </button>
                       </div>
+                    ) : couponOpen ? (
+                      <div>
+                        <label htmlFor="co-cupon" className="mb-1.5 block text-xs font-medium text-slate-600">Código de cupón</label>
+                        <div className="flex gap-2">
+                          <input
+                            id="co-cupon"
+                            type="text"
+                            value={couponInput}
+                            onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                            // Enter aplica el cupón en lugar de enviar el pedido
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleApplyCoupon(); } }}
+                            placeholder="CÓDIGO"
+                            autoFocus
+                            className="h-10 min-w-0 flex-1 rounded-lg border border-paper-300 bg-paper-50 px-3 font-mono text-sm uppercase tracking-wider text-slate-900 placeholder:text-slate-400 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleApplyCoupon()}
+                            disabled={isApplyingCoupon}
+                            className={cn("h-10 shrink-0 rounded-lg border border-slate-900/15 px-3.5 text-sm font-semibold text-slate-900 hover:border-slate-900 hover:bg-slate-900 hover:text-paper-50 disabled:opacity-60", FOCUS_RING)}
+                          >
+                            {isApplyingCoupon ? "…" : "Aplicar"}
+                          </button>
+                        </div>
+                        {couponError && (
+                          <p className="mt-1.5 flex items-center gap-1 text-xs text-red-700" role="alert">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                            {couponError}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
                       <button
                         type="button"
-                        onClick={() => cart.removePromotion()}
-                        className="text-xs text-slate-400 hover:text-red-500 transition-colors"
+                        onClick={() => setCouponOpen(true)}
+                        className={cn("rounded-sm text-sm font-medium text-brand-700 underline-offset-4 hover:underline", FOCUS_RING)}
                       >
-                        Quitar
+                        Ingresar código de cupón
                       </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={couponInput}
-                        onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                        placeholder="CÓDIGO"
-                        className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm uppercase font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleApplyCoupon}
-                        isLoading={isApplyingCoupon}
-                      >
-                        Aplicar
-                      </Button>
-                    </div>
-                  )}
-                  {couponError && (
-                    <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                      {couponError}
-                    </p>
-                  )}
-                </div>
-
-                {/* Totales */}
-                <div className="space-y-2 text-sm border-t border-slate-100 pt-4">
-                  <div className="flex justify-between text-slate-600">
-                    <span>Subtotal</span>
-                    <span className="font-medium text-slate-900">{formatPrice(cart.subtotal)}</span>
-                  </div>
-                  {cart.discount_amount > 0 && (
-                    <div className="flex justify-between text-emerald-600 font-semibold">
-                      <span>Descuento</span>
-                      <span>-{formatPrice(cart.discount_amount)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-slate-600">
-                    <span>Envío</span>
-                    <span className={shippingCost === 0 ? "text-emerald-600 font-semibold" : "font-medium text-slate-900"}>
-                      {shippingCost === 0 ? "Gratis" : formatPrice(shippingCost)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between font-bold text-slate-900 text-base border-t border-slate-100 pt-3">
-                    <span>Total</span>
-                    <span>{formatPrice(finalTotal)}</span>
-                  </div>
-                </div>
-
-                {/* Error */}
-                {checkoutError && (
-                  <div className="flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3.5 py-3 animate-fade-in">
-                    <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    {checkoutError}
-                  </div>
-                )}
-
-                {/* Botón de pago */}
-                <Button
-                  type="submit"
-                  variant="primary"
-                  fullWidth
-                  size="lg"
-                  isLoading={isProcessing}
-                  className="gap-2"
+                    )
+                  }
                 >
-                  <Lock className="w-4 h-4" />
-                  {isProcessing ? "Procesando..." : "Pagar con Mercado Pago"}
-                </Button>
-
-                {/* Sellos de seguridad */}
-                <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
-                  <Lock className="w-3 h-3" />
-                  Pago 100% seguro · SSL cifrado
-                </div>
+                  {checkoutError && (
+                    <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700 motion-safe:animate-fade-in" role="alert">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                      {checkoutError}
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={isProcessing}
+                    className={cn("flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 text-sm font-semibold text-paper-50 hover:bg-brand-700 disabled:opacity-60 motion-safe:transition-colors", FOCUS_RING)}
+                  >
+                    <Lock className="h-4 w-4" aria-hidden="true" />
+                    {isProcessing ? "Procesando…" : "Pagar con Mercado Pago"}
+                  </button>
+                  <p className="flex items-center justify-center gap-1.5 text-xs text-slate-500">
+                    <Lock className="h-3 w-3" aria-hidden="true" />
+                    Pago seguro · conexión cifrada
+                  </p>
+                </OrderSummary>
               </div>
             </div>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
     </>
   );

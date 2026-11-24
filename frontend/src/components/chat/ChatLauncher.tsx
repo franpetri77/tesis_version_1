@@ -193,7 +193,7 @@ export function ChatLauncher() {
       )}
 
       {!open && (
-        <div className="fixed right-5 z-40 flex flex-col items-end gap-2 bottom-5 [body[data-sticky-cart]_&]:bottom-24">
+        <div className="fixed right-5 z-40 flex flex-col items-end gap-2 bottom-5">
           {teaser && (
             <div role="status" className="flex max-w-[16rem] items-start gap-2 rounded-2xl rounded-br-md border border-paper-300 bg-white px-3.5 py-2.5 text-sm text-slate-700 shadow-dropdown motion-safe:animate-fade-in">
               <button type="button" onClick={launch} className="text-left">

@@ -2,226 +2,166 @@
 
 // =============================================
 // PÁGINA: CARRITO DE COMPRAS
-// Muestra los ítems del carrito, permite editar cantidades
-// y navegar al checkout.
+// Productos con su descripción (marca, categoría, SKU, stock y precio),
+// cantidades editables, opciones de entrega y resumen de compra. Debajo,
+// productos relacionados con lo que hay en el carrito.
+// Sin sesión, "Continuar compra" abre el modal de acceso en lugar de ir
+// a /login; al ingresar se sigue al checkout con el mismo carrito.
 // =============================================
 
-import Image from "next/image";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Trash2, ShoppingBag, ArrowRight, Package } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { ShoppingBag, ArrowRight, ArrowLeft, Truck, Store } from "lucide-react";
 import { useCartStore } from "@/stores/cartStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useModalStore } from "@/stores/modalStore";
-import { Button } from "@/components/ui/Button";
+import { CartLineItem } from "@/components/cart/CartLineItem";
+import { OrderSummary, PurchaseAssurances, type SummaryLine } from "@/components/cart/OrderSummary";
+import { RecommendationSection } from "@/components/catalog/RecommendationSection";
 import { formatPrice } from "@/lib/utils/format";
-import { getProductImageUrl } from "@/lib/api/catalog";
+import { STORE_ADDRESS } from "@/lib/chat/faq";
+import { SHIPPING_COST } from "@/lib/shipping";
+
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-100";
 
 export default function CartPage() {
   const router = useRouter();
-  const { items, subtotal, discount_amount, total, updateQuantity, removeItem } =
+  const { items, subtotal, discount_amount, total, total_items, updateQuantity, removeItem } =
     useCartStore();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const openModal = useModalStore((s) => s.openModal);
+  // En la hidratación el carrito llega vacío (estado inicial del store);
+  // esperar al montaje evita mostrar un instante "Tu carrito está vacío".
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   function goToCheckout() {
     if (isAuthenticated) router.push("/checkout");
     else openModal("auth", { authTab: "intro", redirectTo: "/checkout" });
   }
 
+  if (!mounted) return <div className="min-h-[60vh]" aria-busy="true" />;
+
   if (items.length === 0) {
     return (
-      <div className="container-main py-20 flex flex-col items-center text-center animate-fade-in">
-        <div className="w-20 h-20 rounded-2xl bg-slate-100 flex items-center justify-center mb-5">
-          <ShoppingBag className="w-9 h-9 text-slate-400" strokeWidth={1.5} />
+      <div className="container-main flex flex-col items-center py-20 text-center motion-safe:animate-fade-in">
+        <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl border border-paper-300 bg-paper-50">
+          <ShoppingBag className="h-9 w-9 text-slate-400" strokeWidth={1.5} aria-hidden="true" />
         </div>
-        <h1 className="text-xl font-bold text-slate-900 mb-2">
-          Tu carrito está vacío
-        </h1>
-        <p className="text-slate-500 text-sm mb-7 max-w-xs">
+        <h1 className="mb-2 text-xl font-semibold text-slate-900">Tu carrito está vacío</h1>
+        <p className="mb-7 max-w-xs text-sm text-slate-500">
           Explorá el catálogo y encontrá lo que necesitás.
         </p>
-        <Link href="/catalogo">
-          <Button variant="primary" size="lg" className="gap-2">
-            Ver catálogo
-            <ArrowRight className="w-4 h-4" />
-          </Button>
+        <Link
+          href="/catalogo"
+          className={`group inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-sm font-semibold text-paper-50 hover:bg-brand-700 ${FOCUS_RING}`}
+        >
+          Ver catálogo
+          <ArrowRight className="h-4 w-4 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" aria-hidden="true" />
         </Link>
       </div>
     );
   }
 
+  // Ahorro por precios anteriores (sólo si el producto lo informa)
+  const savings = items.reduce((acc, i) => {
+    const cmp = i.product.compare_price;
+    return cmp && cmp > i.unit_price ? acc + (cmp - i.unit_price) * i.quantity : acc;
+  }, 0);
+
+  const lines: SummaryLine[] = [
+    { label: `Productos (${total_items})`, value: formatPrice(subtotal) },
+    ...(discount_amount > 0 ? [{ label: "Descuento", value: `−${formatPrice(discount_amount)}`, tone: "discount" as const }] : []),
+    { label: "Envío", value: "Se elige en el siguiente paso", tone: "muted" },
+  ];
+
   return (
-    <div className="container-main py-8 animate-fade-in">
-      <h1 className="text-2xl font-bold text-slate-900 tracking-tight mb-6">
-        Carrito de compras
-        <span className="ml-2 text-base font-normal text-slate-400">
-          ({items.length} {items.length === 1 ? "producto" : "productos"})
-        </span>
-      </h1>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* ---- LISTA DE ÍTEMS ---- */}
-        <div className="lg:col-span-2 space-y-3">
-          {items.map((item) => {
-            const mainImage = item.product.images
-              ?.slice()
-              .sort((a, b) => a.sort_order - b.sort_order)[0];
-
-            return (
-              <div
-                key={item.product_id}
-                className="flex gap-4 bg-white rounded-xl border border-slate-200 shadow-card p-4 transition-shadow hover:shadow-card-hover"
-              >
-                {/* Imagen */}
-                <Link
-                  href={`/producto/${item.product.slug}`}
-                  className="flex-shrink-0"
-                >
-                  <div className="relative w-[72px] h-[72px] rounded-xl overflow-hidden bg-slate-50 border border-slate-100">
-                    {mainImage ? (
-                      <Image
-                        src={getProductImageUrl(mainImage.image_url, {
-                          width: 144,
-                          height: 144,
-                        })}
-                        alt={item.product.name}
-                        fill
-                        className="object-contain p-1.5"
-                        sizes="72px"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Package className="w-7 h-7 text-slate-300" strokeWidth={1} />
-                      </div>
-                    )}
-                  </div>
-                </Link>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0 flex flex-col justify-between">
-                  <div>
-                    <Link
-                      href={`/producto/${item.product.slug}`}
-                      className="text-sm font-medium text-slate-900 hover:text-brand-600 line-clamp-2 transition-colors leading-snug"
-                    >
-                      {item.product.name}
-                    </Link>
-                    {item.product.sku && (
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        SKU: {item.product.sku}
-                      </p>
-                    )}
-                  </div>
-                  <p className="text-brand-700 font-bold text-sm mt-1">
-                    {formatPrice(item.unit_price)}
-                  </p>
-                </div>
-
-                {/* Controles */}
-                <div className="flex flex-col items-end justify-between flex-shrink-0">
-                  {/* Subtotal del ítem */}
-                  <span className="font-bold text-slate-900 text-sm">
-                    {formatPrice(item.unit_price * item.quantity)}
-                  </span>
-
-                  <div className="flex items-center gap-2">
-                    {/* Selector de cantidad */}
-                    <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
-                      <button
-                        onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
-                        className="w-8 h-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors text-lg leading-none font-medium"
-                        aria-label="Disminuir"
-                      >
-                        −
-                      </button>
-                      <span className="w-8 text-center text-sm font-semibold text-slate-900">
-                        {item.quantity}
-                      </span>
-                      <button
-                        onClick={() =>
-                          updateQuantity(item.product_id, item.quantity + 1)
-                        }
-                        disabled={item.quantity >= item.product.stock_quantity}
-                        className="w-8 h-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 transition-colors text-lg leading-none font-medium"
-                        aria-label="Aumentar"
-                      >
-                        +
-                      </button>
-                    </div>
-
-                    {/* Eliminar ítem */}
-                    <button
-                      onClick={() => removeItem(item.product_id)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                      aria-label="Eliminar del carrito"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Link continuar comprando */}
+    <div className="bg-paper-100">
+      <div className="container-main py-8 motion-safe:animate-fade-in lg:py-10">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+          <h1 className="titulo-display text-3xl">
+            Carrito{" "}
+            <span className="text-lg font-normal tracking-normal text-slate-500">
+              ({total_items} {total_items === 1 ? "producto" : "productos"})
+            </span>
+          </h1>
           <Link
             href="/catalogo"
-            className="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700 font-medium transition-colors mt-2"
+            className={`inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-slate-600 hover:text-slate-900 ${FOCUS_RING}`}
           >
-            ← Continuar comprando
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Seguir comprando
           </Link>
         </div>
 
-        {/* ---- RESUMEN DEL PEDIDO ---- */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-card p-5 sticky top-24">
-            <h2 className="font-semibold text-slate-900 mb-5">
-              Resumen del pedido
-            </h2>
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+          {/* ---- PRODUCTOS ---- */}
+          <div className="space-y-4">
+            <section aria-labelledby="carrito-productos" className="rounded-2xl border border-paper-300 bg-paper-50 shadow-card">
+              <h2 id="carrito-productos" className="border-b border-paper-300 px-5 py-4 text-base font-semibold text-slate-900 sm:px-6">
+                Productos
+              </h2>
+              <ul className="divide-y divide-paper-300 px-5 sm:px-6">
+                {items.map((item) => (
+                  <CartLineItem
+                    key={item.product_id}
+                    item={item}
+                    onQuantityChange={(q) => updateQuantity(item.product_id, q)}
+                    onRemove={() => removeItem(item.product_id)}
+                  />
+                ))}
+              </ul>
 
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between text-slate-600">
-                <span>Subtotal</span>
-                <span className="font-medium text-slate-900">{formatPrice(subtotal)}</span>
+              {/* Opciones de entrega: se eligen en el checkout */}
+              <div className="grid gap-4 rounded-b-2xl border-t border-paper-300 bg-paper-100/60 px-5 py-4 text-sm sm:grid-cols-2 sm:px-6">
+                <p className="flex items-start gap-3">
+                  <Truck className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" strokeWidth={1.75} aria-hidden="true" />
+                  <span>
+                    <span className="font-medium text-slate-900">Envío a domicilio</span>
+                    <span className="block text-slate-500">{formatPrice(SHIPPING_COST)} · 3 a 7 días hábiles</span>
+                  </span>
+                </p>
+                <p className="flex items-start gap-3">
+                  <Store className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" strokeWidth={1.75} aria-hidden="true" />
+                  <span>
+                    <span className="font-medium text-slate-900">Retiro en el local</span>{" "}
+                    <span className="font-medium text-emerald-700">Gratis</span>
+                    <span className="block text-slate-500">{STORE_ADDRESS}</span>
+                  </span>
+                </p>
               </div>
-              {discount_amount > 0 && (
-                <div className="flex justify-between text-emerald-600 font-medium">
-                  <span>Descuento</span>
-                  <span>-{formatPrice(discount_amount)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-slate-400 text-xs">
-                <span>Envío</span>
-                <span>Se calcula en el checkout</span>
-              </div>
-            </div>
-
-            <div className="border-t border-slate-100 mt-4 pt-4 flex justify-between font-bold text-slate-900">
-              <span>Total estimado</span>
-              <span className="text-lg">{formatPrice(total)}</span>
-            </div>
-
-            {/* Sin sesión no se navega a /login: se abre el modal de acceso
-                y, al ingresar, se sigue al checkout con el mismo carrito. */}
-            <Button
-              type="button"
-              variant="primary"
-              size="lg"
-              fullWidth
-              className="gap-2 mt-5"
-              onClick={goToCheckout}
-            >
-              Finalizar compra
-              <ArrowRight className="w-4 h-4" aria-hidden="true" />
-            </Button>
-
-            {/* Íconos de pago */}
-            <p className="text-[11px] text-slate-400 text-center mt-4">
-              Pago seguro con{" "}
-              <span className="font-semibold text-slate-500">Mercado Pago</span>
-            </p>
+            </section>
           </div>
+
+          {/* ---- RESUMEN ---- */}
+          <div className="space-y-4 lg:sticky lg:top-[calc(var(--header-h)+1.5rem)]">
+            <OrderSummary
+              lines={lines}
+              total={total}
+              totalNote={savings > 0 ? `Ahorrás ${formatPrice(savings)}` : undefined}
+            >
+              <button
+                type="button"
+                onClick={goToCheckout}
+                className={`group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 text-sm font-semibold text-paper-50 hover:bg-brand-700 motion-safe:transition-colors ${FOCUS_RING}`}
+              >
+                Continuar compra
+                <ArrowRight className="h-4 w-4 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5" aria-hidden="true" />
+              </button>
+            </OrderSummary>
+            <PurchaseAssurances />
+          </div>
+        </div>
+
+        {/* Productos relacionados con el primero del carrito */}
+        <div className="mt-6">
+          <RecommendationSection
+            placement="product"
+            productId={items[0].product_id}
+            title="También te puede interesar"
+            excludeIds={items.map((i) => i.product_id)}
+          />
         </div>
       </div>
     </div>

@@ -107,6 +107,22 @@ const config: Config = {
           "0%":   { opacity: "0", transform: "translateY(18px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        // Franja del carrito: se despliega debajo del header
+        "strip-in": {
+          "0%":   { maxHeight: "0", opacity: "0" },
+          "100%": { maxHeight: "3rem", opacity: "1" },
+        },
+        // Franja del carrito: destello suave al agregar un producto
+        "strip-flash": {
+          "0%":   { backgroundColor: "#C6D2EC" },
+          "100%": { backgroundColor: "transparent" },
+        },
+        // Ícono del carrito: rebote al agregar un producto
+        "cart-bump": {
+          "0%, 100%": { transform: "scale(1)" },
+          "30%":      { transform: "scale(1.25) rotate(-8deg)" },
+          "60%":      { transform: "scale(0.95)" },
+        },
       },
       animation: {
         "slide-in-right": "slide-in-right 0.25s ease-out",
@@ -117,6 +133,9 @@ const config: Config = {
         "drawer-in":      "drawer-in 0.25s ease-out",
         "hero-zoom":      "hero-zoom 8s cubic-bezier(0.25, 0.1, 0.25, 1) forwards",
         "hero-rise":      "hero-rise 0.75s cubic-bezier(0.16, 1, 0.3, 1) both",
+        "strip-in":       "strip-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both",
+        "strip-flash":    "strip-flash 0.9s ease-out",
+        "cart-bump":      "cart-bump 0.5s ease-out",
       },
       // -----------------------------------------------
       // TRANSICIONES

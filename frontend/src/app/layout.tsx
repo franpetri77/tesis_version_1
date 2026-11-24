@@ -8,7 +8,6 @@ import type { Metadata } from "next";
 import "@/styles/globals.css";
 import { Providers } from "./providers";
 import { CartToast } from "@/components/ui/CartToast";
-import { StickyCartBar } from "@/components/ui/StickyCartBar";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { siteUrl } from "@/lib/utils/share";
 
@@ -51,7 +50,6 @@ export default function RootLayout({
           <SplashScreen />
           {children}
           <CartToast />
-          <StickyCartBar />
         </Providers>
       </body>
     </html>

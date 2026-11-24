@@ -99,6 +99,11 @@ export const useCartStore = create<CartState>()(
                 images: product.images,
                 sku: product.sku,
                 stock_quantity: product.stock_quantity,
+                // Datos descriptivos para carrito y checkout (marca, categoría,
+                // precio anterior). Los carritos guardados antes no los tienen.
+                brand: product.brand,
+                category_name: product.category_name,
+                compare_price: product.compare_price,
               },
               quantity: Math.min(quantity, product.stock_quantity),
               unit_price: product.price,

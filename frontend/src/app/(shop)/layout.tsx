@@ -14,7 +14,7 @@ export default function ShopLayout({
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      <main className="flex-1 bg-slate-50">{children}</main>
+      <main className="flex-1 bg-paper-100">{children}</main>
       <Footer />
     </div>
   );

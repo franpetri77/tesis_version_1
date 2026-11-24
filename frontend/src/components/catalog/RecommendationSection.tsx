@@ -8,7 +8,7 @@ import type { Product } from "@/types";
 
 type Props =
   | { placement: "home" }
-  | { placement: "product"; productId: string }
+  | { placement: "product"; productId: string; title?: string; excludeIds?: string[] }
   | { placement: "checkout"; orderId: string };
 
 interface Recommendations {
@@ -66,9 +66,12 @@ export function RecommendationSection(props: Props) {
   }, [key, publicSection, query, waitingForOrder]);
 
   const data = key && result?.key === key ? result.data : null;
-  if (!data?.products.length) return null;
+  // En el carrito no se sugieren productos que ya están en él
+  const exclude = props.placement === "product" ? props.excludeIds ?? [] : [];
+  const products = data?.products.filter((p) => !exclude.includes(p.id)) ?? [];
+  if (!data || products.length === 0) return null;
 
-  const title = props.placement === "product" ? "Productos relacionados"
+  const title = props.placement === "product" ? props.title ?? "Productos relacionados"
     : props.placement === "checkout" && data.matched ? "También te puede interesar"
     : data.matched ? "Recomendados para vos"
     : "Descubrí más productos";
@@ -82,7 +85,7 @@ export function RecommendationSection(props: Props) {
         titleId={titleId}
         title={title}
         subtitle={data.matched ? "Según lo que viste y compraste en la tienda" : "Más productos disponibles en el catálogo"}
-        products={data.products}
+        products={products}
       />
     );
   }
@@ -91,7 +94,7 @@ export function RecommendationSection(props: Props) {
     <section className="border-t border-paper-300 py-10 text-left sm:py-12" aria-labelledby={titleId}>
       <h2 id={titleId} className="titulo-display mb-6 text-2xl text-slate-900 sm:mb-8 sm:text-3xl">{title}</h2>
       <ul className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
-        {data.products.map((product) => (
+        {products.map((product) => (
           <li key={product.id} className="min-w-0"><ProductCard product={product} /></li>
         ))}
       </ul>

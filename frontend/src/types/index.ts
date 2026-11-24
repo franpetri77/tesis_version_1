@@ -113,7 +113,7 @@ export interface StockMovement {
 
 export interface CartItem {
   product_id: string;
-  product: Pick<Product, "id" | "name" | "slug" | "price" | "images" | "sku" | "stock_quantity" | "brand">;
+  product: Pick<Product, "id" | "name" | "slug" | "price" | "images" | "sku" | "stock_quantity" | "brand" | "category_name" | "compare_price">;
   quantity: number;
   unit_price: number;
 }

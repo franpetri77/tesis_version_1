@@ -36,8 +36,13 @@
        da un aire clínico; este tono deja respirar las fotos de
        producto y sostiene mejor las superficies blancas encima. */
     --bg-page: #F7F6F3;
-    /* Main header (64px) + nav strip (40px) = 104px sticky total */
-    --header-h: 65px; /* header de una sola fila (h-16 + borde) */
+    /* Header de una sola fila (h-16 + borde) */
+    --header-h: 65px;
+  }
+
+  /* Con la franja del carrito visible (CartStrip, h-11 + borde) */
+  body[data-cart-strip] {
+    --header-h: 110px;
   }
 
   html {

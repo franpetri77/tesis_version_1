@@ -18,6 +18,7 @@ import {
   LogOut, ShoppingBag, ChevronDown, ShieldCheck, LayoutGrid, ArrowRight,
 } from "lucide-react";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { CartStrip } from "@/components/layout/CartStrip";
 import { useState, useRef, useEffect } from "react";
 import { useCartStore } from "@/stores/cartStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -350,6 +351,9 @@ export function Header() {
       <div className="container-main pb-3 md:hidden">
         <SearchForm value={searchQuery} onChange={setSearchQuery} onSubmit={handleSearch} placeholder="Buscar productos o marcas…" />
       </div>
+
+      {/* ── Franja del carrito (donde antes estaba la tira de categorías) ── */}
+      <CartStrip />
 
       {/* ── Menú mobile desplegable ── */}
       {isMobileMenuOpen && (

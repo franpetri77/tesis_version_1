@@ -95,6 +95,16 @@ const config: Config = {
           "0%":   { transform: "translateX(-100%)" },
           "100%": { transform: "translateX(0)" },
         },
+        // Portada: acercamiento lento de la foto mientras el slide está activo
+        "hero-zoom": {
+          "0%":   { transform: "scale(1.02) translate3d(0, 0, 0)" },
+          "100%": { transform: "scale(1.12) translate3d(-1.5%, -1%, 0)" },
+        },
+        // Portada: el texto sube y aparece escalonado al entrar el slide
+        "hero-rise": {
+          "0%":   { opacity: "0", transform: "translateY(18px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "slide-in-right": "slide-in-right 0.25s ease-out",
@@ -103,6 +113,8 @@ const config: Config = {
         "shrink":         "shrink 3s linear forwards",
         "slide-up":       "slide-up 0.2s ease-out",
         "drawer-in":      "drawer-in 0.25s ease-out",
+        "hero-zoom":      "hero-zoom 8s cubic-bezier(0.25, 0.1, 0.25, 1) forwards",
+        "hero-rise":      "hero-rise 0.75s cubic-bezier(0.16, 1, 0.3, 1) both",
       },
       // -----------------------------------------------
       // TRANSICIONES
